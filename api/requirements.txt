@@ -1,0 +1,34 @@
+# ==== Web / API ====
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+
+# ==== Auth ====
+passlib[bcrypt]
+pyjwt
+
+# ==== DB (Postgres) ====
+sqlalchemy
+alembic
+psycopg[binary]
+
+# ==== Vector store ====
+qdrant-client
+
+# ==== Media / pipeline ====
+ffmpeg-python
+pillow
+
+# ==== ML providers (chốt phiên bản cụ thể ở /write-hld) ====
+# open-clip-torch          # embedding ảnh (multilingual CLIP)
+# sentence-transformers    # embedding text tiếng Việt
+# faster-whisper           # ASR transcript (BR-208)
+# transformers             # captioning BLIP-2/VLM (BR-203)
+# google-generativeai      # LLM free-tier (nếu dùng Gemini)
+
+# ==== Dev ====
+pytest
+httpx
+ruff

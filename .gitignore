@@ -1,0 +1,38 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Env & secrets ----
+.env
+.env.local
+*.key
+*.pem
+
+# ---- Node / frontend ----
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+npm-debug.log*
+
+# ---- Data artifacts (KHÔNG commit media/embedding nặng) ----
+data/**
+!data/**/.gitkeep
+
+# ---- Models / caches ----
+*.pt
+*.onnx
+.cache/
+models/
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store
