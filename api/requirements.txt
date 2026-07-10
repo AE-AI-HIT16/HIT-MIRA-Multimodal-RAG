@@ -17,6 +17,9 @@ psycopg[binary]
 # ==== Vector store ====
 qdrant-client
 
+# ==== Object storage (media gốc) ====
+minio                      # backend MinIO/S3 khi STORAGE_BACKEND=minio [P0-1]
+
 # ==== Media / pipeline ====
 ffmpeg-python
 pillow

@@ -29,29 +29,43 @@
 | Service | Image | Port | Volume | Healthcheck |
 |---|---|---|---|---|
 | `postgres` | `postgres:16-alpine` | 5432 | `pgdata:/var/lib/postgresql/data` | `pg_isready -U hit` |
-| `qdrant` | `qdrant/qdrant:latest` | 6333 (REST), 6334 (gRPC) | `qdrant_storage:/qdrant/storage` | `curl -f localhost:6333/readyz` |
+| `qdrant` | `qdrant/qdrant:latest` | 6333 (REST), 6334 (gRPC) | `qdrant_storage:/qdrant/storage` | tcp 6333 |
+| `minio` | `minio/minio:latest` | 9000 (S3), 9001 (console) | `minio_data:/data` | `mc ready local` |
 | `api` | build `api/Dockerfile` | 8000 | `./data:/app/data` | `curl -f localhost:8000/health` |
 
 **Biến môi trường (`.env`, xem `.env.example`):**
 ```
 DATABASE_URL=postgresql+psycopg://hit:hit@postgres:5432/hit_mira
 QDRANT_URL=http://qdrant:6333
+STORAGE_BACKEND=minio            # dev/test không docker để mặc định filesystem
+MINIO_ENDPOINT=minio:9000        # trong docker; ngoài host là localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=hit-mira-media
 LLM_API_KEY=<gemini key>
 ```
 
+**Object storage (P0-1):** media gốc lưu qua `shared/providers/storage.py::StorageProvider`
+(hạ tầng CHO SẴN, cùng nhóm với `QdrantStore`). Hai backend một interface:
+`FilesystemStorage` (mặc định dev/test, zero-config — pytest KHÔNG cần dựng MinIO, giống
+sqlite in-memory thay Postgres) và `MinioStorage` (bật khi `STORAGE_BACKEND=minio`).
+Factory `app/deps.py::get_storage` chọn backend theo config; bucket tự tạo qua
+`ensure_bucket()` lần đầu chạm. Ingest (P1-3) `store.put`, media (P1-2) `store.open/exists`.
+
 **Hành vi:**
-- `api` phụ thuộc `postgres` + `qdrant` với `condition: service_healthy`.
-- Không có `.env` → api vẫn boot với default (`sqlite:///./data/dev.db` + qdrant localhost) — dev không docker vẫn chạy được.
+- `api` phụ thuộc `postgres` + `qdrant` + `minio` với `condition: service_healthy`.
+- Không có `.env` → api vẫn boot với default (`sqlite:///./data/dev.db` + qdrant localhost + storage filesystem) — dev không docker vẫn chạy được.
 - Model nặng (torch/faster-whisper) KHÔNG bắt buộc trong image v1 — pipeline offline chạy ngoài container được (CLI trên host có GPU).
 
 **Edge:**
-- Qdrant chưa sẵn sàng khi api boot → api không được crash: provider lazy-init, chỉ connect khi request đầu chạm.
-- Volume mất → Qdrant tự tạo collection lại nhờ `ensure_collection()` (P1-8), nhưng dữ liệu phải re-index — ghi rõ trong README.
+- Qdrant/MinIO chưa sẵn sàng khi api boot → api không được crash: provider lazy-init, chỉ connect khi request đầu chạm.
+- Volume mất → Qdrant tự tạo collection lại nhờ `ensure_collection()` (P1-8), MinIO tự tạo bucket lại nhờ `ensure_bucket()`, nhưng dữ liệu phải re-index / re-upload — ghi rõ trong README.
 
 **DoD / Test:**
-- `docker compose up -d` → `docker compose ps` cả 3 healthy.
+- `docker compose up -d` → `docker compose ps` cả 4 healthy.
 - `curl localhost:8000/health` → `{"status":"ok","env":"dev"}`.
 - `curl localhost:6333/collections` → 200.
+- MinIO console `localhost:9001` mở được; bucket `hit-mira-media` tồn tại sau request ingest đầu.
 
 ---
 

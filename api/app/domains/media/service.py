@@ -5,6 +5,11 @@ Hợp đồng — sinh viên implement:
   cut_clip   : (video, timestamp) → clip 3s trước + 3s sau (ffmpeg); sát biên → co lại
   stream_range: stream/seek video tới timestamp (HTTP range)
   Pass : tests/test_media.py
+
+Đọc bytes qua storage provider (KHÔNG mở đường dẫn đĩa trực tiếp — để filesystem/minio
+đổi được): inject `store: StorageProvider = Depends(get_storage)`, đọc theo
+`media_assets.storage_key` → `store.open(key)`; `store.exists(key)` False mà bản ghi còn
+tồn tại → file hỏng (500 + needs_review=True), khác với id không có (404).
 """
 from __future__ import annotations
 

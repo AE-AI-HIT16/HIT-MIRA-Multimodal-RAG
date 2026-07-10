@@ -5,6 +5,10 @@ Hợp đồng — sinh viên implement:
   load_regulations : nạp văn bản nội quy → tách điều/khoản (rule_chunks)
   Ràng buộc: mọi ingestion phải qua cổng require_consent (BR-101) — đã có ở deps.
   Pass : tests/test_ingest.py
+
+Ghi file gốc qua storage provider (inject `store: StorageProvider = Depends(get_storage)`):
+`store.put(key, data)` với key logic (vd 'media/<id>/<filename>'), rồi lưu key trả về
+vào `media_assets.storage_key`. get_media đọc lại đúng key đó.
 """
 from __future__ import annotations
 
