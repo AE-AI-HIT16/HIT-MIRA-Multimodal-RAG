@@ -10,13 +10,12 @@ class RegulationTool(BaseTool):
     name = "regulation"
     description = "Tra cứu điều/khoản nội quy CLB để trả lời câu hỏi tra cứu/tình huống."
 
-    def run(self, query: str, **kwargs: Any) -> ToolResult:
-        """Gọi retrieval nội quy rồi đóng gói kết quả.
+    def run(self, query: str, *, top_k: int = 5, threshold: float = 0.0,
+            **kwargs: Any) -> ToolResult:
+        """Gọi retrieval nội quy rồi đóng gói kết quả. [T-34]"""
+        from app.domains.retrieval import service as retrieval
 
-        TODO(sinh viên): gọi domains.retrieval.service.retrieve_regulations(...)
-        và map sang ToolResult(source="regulation", items=[rule_chunk...]).
-        """
-        raise NotImplementedError("US-307.1: nối RegulationTool với retrieval nội quy")
-
-
-# TODO(sinh viên): registry.register(RegulationTool()) khi retrieval sẵn sàng.
+        hits = retrieval.rank(
+            retrieval.retrieve_regulations(query, top_k=top_k), threshold=threshold,
+        )
+        return ToolResult(source="regulation", items=hits)

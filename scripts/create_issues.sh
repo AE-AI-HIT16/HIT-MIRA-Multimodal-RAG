@@ -79,10 +79,10 @@ T-12|Caption ảnh/frame|role/DE,epic/pipeline,prio/should,sprint/2|Owner DE · 
 T-13|Sinh embedding ảnh/text|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/embed.py · depends T-20 · DoD: test_embed_same_dim
 T-14|Build/upsert Qdrant 3 collection|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/index.py · depends T-13 · DoD: test_index_upsert (sai chiều→từ chối)
 T-15|Orchestrator run.py|role/DE,epic/pipeline,prio/must,sprint/3|Owner DE · pipeline/run.py · depends T-10..14 · DoD: 1 video chạy trọn, lỗi 1 mục không chặn batch
-T-20|Embeddings CLIP ảnh + text VN|role/AIE-1,epic/providers,prio/must,sprint/1|Owner AIE-1 · providers/embeddings.py · DoD: embed cùng dim, text→ảnh liên quan
-T-21|ASR faster-whisper VN|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/asr.py · DoD: audio→segment text+timestamp
-T-22|Captioner BLIP-2/VLM|role/AIE-2,epic/providers,prio/should,sprint/2|Owner AIE-2 · providers/captioner.py · DoD: ảnh→caption tiếng Việt
-T-23|LLM Gemini free-tier|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/llm.py · DoD: generate(prompt) trả text ổn định
+T-20|Embeddings Jina-CLIP v2 (ảnh) + Vietnamese_Embedding (text)|role/AIE-1,epic/providers,prio/must,sprint/1|Owner AIE-1 · providers/embeddings.py · DoD: embed cùng dim, text→ảnh liên quan
+T-21|ASR PhoWhisper-large (backend faster-whisper)|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/asr.py · DoD: audio→segment text+timestamp
+T-22|Captioner Gemini 2.5 Flash Vision|role/AIE-2,epic/providers,prio/should,sprint/2|Owner AIE-2 · providers/captioner.py · DoD: ảnh→caption tiếng Việt
+T-23|LLM Gemini 2.5 Flash / Flash-Lite free-tier|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/llm.py · DoD: generate(prompt) trả text ổn định
 T-30|retrieve_media (embed→search)|role/AIE-1,epic/retrieval,prio/must,sprint/3|Owner AIE-1 · domains/retrieval · depends T-14,T-20 · DoD: TC-301 test_recall_at_k
 T-31|retrieve_regulations|role/AIE-1,epic/retrieval,prio/must,sprint/3|Owner AIE-1 · domains/retrieval · depends T-08,T-14 · DoD: TC-307
 T-32|retrieve_by_transcript + gộp keyframe|role/AIE-1,epic/retrieval,prio/must,sprint/3|Owner AIE-1 · domains/retrieval · depends T-11,T-14 · DoD: TC-308 (không nhân đôi video)
@@ -99,7 +99,7 @@ T-53|Lưu conversations/messages|role/AIE-2,epic/chat-app,prio/should,sprint/4|O
 T-60|Init Next.js + khung chat|role/AIE-2,epic/frontend,prio/must,sprint/5|Owner AIE-2 · web/ · depends T-50 · DoD: TC-501/502/505
 T-61|Render kết quả đa phương thức inline|role/shared,epic/frontend,prio/must,sprint/5|Owner shared · web/ · depends T-52,T-60 · DoD: TC-503 (ảnh+clip+link)
 T-62|Màn admin (nạp/pipeline/eval)|role/DE,epic/frontend,prio/should,sprint/5|Owner DE · web/ · depends T-07,T-71 · DoD: thao tác nạp/chạy pipeline/xem eval
-T-70|Bộ eval_queries có nhãn|role/AIE-1,epic/eval,prio/must,sprint/5|Owner AIE-1 · data/eval + models · depends T-05 · DoD: TC-601 (≥N truy vấn có đáp án)
+T-70|Bộ eval_queries có nhãn (~30-50 truy vấn, LÀM TRƯỚC benchmark)|role/AIE-1,epic/eval,prio/must,sprint/1|Owner AIE-1 · data/eval + models · depends T-05 · DoD: TC-601 (≥N truy vấn có đáp án)
 T-71|Recall@k + MRR|role/AIE-1,epic/eval,prio/must,sprint/5|Owner AIE-1 · domains/eval · depends T-30,T-70 · DoD: TC-602 test_recall_and_mrr_match_by_hand
 T-72|Đo latency avg/p95|role/AIE-1,epic/eval,prio/should,sprint/5|Owner AIE-1 · domains/eval · depends T-50 · DoD: TC-603 (avg ≤5s + p95)
 T-73|Eval nội quy 3 chỉ số|role/AIE-1,epic/eval,prio/should,sprint/5|Owner AIE-1 · domains/eval · depends T-40,T-42 · DoD: TC-606

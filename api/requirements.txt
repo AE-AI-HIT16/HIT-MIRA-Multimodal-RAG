@@ -22,11 +22,11 @@ ffmpeg-python
 pillow
 
 # ==== ML providers (chốt phiên bản cụ thể ở /write-hld) ====
-# open-clip-torch          # embedding ảnh (multilingual CLIP)
-# sentence-transformers    # embedding text tiếng Việt
-# faster-whisper           # ASR transcript (BR-208)
-# transformers             # captioning BLIP-2/VLM (BR-203)
-# google-generativeai      # LLM free-tier (nếu dùng Gemini)
+sentence-transformers      # embedding: Jina-CLIP v2 (ảnh) + Vietnamese_Embedding (text) [T-20]
+einops                     # phụ thuộc runtime của jina-clip-v2
+google-generativeai        # LLM free-tier Gemini 2.5 Flash/Flash-Lite [T-23]
+# faster-whisper           # ASR PhoWhisper-large qua backend CTranslate2 (BR-208) [T-21]
+# transformers             # (kèm sentence-transformers) — dùng khi cần trực tiếp
 
 # ==== Dev ====
 pytest
