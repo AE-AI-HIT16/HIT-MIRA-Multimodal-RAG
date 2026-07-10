@@ -64,6 +64,24 @@ def get_captioner():
 
 
 @lru_cache
+def get_storage():
+    """Object storage cho media gốc. filesystem (dev/test) | minio (docker/prod). [P0-1]"""
+    if settings.storage_backend == "minio":
+        from shared.providers.storage import MinioStorage
+
+        return MinioStorage(
+            settings.minio_endpoint,
+            settings.minio_access_key,
+            settings.minio_secret_key,
+            settings.minio_bucket,
+            secure=settings.minio_secure,
+        )
+    from shared.providers.storage import FilesystemStorage
+
+    return FilesystemStorage(settings.data_dir)
+
+
+@lru_cache
 def get_media_store():
     """QdrantStore collection media, chiều = dim của image embedder. [T-30]"""
     from shared.vectorstore.qdrant import QdrantStore

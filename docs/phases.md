@@ -24,14 +24,14 @@
 
 **Mục tiêu Phase:** dựng chỗ chạy thật (Postgres + Qdrant + CI) và 4 adapter model sau lớp abstraction. Đây là điều kiện để mọi Phase sau chạy end-to-end với dữ liệu thật.
 
-**Cổng ra Phase (exit gate):** `docker compose up` → 2 service healthy, `GET /health` OK · `pytest` xanh trong CI · 4 provider khởi tạo được (có key/model thật).
+**Cổng ra Phase (exit gate):** `docker compose up` → 3 service healthy, `GET /health` OK · `pytest` xanh trong CI · 4 provider khởi tạo được (có key/model thật).
 
 ### P0-1 · Hạ tầng container `[T-01]`
-- **File:** `docker-compose.yml` (đang rỗng)
-- **Mục tiêu:** postgres + qdrant + api + (web) + volume bền, mạng nội bộ.
-- **Output:** service `postgres:16` (volume `pgdata`), `qdrant` (volume `qdrant_storage`, port 6333), `api` (build `api/Dockerfile`, env từ `.env`), healthcheck cho từng service.
-- **Edge:** thiếu `.env` → dùng default trong `config.py` (sqlite + qdrant localhost); qdrant chưa sẵn sàng → api retry connect.
-- **DoD:** `docker compose up` → postgres+qdrant healthy, `curl /health` trả `{"status":"ok"}`.
+- **File:** `docker-compose.yml`
+- **Mục tiêu:** postgres + qdrant + minio + api + (web) + volume bền, mạng nội bộ.
+- **Output:** service `postgres:16` (volume `pgdata`), `qdrant` (volume `qdrant_storage`, port 6333), `minio` (volume `minio_data`, port 9000/9001), `api` (build `api/Dockerfile`, env từ `.env`), healthcheck cho từng service. Media gốc lưu MinIO qua `shared/providers/storage.py` (filesystem cho dev/test).
+- **Edge:** thiếu `.env` → dùng default trong `config.py` (sqlite + qdrant localhost + storage filesystem); qdrant/minio chưa sẵn sàng → api lazy-connect ở request đầu.
+- **DoD:** `docker compose up` → postgres+qdrant+minio healthy, `curl /health` trả `{"status":"ok"}`.
 
 ### P0-2 · Migration schema `[T-02]`
 - **File:** `shared/db/migrations/` (Alembic)

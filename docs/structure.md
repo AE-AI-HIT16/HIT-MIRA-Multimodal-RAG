@@ -43,7 +43,8 @@ HIT-MIRA-Multimodal-RAG/
 │   ├── shared/                   # ── DÙNG CHUNG app + pipeline ──
 │   │   ├── db/  (session · models · migrations/)   # 19 bảng Postgres — PRD §5
 │   │   ├── vectorstore/qdrant.py                    # 3 collection: media/transcript/nội quy
-│   │   └── providers/  (embeddings · asr · captioner · llm)   # adapter đổi được
+│   │   └── providers/  (embeddings · asr · captioner · llm · storage)  # adapter đổi được
+│   │                                               # storage: filesystem (dev/test) | MinIO (docker/prod)
 │   │
 │   ├── tests/  ·  requirements.txt  ·  Dockerfile
 │
@@ -51,7 +52,7 @@ HIT-MIRA-Multimodal-RAG/
 ├── data/                         # ARTIFACTS (gitignored, giữ .gitkeep)
 │   ├── raw/{images,videos,posts} · frames · transcripts · clips · regulations · processed · eval
 ├── docs/                         # brd.md · prd.md · structure.md · (hld.md)
-├── docker-compose.yml            # postgres + qdrant + api + web
+├── docker-compose.yml            # postgres + qdrant + minio + api (+ web)
 └── .env.example
 ```
 

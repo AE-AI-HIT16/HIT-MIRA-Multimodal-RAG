@@ -23,8 +23,14 @@ class Settings(BaseSettings):
     qdrant_collection_transcript: str = "video_transcript"
     qdrant_collection_regulation: str = "regulation_text"
 
-    # Storage
+    # Storage — media gốc. filesystem (dev/test, zero-config) | minio (docker/prod).
+    storage_backend: str = "filesystem"
     data_dir: str = "./data"
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "hit-mira-media"
+    minio_secure: bool = False
 
     # LLM provider (free-tier, sau lớp abstraction)
     llm_provider: str = "gemini"
