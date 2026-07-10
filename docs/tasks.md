@@ -50,10 +50,10 @@
 ### E3 · Providers / models (AIE)
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
-| T-20 | Embeddings: CLIP ảnh + text VN | AIE-1 | `providers/embeddings.py` | — | embed cùng dim; query text→ảnh liên quan | Must | 1 |
-| T-21 | ASR: faster-whisper (VN) | AIE-2 | `providers/asr.py` | — | audio mẫu → segment có text+timestamp | Must | 1 |
-| T-22 | Captioner: BLIP-2/VLM | AIE-2 | `providers/captioner.py` | — | ảnh mẫu → caption tiếng Việt | Should | 2 |
-| T-23 | LLM: Gemini free-tier | AIE-2 | `providers/llm.py` | — | `generate(prompt)` trả text ổn định | Must | 1 |
+| T-20 | Embeddings: **Jina-CLIP v2** (ảnh) + **AITeamVN/Vietnamese_Embedding** (text) | AIE-1 | `providers/embeddings.py` | — | embed cùng dim; query text→ảnh liên quan | Must | 1 |
+| T-21 | ASR: **PhoWhisper-large** (backend CTranslate2/faster-whisper) | AIE-2 | `providers/asr.py` | — | audio mẫu → segment có text+timestamp | Must | 1 |
+| T-22 | Captioner: **Gemini 2.5 Flash Vision** (VLM) | AIE-2 | `providers/captioner.py` | — | ảnh mẫu → caption tiếng Việt | Should | 2 |
+| T-23 | LLM: **Gemini 2.5 Flash / Flash-Lite** free-tier | AIE-2 | `providers/llm.py` | — | `generate(prompt)` trả text ổn định | Must | 1 |
 
 ### E4 · Retrieval (AIE-1)
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
@@ -90,7 +90,7 @@
 ### E8 · Eval & QA (AIE-1)
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
-| T-70 | Bộ `eval_queries` có nhãn | AIE-1 | `data/eval/` + `models` | T-05 | `TC-601`: ≥N truy vấn có đáp án | Must | 5 |
+| T-70 | Bộ `eval_queries` có nhãn (~30–50 truy vấn) — **làm trước benchmark model** | AIE-1 | `data/eval/` + `models` | T-05 | `TC-601`: ≥N truy vấn có đáp án | Must | 1–2 |
 | T-71 | Recall@k + MRR | AIE-1 | `domains/eval/service.py` | T-30,T-70 | `TC-602` `test_recall_and_mrr_match_by_hand` | Must | 5 |
 | T-72 | Đo latency (avg, p95) | AIE-1 | `domains/eval/service.py` | T-50 | `TC-603`: avg ≤5s có p95 | Should | 5 |
 | T-73 | Eval nội quy (điều khoản/groundedness/routing) | AIE-1 | `domains/eval/service.py` | T-40,T-42 | `TC-606`: 3 chỉ số | Should | 5 |
@@ -101,10 +101,11 @@
 ```
 Sprint 1  Nền móng (song song 3 vai)
   DE : T-01 infra · T-05 models
-  AIE-1: T-20 embeddings
+  AIE-1: T-20 embeddings · T-70 bộ eval có nhãn (bắt đầu — cần cho benchmark)
   AIE-2: T-21 ASR · T-23 LLM · T-51 auth
 Sprint 2  Pipeline dữ liệu (DE nặng)
   DE : T-06 storage · T-07 ingest · T-08 nội quy · T-10..14 pipeline · T-02 alembic
+  AIE-1: chốt T-70 → benchmark Jina-CLIP v2 vs fallback + xác nhận Vietnamese_Embedding (BR-601/602)
   AIE: T-22 caption · hoàn thiện provider
 Sprint 3  Truy xuất + Router
   DE : T-15 orchestrator
@@ -114,7 +115,7 @@ Sprint 4  RAG + Chat
   AIE-2: T-41..43 answer · T-50 chat · T-52 media · T-53 messages
 Sprint 5  Frontend + Đánh giá + Demo
   AIE-2/shared: T-60..62 web
-  AIE-1: T-70..73 eval
+  AIE-1: T-71..73 eval (T-70 đã làm ở sprint 1–2)
   all : T-74 demo checklist
 ```
 

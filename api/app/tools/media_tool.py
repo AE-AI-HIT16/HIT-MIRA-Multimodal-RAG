@@ -10,13 +10,10 @@ class MediaTool(BaseTool):
     name = "media"
     description = "Tìm ảnh/sự kiện/clip video theo text hoặc ảnh, gồm cả lời nói (transcript)."
 
-    def run(self, query: str, **kwargs: Any) -> ToolResult:
-        """Gọi retrieval media rồi đóng gói kết quả.
+    def run(self, query: str, *, top_k: int = 5, threshold: float = 0.0,
+            **kwargs: Any) -> ToolResult:
+        """Gọi retrieval media (+ transcript) rồi đóng gói kết quả. [T-34]"""
+        from app.domains.retrieval import service as retrieval
 
-        TODO(sinh viên): gọi domains.retrieval.service.retrieve_media(...) và
-        map sang ToolResult(source="media", items=[...]).
-        """
-        raise NotImplementedError("US-301.1: nối MediaTool với retrieval media")
-
-
-# TODO(sinh viên): registry.register(MediaTool()) khi retrieval sẵn sàng.
+        hits = retrieval.rank(retrieval.retrieve_media(query, top_k=top_k), threshold=threshold)
+        return ToolResult(source="media", items=hits)
