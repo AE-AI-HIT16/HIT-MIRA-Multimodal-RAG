@@ -1,15 +1,27 @@
 [project]
-name = "deep-agent-template"
+name = "hit-mira-chatbot"
 version = "0.1.0"
-description = "Deep Agent template for LangSmith/LangGraph deployment"
+description = "HIT-MIRA ChatBot – LangGraph-based multi-agent chatbot with MCP tool integration"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "deepagents>=0.4.0",
+    # ---- LangChain / LangGraph core ----
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
     "langgraph>=1.0.0",
     "langgraph-sdk>=0.1.0",
     "langsmith>=0.8.0",
+
+    # ---- MCP integration ----
+    "langchain-mcp-adapters>=0.1.0",
+
+    # ---- Model providers ----
+    "langchain-anthropic>=0.3.0",
+
+    # ---- Config & utilities ----
     "python-dotenv>=1.0.1",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
 ]
 
 [build-system]
@@ -25,5 +37,17 @@ dev = [
 ]
 
 [tool.uv.build-backend]
-module-name = "deep_agent"
-source-include = ["langgraph.json", ".env.example", "Makefile"]
+module-name = "src"
+source-include = ["langgraph.json", ".env.example", "Makefile", "Resources/**"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
