@@ -69,13 +69,13 @@ export function Composer({
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
-      <div className="mb-2 flex flex-wrap gap-1 px-1 pt-1">
+    <div className="rounded-2xl border border-zinc-200/90 bg-white p-2.5 shadow-[0_16px_50px_-18px_rgba(24,24,27,0.2)] ring-1 ring-black/[0.02]">
+      <div className="mb-2.5 flex flex-wrap gap-1 px-1 pt-0.5">
         {MODES.map((m) => (
           <button
             key={m.key}
             onClick={() => onMode(m.key)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
               mode === m.key
                 ? "bg-accent-soft text-accent-ink"
                 : "text-zinc-400 hover:text-zinc-600"
@@ -114,7 +114,7 @@ export function Composer({
         <button
           onClick={() => fileRef.current?.click()}
           aria-label="Đính kèm ảnh"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
         >
           <ImageIcon width={18} height={18} />
         </button>
@@ -125,13 +125,13 @@ export function Composer({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKey}
           placeholder={image ? "Thêm mô tả (tùy chọn)…" : "Hỏi về ảnh, video hoặc nội quy CLB…"}
-          className="scroll-slim max-h-44 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-400"
+          className="scroll-slim max-h-44 min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-400"
         />
         <button
           onClick={() => canSend && onSubmit()}
           disabled={!canSend}
           aria-label="Gửi"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-white transition-all enabled:hover:bg-accent-ink enabled:active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-white transition-all enabled:hover:bg-accent-ink enabled:active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
         >
           <ArrowUp width={18} height={18} />
         </button>

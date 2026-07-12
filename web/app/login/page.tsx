@@ -85,7 +85,7 @@ export default function LoginPage() {
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-accent-ring"
+                  className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 shadow-sm text-sm outline-none transition-colors focus:border-accent-ring"
                   placeholder="Nguyễn Văn A"
                 />
               </div>
@@ -101,7 +101,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-accent-ring"
+                className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 shadow-sm text-sm outline-none transition-colors focus:border-accent-ring"
                 placeholder="ban@hit.edu.vn"
               />
             </div>
@@ -116,7 +116,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-accent-ring"
+                className="rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 shadow-sm text-sm outline-none transition-colors focus:border-accent-ring"
                 placeholder="••••••••"
               />
             </div>
@@ -128,7 +128,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-white transition-all hover:bg-accent-ink active:scale-[0.99] disabled:opacity-60"
+              className="w-full rounded-xl bg-accent py-3 shadow-sm text-sm font-medium text-white transition-all hover:bg-accent-ink active:scale-[0.99] disabled:opacity-60"
             >
               {busy ? "Đang xử lý…" : tab === "login" ? "Đăng nhập" : "Tạo tài khoản"}
             </button>

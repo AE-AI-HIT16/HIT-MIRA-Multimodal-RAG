@@ -22,16 +22,16 @@ export function TopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-20 border-b border-zinc-200 bg-[var(--bg)]/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
+    <header className="sticky top-0 z-30 border-b border-zinc-200/80 bg-white/85 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="HIT" className="h-7 w-7 rounded-lg" />
-          <span className="font-mono text-sm font-bold tracking-tight text-zinc-900">
+          <img src="/logo.png" alt="HIT" className="h-8 w-8 rounded-xl shadow-sm" />
+          <span className="text-sm font-bold tracking-tight text-zinc-900">
             HIT<span className="text-accent">·</span>MIRA
           </span>
-          <span className="hidden text-xs text-zinc-400 sm:inline">
-            Trợ lý đa phương thức
+          <span className="hidden border-l border-zinc-200 pl-2.5 text-xs text-zinc-400 sm:inline">
+            Kho tri thức CLB
           </span>
         </Link>
 
