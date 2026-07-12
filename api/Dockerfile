@@ -4,7 +4,7 @@ WORKDIR /app
 
 # ffmpeg cần cho trích frame + cắt clip (BR-201/403)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

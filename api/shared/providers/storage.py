@@ -78,6 +78,7 @@ class MinioStorage(StorageProvider):
     def __init__(self, endpoint: str, access_key: str, secret_key: str,
                  bucket: str, *, secure: bool = False, client: object | None = None) -> None:
         self.bucket = bucket
+        self._bucket_ready = False
         if client is not None:  # inject fake khi test
             self._client = client
             return
@@ -85,15 +86,24 @@ class MinioStorage(StorageProvider):
 
         self._client = Minio(endpoint, access_key=access_key,
                              secret_key=secret_key, secure=secure)
-        self.ensure_bucket()
+        # KHÔNG gọi ensure_bucket() ở đây — lazy-init khi request đầu chạm
+        # để api không crash nếu MinIO chưa sẵn sàng lúc boot. [P0-1 edge]
 
     def ensure_bucket(self) -> None:
+        """Tạo bucket nếu chưa có. Gọi lazy lần đầu dùng, hoặc gọi tay khi re-init."""
         if not self._client.bucket_exists(self.bucket):
             self._client.make_bucket(self.bucket)
+        self._bucket_ready = True
+
+    def _lazy_ensure(self) -> None:
+        """Đảm bảo bucket tồn tại (gọi 1 lần, sau đó skip)."""
+        if not self._bucket_ready:
+            self.ensure_bucket()
 
     def put(self, key: str, data: bytes, *, content_type: str | None = None) -> str:
         import io
 
+        self._lazy_ensure()
         self._client.put_object(
             self.bucket, key, io.BytesIO(data), length=len(data),
             content_type=content_type or "application/octet-stream",
@@ -105,6 +115,7 @@ class MinioStorage(StorageProvider):
 
         from minio.error import S3Error
 
+        self._lazy_ensure()
         try:
             resp = self._client.get_object(self.bucket, key)
         except S3Error as exc:  # object không tồn tại → đồng nhất với filesystem
@@ -118,6 +129,7 @@ class MinioStorage(StorageProvider):
     def exists(self, key: str) -> bool:
         from minio.error import S3Error
 
+        self._lazy_ensure()
         try:
             self._client.stat_object(self.bucket, key)
             return True
@@ -125,4 +137,5 @@ class MinioStorage(StorageProvider):
             return False
 
     def delete(self, key: str) -> None:
+        self._lazy_ensure()
         self._client.remove_object(self.bucket, key)
