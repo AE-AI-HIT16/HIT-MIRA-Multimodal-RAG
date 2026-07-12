@@ -123,7 +123,7 @@ function VideoFrameCard({ item }: { item: ChatItem }) {
   }
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+    <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       {playing ? (
         <video
           key={activeTs}
@@ -197,7 +197,7 @@ export function ResultCard({ item }: { item: ChatItem }) {
       .map((m) => m.start_sec)
       .filter((s): s is number => s != null);
     return (
-      <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+      <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
         {vid != null && (
           <video controls preload="metadata" className="aspect-video w-full bg-black">
             <source src={streamUrl(vid)} />
@@ -237,7 +237,7 @@ export function ResultCard({ item }: { item: ChatItem }) {
           ? `Điều ${item.article}`
           : "Nội quy";
     return (
-      <article className="rounded-2xl border border-zinc-200 bg-white p-4">
+      <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
         <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">
           <BookIcon width={13} height={13} /> {label}
         </div>
@@ -256,7 +256,7 @@ export function ResultCard({ item }: { item: ChatItem }) {
   // 4) Ảnh
   const id = item.media_id ?? item.id;
   return (
-    <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+    <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       {id != null && (
         <a href={mediaUrl(id)} target="_blank" rel="noreferrer">
           <MediaImage src={mediaUrl(id)} alt={item.caption || "ảnh kết quả"} />

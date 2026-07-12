@@ -34,7 +34,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-zinc-200 py-8">
+    <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7">
       <h2 className="text-lg font-semibold tracking-tight text-zinc-900">{title}</h2>
       {desc && <p className="mt-1 max-w-[60ch] text-sm text-zinc-500">{desc}</p>}
       <div className="mt-5">{children}</div>
@@ -143,10 +143,10 @@ export default function AdminPage() {
   return (
     <div className="min-h-[100dvh]">
       <TopBar />
-      <main className="mx-auto max-w-4xl px-4 pb-24">
-        <div className="flex items-end justify-between py-8">
+      <main className="mx-auto max-w-7xl px-4 pb-24 sm:px-6">
+        <div className="flex flex-col gap-4 py-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+            <h1 className="text-3xl font-semibold tracking-[-.03em] text-zinc-900">
               Bảng điều khiển
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
@@ -157,6 +157,27 @@ export default function AdminPage() {
             ← Về chat
           </Link>
         </div>
+
+        {stats && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ["Tổng tư liệu", stats.images + stats.videos, `${stats.images} ảnh · ${stats.videos} video`],
+              ["Bài viết", stats.posts, "Nguồn nội dung đã nạp"],
+              ["Văn bản nội quy", stats.regulations_active, `${stats.rule_chunks} điều khoản`],
+              [
+                "Tiến độ index",
+                `${Math.round(((stats.indexed_images + stats.indexed_videos + stats.indexed_rule_chunks) / Math.max(1, stats.images + stats.videos + stats.rule_chunks)) * 100)}%`,
+                "Sẵn sàng tìm kiếm",
+              ],
+            ].map(([label, value, hint]) => (
+              <div key={label} className="surface rounded-2xl p-4 sm:p-5">
+                <p className="text-xs font-medium text-zinc-500">{label}</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">{value}</p>
+                <p className="mt-1 truncate text-[11px] text-zinc-400">{hint}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <IndexStatus stats={stats} onReload={() => adminStats().then(setStats)} />
         <UploadMediaForm onDone={() => adminStats().then(setStats)} />
@@ -235,7 +256,7 @@ function IndexStatus({
       {!stats ? (
         <div className="shimmer h-24 rounded-xl" />
       ) : (
-        <div className="rounded-xl border border-zinc-200 bg-white p-5">
+        <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-5">
           <IndexRow label="Ảnh" indexed={stats.indexed_images} total={stats.images} />
           <IndexRow label="Video" indexed={stats.indexed_videos} total={stats.videos} />
           <IndexRow
