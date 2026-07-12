@@ -11,7 +11,7 @@ class LLMConfig(BaseModel):
     temperature: Optional[float] = 0.0
     top_p: Optional[float] = 0.1
     max_tokens: Optional[int] = None
-    model_name: Optional[str] = config_models #model
+    model_name: Optional[str] = config_models.OPENAI_LLM_MODEL.MODEL_PART
     timeout: Optional[float] = 30
     max_retries: Optional[int] = 3
     base_url: Optional[str] = None
