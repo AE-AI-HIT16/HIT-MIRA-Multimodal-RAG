@@ -16,7 +16,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.1.0",
 
     # ---- Model providers ----
-    "langchain-anthropic>=0.3.0",
+    "langchain-openai>=0.3.0",
 
     # ---- Config & utilities ----
     "python-dotenv>=1.0.1",
