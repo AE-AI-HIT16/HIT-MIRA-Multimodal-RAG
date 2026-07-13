@@ -1,0 +1,31 @@
+# HIT-MIRA Multimodal RAG
+# Cài đặt từ thư mục gốc: python -m pip install -r requirements.txt
+# Python 3.12 được dùng bởi api/Dockerfile và môi trường Conda `nhhoang`.
+
+# Web / API
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Cơ sở dữ liệu (SQLite cho dev/test, PostgreSQL cho Docker/prod)
+sqlalchemy
+psycopg[binary]
+
+# Vector store và object storage
+qdrant-client
+minio
+
+# Media và các model AI
+# Lưu ý: pipeline gọi trực tiếp hai binary ffmpeg/ffprobe; cần cài FFmpeg bằng
+# package manager của hệ điều hành (không phải package Python ffmpeg-python).
+pillow
+sentence-transformers
+einops
+faster-whisper
+google-generativeai
+
+# Test / phát triển
+pytest
+httpx
+ruff
