@@ -16,6 +16,13 @@ psycopg[binary]
 qdrant-client
 minio
 
+# LangChain adapters for document loading, splitting, and embeddings
+langchain-community
+langchain-text-splitters
+langchain-openai
+pypdf
+docx2txt
+
 # Media và các model AI
 # Lưu ý: pipeline gọi trực tiếp hai binary ffmpeg/ffprobe; cần cài FFmpeg bằng
 # package manager của hệ điều hành (không phải package Python ffmpeg-python).
