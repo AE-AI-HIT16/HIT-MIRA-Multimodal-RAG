@@ -1,1 +1,0 @@
-"""Retriever implementation for RAG."""

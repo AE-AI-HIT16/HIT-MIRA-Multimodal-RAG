@@ -1,0 +1,3 @@
+PROFILE_GRAPH:
+  PROMPT_SUPERVISOR_PATH: ./Resources/prompts/prompt_rewriting.md
+
