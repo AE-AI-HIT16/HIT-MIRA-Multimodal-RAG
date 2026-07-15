@@ -64,6 +64,15 @@ class RAGPipelineService:
             }
 
     @staticmethod
-    def _total_pages(documents: list[dict[str, Any]]) -> int:
-        pages = {document.get("page") for document in documents if document.get("page") is not None}
+    def _total_pages(documents: list[Any]) -> int:
+        pages = set()
+        for document in documents:
+            if hasattr(document, "metadata"):
+                page = document.metadata.get("page")
+            elif isinstance(document, dict):
+                page = document.get("page")
+            else:
+                page = None
+            if page is not None:
+                pages.add(page)
         return len(pages)
