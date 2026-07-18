@@ -1,23 +1,9 @@
 from typing import Optional
+
 from pydantic import BaseModel
 
 from src.config.config import config_object, config_models
 
-
-def _get_config_value(section: str, key: str, default):
-    config_section = getattr(config_object, section, None)
-    value = getattr(config_section, key, default) if config_section else default
-    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
-        return default
-    return value
-
-
-def _get_int_config(section: str, key: str, default: int) -> int:
-    value = _get_config_value(section, key, default)
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
 
 class QdrantConfig(BaseModel):
     """Qdrant connection settings."""
@@ -35,14 +21,14 @@ class EmbeddingConfig(BaseModel):
 
 class PipelineConfig(BaseModel):
     """Document pipeline settings."""
-    chunk_size: Optional[int] = _get_int_config("PIPELINE", "CHUNK_SIZE", 1200)
-    chunk_overlap: Optional[int] = _get_int_config("PIPELINE", "CHUNK_OVERLAP", 150)
-    minimum_chunk_size: Optional[int] = _get_int_config("PIPELINE", "MINIMUM_CHUNK_SIZE", 250)
+    chunk_size: Optional[int] = config_object.PIPELINE.CHUNK_SIZE
+    chunk_overlap: Optional[int] = config_object.PIPELINE.CHUNK_OVERLAP
+    minimum_chunk_size: Optional[int] = config_object.PIPELINE.MINIMUM_CHUNK_SIZE
 
 class RetrievalConfig(BaseModel):
     """Retrieval pipeline settings."""
-    top_k: Optional[int] = config_object.RETRIEVAL.TOP_K 
-    keyword_threshold: Optional[float] = config_object.RETRIEVAL.KEYWORD_THRESHOLD 
+    top_k: Optional[int] = config_object.RETRIEVAL.TOP_K
+    keyword_threshold: Optional[float] = config_object.RETRIEVAL.KEYWORD_THRESHOLD
 
 class LLMConfig(BaseModel):
     """The configurable fields for the model llm."""
@@ -52,6 +38,7 @@ class LLMConfig(BaseModel):
     timeout: Optional[float] = 30
     max_retries: Optional[int] = 3
     base_url: Optional[str] = None
+
 
 class AppConfig(BaseModel):
     """Top-level application configuration."""
