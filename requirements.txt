@@ -1,9 +1,6 @@
-# HIT-MIRA Multimodal RAG
-# Cài đặt từ thư mục gốc: python -m pip install -r requirements.txt
-# Python 3.12 được dùng bởi api/Dockerfile và môi trường Conda `nhhoang`.
-
 # Web / API
 fastapi
+python-multipart
 uvicorn[standard]
 pydantic
 pydantic-settings
@@ -18,14 +15,14 @@ minio
 
 # LangChain adapters for document loading, splitting, and embeddings
 langchain-community
+langchain-qdrant
 langchain-text-splitters
 langchain-openai
+langchain
 pypdf
 docx2txt
 
 # Media và các model AI
-# Lưu ý: pipeline gọi trực tiếp hai binary ffmpeg/ffprobe; cần cài FFmpeg bằng
-# package manager của hệ điều hành (không phải package Python ffmpeg-python).
 pillow
 sentence-transformers
 einops
