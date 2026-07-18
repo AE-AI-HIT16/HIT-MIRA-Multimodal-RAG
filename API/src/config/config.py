@@ -8,12 +8,15 @@ Sử dụng cùng pattern với chatbot_homepage:
 """
 import json
 import os
+from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 from string import Template
 
-load_dotenv()
+# Resolve project root: config.py -> config/ -> src/ -> API/ -> project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(_PROJECT_ROOT / ".env")
 
 
 class ConfigObj:
@@ -38,6 +41,15 @@ def yaml2obj(yaml_path):
     return config_obj
 
 
-config_object = yaml2obj(os.getenv("CONFIG_PATH"))
-config_prompts = yaml2obj(os.getenv("PROMPTS_PATH"))
-config_models = yaml2obj(os.getenv("MODELS_PATH"))
+def _resolve_path(env_var: str) -> str:
+    """Resolve a path from env var relative to project root."""
+    path = os.getenv(env_var)
+    if path is None:
+        raise ValueError(f"Environment variable '{env_var}' is not set.")
+    return str(_PROJECT_ROOT / path)
+
+
+config_object = yaml2obj(_resolve_path("CONFIG_PATH"))
+config_prompts = yaml2obj(_resolve_path("PROMPTS_PATH"))
+config_models = yaml2obj(_resolve_path("MODELS_PATH"))
+
