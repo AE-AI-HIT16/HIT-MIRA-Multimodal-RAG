@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from src.rag.retrieval.retrieval_service import RetrievalService, build_retrieval_service
+from src.rag_noiquy.retrieval.retrieval_service import RetrievalService, build_retrieval_service
 
 
 router = APIRouter(prefix="/retrieval", tags=["retrieval"])
