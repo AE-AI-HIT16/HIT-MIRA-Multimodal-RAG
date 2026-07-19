@@ -10,10 +10,10 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from src.configuration import AppConfig
-from src.rag.embedding.embedding_service import EmbeddingService
-from src.rag.pipeline import DocumentCleaner, DocumentParser, RAGPipelineService, StructureAwareChunker
-from src.rag.pipeline.ingest import IngestService
-from src.rag.vector_store.vector_store import QdrantVectorStore
+from src.rag_noiquy.embedding.embedding_service import EmbeddingService
+from src.rag_noiquy.pipeline import DocumentCleaner, DocumentParser, RAGPipelineService, StructureAwareChunker
+from src.rag_noiquy.pipeline.ingest import IngestService
+from src.rag_noiquy.vector_store.vector_store import QdrantVectorStore
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
