@@ -1,0 +1,1 @@
+"""Media vector-store adapter."""
