@@ -21,7 +21,9 @@ class DocumentCleaner:
             cleaned_text = self.clean_text(normalized_document.page_content)
             if cleaned_text:
                 cleaned_documents.append(
-                    self._document(cleaned_text, dict(normalized_document.metadata or {}))
+                    self._document(
+                        cleaned_text, dict(normalized_document.metadata or {})
+                    )
                 )
 
         logger.info(f"Cleaned {len(cleaned_documents)} non-empty document unit(s)")
@@ -47,20 +49,55 @@ class DocumentCleaner:
 
     @staticmethod
     def clean_text(text: str) -> str:
+        """Repair PDF layout artefacts while preserving headings and list items."""
         text = unicodedata.normalize("NFC", text)
         text = text.replace("\r\n", "\n").replace("\r", "\n")
         text = re.sub(r"[\t\f\v]+", " ", text)
 
-        lines: list[str] = []
-        previous_blank = False
+        blocks: list[str] = []
+        current: list[str] = []
+        blank_lines = 0
+
+        def flush() -> None:
+            if current:
+                blocks.append(" ".join(current))
+                current.clear()
+
         for raw_line in text.split("\n"):
             line = re.sub(r"[ ]{2,}", " ", raw_line).strip()
             if not line:
-                if not previous_blank and lines:
-                    lines.append("")
-                previous_blank = True
+                blank_lines += 1
                 continue
-            lines.append(line)
-            previous_blank = False
 
-        return "\n".join(lines).strip()
+            # PyPDF can emit one word per line followed by a blank line. A single
+            # blank line is therefore treated as a soft line wrap; two or more
+            # retain a genuine paragraph boundary.
+            if blank_lines >= 2:
+                flush()
+            blank_lines = 0
+
+            letters = re.sub(r"[^A-Za-zÀ-ỹĐđ]", "", line)
+            is_uppercase_heading = (
+                len(letters) >= 5
+                and letters == letters.upper()
+                and letters != letters.lower()
+            )
+            is_structured_item = bool(re.match(r"^(?:[-+•]|\d{1,3}[.)])\s+", line))
+            if current and (is_uppercase_heading or is_structured_item):
+                flush()
+            current.append(line)
+        flush()
+
+        cleaned = "\n\n".join(blocks)
+        # Restore list structure that PDF extraction flattens into one long line.
+        cleaned = re.sub(r"\s+-\s+(?=[A-ZÀ-ỴĐ])", "\n\n- ", cleaned)
+        cleaned = re.sub(r"\s+\+\s+(?=(?:Lần|Làm|Tự|[A-ZÀ-ỴĐ]))", "\n\n+ ", cleaned)
+        # Some PDFs omit a line break before the next numbered section, including
+        # after a phone number (for example: "0823 644 212 2. Đối với...").
+        cleaned = re.sub(
+            r"(?<!^) (?=\d{1,3}\.\s+(?:Đối với|Hình thức))",
+            "\n\n",
+            cleaned,
+        )
+        return cleaned.strip()
+        return cleaned.strip()

@@ -32,11 +32,19 @@ class QdrantVectorStore:
 
         self.url = url if url is not None else qdrant_config.url
         self.api_key = api_key if api_key is not None else qdrant_config.api_key
-        self.collection_name = collection_name if collection_name is not None else qdrant_config.collection_name
-        self.distance_name = (distance or getattr(qdrant_config, "distance", None) or "COSINE").upper()
+        self.collection_name = (
+            collection_name
+            if collection_name is not None
+            else qdrant_config.collection_name
+        )
+        self.distance_name = (
+            distance or getattr(qdrant_config, "distance", None) or "COSINE"
+        ).upper()
 
         if self._is_missing(self.collection_name):
-            raise VectorStoreConfigurationError("Missing Qdrant collection name. Set QDRANT_COLLECTION_NAME.")
+            raise VectorStoreConfigurationError(
+                "Missing Qdrant collection name. Set QDRANT_COLLECTION_NAME."
+            )
 
         self.client = client or self._create_client()
         self.models = self._load_models()
@@ -48,11 +56,17 @@ class QdrantVectorStore:
         if not self._collection_exists():
             distance = getattr(self.models.Distance, self.distance_name, None)
             if distance is None:
-                raise VectorStoreConfigurationError(f"Unsupported Qdrant distance: {self.distance_name}")
-            logger.info(f"Creating Qdrant collection '{self.collection_name}' with vector size {vector_size}")
+                raise VectorStoreConfigurationError(
+                    f"Unsupported Qdrant distance: {self.distance_name}"
+                )
+            logger.info(
+                f"Creating Qdrant collection '{self.collection_name}' with vector size {vector_size}"
+            )
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=self.models.VectorParams(size=vector_size, distance=distance),
+                vectors_config=self.models.VectorParams(
+                    size=vector_size, distance=distance
+                ),
             )
             return
 
@@ -72,10 +86,14 @@ class QdrantVectorStore:
         for chunk, embedding in zip(chunks, embeddings):
             point_id = self._point_id(chunk)
             payload = self._payload(chunk)
-            points.append(self.models.PointStruct(id=point_id, vector=embedding, payload=payload))
+            points.append(
+                self.models.PointStruct(id=point_id, vector=embedding, payload=payload)
+            )
 
         self.client.upsert(collection_name=self.collection_name, points=points)
-        logger.info(f"Upserted {len(points)} chunk point(s) into Qdrant collection '{self.collection_name}'")
+        logger.info(
+            f"Upserted {len(points)} chunk point(s) into Qdrant collection '{self.collection_name}'"
+        )
         return {"collection_name": self.collection_name, "upserted": len(points)}
 
     def delete_document(self, document_id: str) -> None:
@@ -90,7 +108,9 @@ class QdrantVectorStore:
             ]
         )
         points_selector = self.models.FilterSelector(filter=filter_condition)
-        self.client.delete(collection_name=self.collection_name, points_selector=points_selector)
+        self.client.delete(
+            collection_name=self.collection_name, points_selector=points_selector
+        )
         logger.info(f"Deleted Qdrant points for document_id '{document_id}'")
 
     def health_check(self) -> bool:
@@ -107,7 +127,9 @@ class QdrantVectorStore:
         try:
             from qdrant_client import QdrantClient
         except ImportError as exc:
-            raise VectorStoreConfigurationError("Missing dependency 'qdrant-client'.") from exc
+            raise VectorStoreConfigurationError(
+                "Missing dependency 'qdrant-client'."
+            ) from exc
 
         kwargs: dict[str, Any] = {"url": self.url}
         if not self._is_missing(self.api_key):
@@ -119,7 +141,9 @@ class QdrantVectorStore:
         try:
             from qdrant_client import models
         except ImportError as exc:
-            raise VectorStoreConfigurationError("Missing dependency 'qdrant-client'.") from exc
+            raise VectorStoreConfigurationError(
+                "Missing dependency 'qdrant-client'."
+            ) from exc
         return models
 
     @staticmethod
@@ -137,7 +161,9 @@ class QdrantVectorStore:
 
     def _collection_exists(self) -> bool:
         if hasattr(self.client, "collection_exists"):
-            return bool(self.client.collection_exists(collection_name=self.collection_name))
+            return bool(
+                self.client.collection_exists(collection_name=self.collection_name)
+            )
         try:
             self.client.get_collection(collection_name=self.collection_name)
             return True
@@ -160,11 +186,15 @@ class QdrantVectorStore:
         return None
 
     @staticmethod
-    def _validate_upsert_inputs(chunks: list[dict], embeddings: list[list[float]]) -> None:
+    def _validate_upsert_inputs(
+        chunks: list[dict], embeddings: list[list[float]]
+    ) -> None:
         if not chunks:
             raise ValueError("chunks must not be empty")
         if len(chunks) != len(embeddings):
-            raise ValueError(f"chunks/embeddings length mismatch: {len(chunks)} != {len(embeddings)}")
+            raise ValueError(
+                f"chunks/embeddings length mismatch: {len(chunks)} != {len(embeddings)}"
+            )
 
         dimension: int | None = None
         for index, embedding in enumerate(embeddings):
@@ -187,7 +217,20 @@ class QdrantVectorStore:
 
     @staticmethod
     def _payload(chunk: dict) -> dict:
-        metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+        metadata = (
+            chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+        )
+        payload_metadata = {
+            **metadata,
+            "document_id": chunk.get("document_id"),
+            "chunk_id": chunk.get("chunk_id"),
+            "chunk_index": chunk.get("chunk_index"),
+            "filename": chunk.get("filename"),
+            "source": chunk.get("source"),
+            "start_page": chunk.get("start_page"),
+            "end_page": chunk.get("end_page"),
+            "section": chunk.get("section"),
+        }
         return {
             "document_id": chunk.get("document_id"),
             "chunk_id": chunk.get("chunk_id"),
@@ -203,5 +246,5 @@ class QdrantVectorStore:
             "chunk_index": chunk.get("chunk_index"),
             "content_hash": chunk.get("content_hash"),
             "created_at": chunk.get("created_at"),
-            "metadata": metadata,
+            "metadata": payload_metadata,
         }
