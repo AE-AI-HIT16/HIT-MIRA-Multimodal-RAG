@@ -1,0 +1,1 @@
+"""Video keyframe extraction component."""

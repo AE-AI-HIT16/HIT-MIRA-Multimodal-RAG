@@ -1,0 +1,1 @@
+"""Media validation component."""
