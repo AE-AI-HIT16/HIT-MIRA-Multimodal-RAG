@@ -12,11 +12,11 @@ from src.log.logger import logger
 
 
 class StructureAwareChunker:
-    """Structure-aware chunker using LangChain's recursive splitter for overflow text."""
+    """Chunk documents by section, paragraph, and sentence boundaries."""
 
     HEADING_RE = re.compile(
-        r"^(Chuong|Muc|Dieu|Khoan|Chương|Mục|Điều|Khoản|\d+(?:\.\d+)*[\).]?|"
-        r"Doi voi|Đối với|Hinh thuc xu phat|Hình thức xử phạt)\b",
+        r"^(Chuong|Muc|Dieu|Khoan|Chương|Mục|Điều|Khoản|Nội quy|Nội Quy|Quy định|Quy Định|"
+        r"\d+(?:\.\d+)*[\).]?|Doi voi|Đối với|Hinh thuc xu phat|Hình thức xử phạt)\b",
         re.IGNORECASE,
     )
     CATEGORY_RE = re.compile(
@@ -36,10 +36,13 @@ class StructureAwareChunker:
             raise ValueError("pipeline config is not available")
         self.chunk_size = int(chunk_size or pipeline_config.chunk_size or 1200)
         configured_overlap = pipeline_config.chunk_overlap or 150
-        self.chunk_overlap = int(chunk_overlap if chunk_overlap is not None else configured_overlap)
-        self.minimum_chunk_size = int(minimum_chunk_size or pipeline_config.minimum_chunk_size or 250)
+        self.chunk_overlap = int(
+            chunk_overlap if chunk_overlap is not None else configured_overlap
+        )
+        self.minimum_chunk_size = int(
+            minimum_chunk_size or pipeline_config.minimum_chunk_size or 250
+        )
         self._validate_config()
-        self.splitter = self._build_splitter()
 
     def chunk_documents(
         self,
@@ -53,24 +56,15 @@ class StructureAwareChunker:
             raise ValueError("documents must not be empty")
 
         units = self._section_documents(documents)
-        split_units = self.splitter.split_documents(units)
-        merged_units = self._merge_small_units(split_units)
+        merged_units = self._pack_semantic_units(units)
         chunks = [
             self._format_chunk(unit, document_id, filename, index)
             for index, unit in enumerate(merged_units)
         ]
-        logger.info(f"Created {len(chunks)} chunk(s) for document_id '{document_id}'")
-        return chunks
-
-    def _build_splitter(self) -> Any:
-        splitter_module = import_module("langchain_text_splitters")
-        splitter_cls = getattr(splitter_module, "RecursiveCharacterTextSplitter")
-        return splitter_cls(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-            length_function=len,
-            separators=["\n\n", "\n", ". ", "; ", " ", ""],
+        logger.info(
+            f"Created {len(chunks)} semantic chunk(s) for document_id '{document_id}'"
         )
+        return chunks
 
     @staticmethod
     def _document(page_content: str, metadata: dict[str, Any]) -> Any:
@@ -80,6 +74,7 @@ class StructureAwareChunker:
 
     def _section_documents(self, documents: list[Any]) -> list[Any]:
         section: str | None = None
+        document_title: str | None = None
         units: list[Any] = []
         for document in documents:
             langchain_doc = self._as_document(document)
@@ -92,9 +87,25 @@ class StructureAwareChunker:
             }
             for paragraph in self._paragraphs(langchain_doc.page_content):
                 first_line = paragraph.split("\n", 1)[0].strip()
-                if self._is_heading(first_line):
-                    section = first_line
-                units.append(self._document(paragraph, {**base_metadata, "section": section}))
+                is_heading = self._is_heading(first_line) and not self._is_clause_item(
+                    first_line, section
+                )
+                if is_heading:
+                    if self._is_document_title(first_line):
+                        document_title = first_line
+                        section = first_line
+                    elif document_title and re.match(r"^\d{1,3}[.)]\s+", first_line):
+                        section = f"{document_title} — {first_line}"
+                    else:
+                        section = first_line
+                    # A standalone heading is metadata/context, never a vector
+                    # by itself. Its text is prefixed to the following content.
+                    if self._is_heading_only(paragraph):
+                        continue
+                for part in self._split_at_meaningful_boundaries(paragraph, section):
+                    units.append(
+                        self._document(part, {**base_metadata, "section": section})
+                    )
         return units
 
     def _as_document(self, document: Any) -> Any:
@@ -109,7 +120,129 @@ class StructureAwareChunker:
 
     @staticmethod
     def _paragraphs(text: str) -> list[str]:
-        return [paragraph.strip() for paragraph in re.split(r"\n{2,}", text) if paragraph.strip()]
+        return [
+            paragraph.strip()
+            for paragraph in re.split(r"\n{2,}", text)
+            if paragraph.strip()
+        ]
+
+    def _pack_semantic_units(self, units: list[Any]) -> list[Any]:
+        """Pack complete paragraphs/sentences; never use character-based splitting."""
+        chunks: list[Any] = []
+        current: list[Any] = []
+        current_section: str | None = None
+
+        def emit(items: list[Any], section: str | None) -> None:
+            if not items:
+                return
+            body = "\n\n".join(item.page_content.strip() for item in items).strip()
+            prefix = (
+                f"{section}\n\n" if section and not body.startswith(section) else ""
+            )
+            first, last = items[0], items[-1]
+            chunks.append(
+                self._document(
+                    f"{prefix}{body}",
+                    {
+                        **first.metadata,
+                        "section": section,
+                        "start_page": first.metadata.get("start_page"),
+                        "end_page": last.metadata.get("end_page")
+                        or first.metadata.get("end_page"),
+                    },
+                )
+            )
+
+        for unit in units:
+            section = unit.metadata.get("section")
+            # Do not mix the end of one article with the next article.
+            if current and section != current_section:
+                emit(current, current_section)
+                current = []
+            current_section = section
+            if (
+                not current
+                or self._rendered_length(current + [unit], section) <= self.chunk_size
+            ):
+                current.append(unit)
+                continue
+            emit(current, current_section)
+            current = self._overlap_units(current, current_section)
+            if (
+                self._rendered_length(current + [unit], current_section)
+                > self.chunk_size
+            ):
+                current = []
+            current.append(unit)
+        emit(current, current_section)
+        return self._merge_small_units(chunks)
+
+    def _rendered_length(self, units: list[Any], section: str | None) -> int:
+        body = "\n\n".join(unit.page_content.strip() for unit in units)
+        prefix = len(section) + 2 if section and not body.startswith(section) else 0
+        return prefix + len(body)
+
+    def _overlap_units(self, units: list[Any], section: str | None) -> list[Any]:
+        if self.chunk_overlap == 0:
+            return []
+        overlap: list[Any] = []
+        for unit in reversed(units):
+            candidate = [unit] + overlap
+            if (
+                overlap
+                and len("\n\n".join(item.page_content for item in candidate))
+                > self.chunk_overlap
+            ):
+                break
+            overlap = candidate
+        return (
+            overlap if self._rendered_length(overlap, section) < self.chunk_size else []
+        )
+
+    def _split_at_meaningful_boundaries(
+        self, paragraph: str, section: str | None
+    ) -> list[str]:
+        """Split at sentences, then clauses; fall back to words only if unavoidable."""
+        paragraph = re.sub(r"[ \t]*\n[ \t]*", " ", paragraph).strip()
+        heading_length = (
+            len(section) + 2 if section and not paragraph.startswith(section) else 0
+        )
+        budget = max(1, self.chunk_size - heading_length)
+        if len(paragraph) <= budget:
+            return [paragraph]
+        sentences = re.split(r"(?<=[.!?…])(?=\s+(?:[A-ZÀ-ỴĐ0-9\"“'‘(\[]))", paragraph)
+        parts: list[str] = []
+        for sentence in (item.strip() for item in sentences if item.strip()):
+            if len(sentence) <= budget:
+                parts.append(sentence)
+                continue
+            clauses = re.split(r"(?<=[,;:])(?=\s+)", sentence)
+            current = ""
+            for clause in (item.strip() for item in clauses if item.strip()):
+                candidate = f"{current} {clause}".strip()
+                if current and len(candidate) > budget:
+                    parts.append(current)
+                    current = clause
+                else:
+                    current = candidate
+            if current:
+                parts.append(current)
+        result: list[str] = []
+        for part in parts:
+            if len(part) <= budget:
+                result.append(part)
+                continue
+            line = ""
+            for word in part.split():
+                candidate = f"{line} {word}".strip()
+                if line and len(candidate) > budget:
+                    result.append(line)
+                    line = word
+                else:
+                    line = candidate
+            if line:
+                result.append(line)
+        return result
 
     def _merge_small_units(self, units: list[Any]) -> list[Any]:
         merged: list[Any] = []
@@ -117,21 +250,27 @@ class StructureAwareChunker:
             text = unit.page_content.strip()
             if not text:
                 continue
-            if not merged or len(merged[-1].page_content) >= self.minimum_chunk_size:
+            if not merged or len(text) >= self.minimum_chunk_size:
                 merged.append(unit)
                 continue
-
             previous = merged[-1]
-            combined = f"{previous.page_content}\n\n{text}"
+            if previous.metadata.get("section") != unit.metadata.get("section"):
+                merged.append(unit)
+                continue
+            section = unit.metadata.get("section")
+            prefix = (
+                f"{section}\n\n"
+                if section and text.startswith(f"{section}\n\n")
+                else ""
+            )
+            combined = f"{previous.page_content}\n\n{text[len(prefix) :]}".strip()
             if len(combined) <= self.chunk_size:
                 merged[-1] = self._document(
                     combined,
                     {
                         **previous.metadata,
-                        "end_page": (
-                            unit.metadata.get("end_page")
-                            or previous.metadata.get("end_page")
-                        ),
+                        "end_page": unit.metadata.get("end_page")
+                        or previous.metadata.get("end_page"),
                     },
                 )
             else:
@@ -151,7 +290,11 @@ class StructureAwareChunker:
         category, subject = self._infer_category_subject(metadata)
         source = metadata.get("source") or filename
         return {
-            "chunk_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}:{chunk_index}:{content_hash}")),
+            "chunk_id": str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL, f"{document_id}:{chunk_index}:{content_hash}"
+                )
+            ),
             "document_id": document_id,
             "text": text,
             "page": metadata.get("start_page"),
@@ -166,15 +309,55 @@ class StructureAwareChunker:
             "metadata": {**metadata, "category": category, "subject": subject},
         }
 
+    @staticmethod
+    def _is_document_title(line: str) -> bool:
+        return bool(re.match(r"^(Nội quy|Quy định)\b", line, re.IGNORECASE))
+
+    @staticmethod
+    def _is_heading_only(paragraph: str) -> bool:
+        line = " ".join(paragraph.split())
+        if "\n" in paragraph or len(line) > 180:
+            return False
+        letters = re.sub(r"[^A-Za-zÀ-ỹĐđ]", "", line)
+        if (
+            len(letters) >= 5
+            and letters == letters.upper()
+            and letters != letters.lower()
+        ):
+            return True
+        return bool(
+            re.match(
+                r"^(?:Chương|Mục|Điều|Khoản)\s+\d+|^\d{1,3}[.)]\s+",
+                line,
+                re.IGNORECASE,
+            )
+        )
+
+    @staticmethod
+    def _is_clause_item(line: str, active_section: str | None) -> bool:
+        """Treat numbered lines as clauses only inside an article or clause."""
+        return bool(
+            active_section
+            and re.match(r"^(Điều|Khoản)\b", active_section, re.IGNORECASE)
+            and re.match(r"^\(?\d{1,3}[.)]\s+", line)
+        )
+
     def _is_heading(self, line: str) -> bool:
-        return bool(self.HEADING_RE.match(line) or self.HEADING_RE.match(self._strip_accents(line)))
+        return bool(
+            self.HEADING_RE.match(line)
+            or self.HEADING_RE.match(self._strip_accents(line))
+        )
 
     @staticmethod
     def _strip_accents(value: str) -> str:
         normalized = unicodedata.normalize("NFD", value)
-        return "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+        return "".join(
+            char for char in normalized if unicodedata.category(char) != "Mn"
+        )
 
-    def _infer_category_subject(self, metadata: dict[str, Any]) -> tuple[str | None, str | None]:
+    def _infer_category_subject(
+        self, metadata: dict[str, Any]
+    ) -> tuple[str | None, str | None]:
         if metadata.get("category") or metadata.get("subject"):
             return metadata.get("category"), metadata.get("subject")
         section = metadata.get("section")

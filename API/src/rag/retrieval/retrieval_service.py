@@ -30,7 +30,9 @@ class RetrievalService:
     ) -> dict[str, Any]:
         query = self._normalize_query(query)
         search_query = self.query_rewriter.rewrite(query) if rewrite else query
-        chunks = self.retriever.retrieve(search_query, top_k=top_k, document_ids=document_ids)
+        chunks = self.retriever.retrieve(
+            search_query, top_k=top_k, document_ids=document_ids
+        )
         logger.info(f"Retrieval flow completed with {len(chunks)} result(s)")
         return {
             "query": query,
@@ -50,6 +52,9 @@ class RetrievalService:
             label = f"[{index}] {source}"
             if page:
                 label = f"{label}, page {page}"
+            section = metadata.get("section")
+            if section:
+                label = f"{label} | {section}"
             parts.append(f"{label}\n{chunk.document.page_content}")
         return "\n\n".join(parts)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,8 +26,12 @@ class RetrievedChunk:
             "metadata": metadata,
             "document_id": metadata.get("document_id"),
             "chunk_id": metadata.get("chunk_id"),
-            "filename": metadata.get("filename"),
-            "page": metadata.get("page"),
+            "chunk_index": metadata.get("chunk_index"),
+            "filename": metadata.get("filename") or metadata.get("source"),
+            "source": metadata.get("source"),
+            "page": metadata.get("page") or metadata.get("start_page"),
+            "start_page": metadata.get("start_page"),
+            "end_page": metadata.get("end_page"),
             "section": metadata.get("section"),
         }
 
@@ -45,7 +50,29 @@ class LangChainEmbeddingAdapter(Embeddings):
 
 
 class VectorRetriever:
-    """Thin LangChain Qdrant retriever wrapper."""
+    """Retrieve, rerank, and deduplicate semantic document chunks."""
+
+    CANDIDATE_MULTIPLIER = 3
+    MAX_CANDIDATES = 100
+    KEYWORD_BOOST_PER_MATCH = 0.02
+    MAX_KEYWORD_BOOST = 0.08
+    STOP_WORDS = frozenset(
+        {
+            "ai",
+            "các",
+            "có",
+            "cho",
+            "của",
+            "được",
+            "khi",
+            "là",
+            "một",
+            "những",
+            "và",
+            "về",
+            "với",
+        }
+    )
 
     def __init__(
         self,
@@ -59,7 +86,9 @@ class VectorRetriever:
         self.embeddings = LangChainEmbeddingAdapter(embedding_service)
         self.vector_store = vector_store
         self.top_k = int(top_k or retrieval_config.top_k or 5)
-        self.score_threshold = score_threshold if score_threshold is not None else retrieval_config.keyword_threshold
+        # KEYWORD_THRESHOLD is a legacy keyword-search setting, not a calibrated
+        # cosine-similarity threshold. Filter only when explicitly requested.
+        self.score_threshold = score_threshold
         self._store = None
 
     def retrieve(
@@ -68,18 +97,67 @@ class VectorRetriever:
         top_k: int | None = None,
         document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
+        normalized_query = self._normalize_query(query)
+        requested_k = int(top_k or self.top_k)
+        candidate_k = min(
+            max(requested_k * self.CANDIDATE_MULTIPLIER, requested_k),
+            self.MAX_CANDIDATES,
+        )
         docs_with_scores = self._langchain_store().similarity_search_with_score(
-            query=self._normalize_query(query),
-            k=int(top_k or self.top_k),
+            query=normalized_query,
+            k=candidate_k,
             filter=self._metadata_filter(document_ids),
         )
-        chunks = [
-            RetrievedChunk(document=self._normalize_document(document), score=float(score))
+        candidates = [
+            RetrievedChunk(
+                document=self._normalize_document(document), score=float(score)
+            )
             for document, score in docs_with_scores
-            if self.score_threshold is None or float(score) >= float(self.score_threshold)
+            if self.score_threshold is None
+            or float(score) >= float(self.score_threshold)
         ]
-        logger.info(f"Retrieved {len(chunks)} chunk(s) for query")
+        chunks = self._rerank_and_deduplicate(normalized_query, candidates, requested_k)
+        logger.info(
+            f"Retrieved {len(chunks)} chunk(s) from {len(candidates)} candidate(s)"
+        )
         return chunks
+
+    def _rerank_and_deduplicate(
+        self, query: str, candidates: list[RetrievedChunk], top_k: int
+    ) -> list[RetrievedChunk]:
+        """Prefer exact query terms and discard duplicate overlap text."""
+        query_terms = self._terms(query)
+        seen_content: set[str] = set()
+        ranked: list[tuple[float, int, RetrievedChunk]] = []
+
+        for position, chunk in enumerate(candidates):
+            normalized_content = self._normalise_content(chunk.document.page_content)
+            if not normalized_content or normalized_content in seen_content:
+                continue
+            seen_content.add(normalized_content)
+            keyword_matches = len(
+                query_terms.intersection(self._terms(normalized_content))
+            )
+            keyword_boost = min(
+                keyword_matches * self.KEYWORD_BOOST_PER_MATCH,
+                self.MAX_KEYWORD_BOOST,
+            )
+            ranked.append((chunk.score + keyword_boost, -position, chunk))
+
+        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        return [chunk for _, _, chunk in ranked[:top_k]]
+
+    @classmethod
+    def _terms(cls, value: str) -> set[str]:
+        return {
+            token
+            for token in re.findall(r"\w+", value.casefold(), flags=re.UNICODE)
+            if len(token) > 1 and token not in cls.STOP_WORDS
+        }
+
+    @staticmethod
+    def _normalise_content(value: str) -> str:
+        return " ".join(value.casefold().split())
 
     def _langchain_store(self):
         if self._store is not None:
@@ -87,7 +165,9 @@ class VectorRetriever:
         try:
             from langchain_qdrant import QdrantVectorStore as LangChainQdrantVectorStore
         except ImportError as exc:
-            raise RuntimeError("Missing dependency 'langchain-qdrant'. Install it to use retrieval.") from exc
+            raise RuntimeError(
+                "Missing dependency 'langchain-qdrant'. Install it to use retrieval."
+            ) from exc
 
         self._store = LangChainQdrantVectorStore(
             client=self.vector_store.client,
@@ -99,16 +179,24 @@ class VectorRetriever:
         return self._store
 
     def _metadata_filter(self, document_ids: list[str] | None) -> Any | None:
-        document_ids = [item.strip() for item in document_ids or [] if item and item.strip()]
+        document_ids = [
+            item.strip() for item in document_ids or [] if item and item.strip()
+        ]
         if not document_ids:
             return None
 
         models = self.vector_store.models
         conditions = [
-            models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id))
+            models.FieldCondition(
+                key="document_id", match=models.MatchValue(value=document_id)
+            )
             for document_id in document_ids
         ]
-        return models.Filter(must=conditions) if len(conditions) == 1 else models.Filter(should=conditions)
+        return (
+            models.Filter(must=conditions)
+            if len(conditions) == 1
+            else models.Filter(should=conditions)
+        )
 
     @staticmethod
     def _normalize_document(document: Document) -> Document:
