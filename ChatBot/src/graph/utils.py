@@ -1,17 +1,23 @@
 """Utility & helper functions."""
 
+import asyncio
+
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 
 from src.graph.configuration import LLMConfig
-from src.config.configs import config_object
+from src.config.configs import config_object, resolve_project_path
 
 
-def load_sys_prompt(prompt_path: str) -> str:
-    """Đọc system prompt từ file."""
-    with open(prompt_path, "r", encoding="utf-8") as f:
-        system_prompt = f.read()
-    return system_prompt
+def _read_file_sync(prompt_path: str) -> str:
+    """Đọc file đồng bộ (chạy trong thread riêng)."""
+    with open(resolve_project_path(prompt_path), "r", encoding="utf-8") as f:
+        return f.read()
+
+
+async def load_sys_prompt(prompt_path: str) -> str:
+    """Đọc system prompt từ file (non-blocking)."""
+    return await asyncio.to_thread(_read_file_sync, prompt_path)
 
 
 def load_model(llm_config: LLMConfig) -> BaseChatModel:
@@ -27,6 +33,8 @@ def load_model(llm_config: LLMConfig) -> BaseChatModel:
         temperature=llm_config.temperature,
         timeout=llm_config.timeout,
         max_retries=llm_config.max_retries,
-        max_tokens=llm_config.max_tokens
+        max_tokens=llm_config.max_tokens,
+        base_url=llm_config.base_url,
+        api_key=llm_config.api_key,
     )
     return llm_model

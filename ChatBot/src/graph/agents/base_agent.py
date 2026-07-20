@@ -26,7 +26,7 @@ class BaseAgent:
         self.agent = None
         self.system_prompt_path = system_prompt_path
         self.model: BaseChatModel = load_model(runtime.context.llm_config)
-        self.system_prompt = load_sys_prompt(self.system_prompt_path)
+        self.system_prompt = None  # Loaded asynchronously in setup_agent
 
     def init_agent(self, response_class=None, tools=None, middlewares: list = None):
         if tools is None:
@@ -68,6 +68,9 @@ class BaseAgent:
                           url_mcp_servers: str = None,
                           middlewares: list = None,
                           required_tools: list = None):
+        # Load system prompt asynchronously (non-blocking)
+        if self.system_prompt is None:
+            self.system_prompt = await load_sys_prompt(self.system_prompt_path)
         tools = []
         if middlewares is None:
             middlewares = []
