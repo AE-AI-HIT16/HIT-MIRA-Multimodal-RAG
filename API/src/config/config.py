@@ -1,11 +1,3 @@
-"""
-Cấu hình tập trung cho ChatBot.
-
-Sử dụng cùng pattern với chatbot_homepage:
-- Đọc file YAML config
-- Thay thế biến ${ENV_VAR} bằng giá trị thực từ .env
-- Chuyển đổi dict -> object (dot notation access)
-"""
 import json
 import os
 from pathlib import Path

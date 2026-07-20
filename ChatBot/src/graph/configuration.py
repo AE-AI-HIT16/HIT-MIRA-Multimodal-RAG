@@ -14,10 +14,12 @@ class LLMConfig(BaseModel):
     model_name: Optional[str] = config_models.OPENAI_LLM_MODEL.MODEL_PATH
     timeout: Optional[float] = 30
     max_retries: Optional[int] = 3
-    base_url: Optional[str] = None
+    base_url: Optional[str] = getattr(config_models.OPENAI_LLM_MODEL, "BASE_URL", None)
+    api_key: Optional[str] = getattr(config_models.OPENAI_LLM_MODEL, "API_KEY", None)
 
 class Context(BaseModel):
     conversation_id: Optional[str] = None
     customer_id: Optional[str] = None
     attachments: Optional[list[dict]] = None
+    response_timeout: Optional[float] = 120
     llm_config: Optional[LLMConfig] = LLMConfig()

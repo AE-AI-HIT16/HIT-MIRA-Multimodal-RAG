@@ -16,8 +16,8 @@ class BaseMCPClient:
                     {
                         "url": url,
                         "transport": transport,
-                        "timeout": 600,
-                        "sse_read_timeout": 600,
+                        "timeout": 90,
+                        "sse_read_timeout": 90,
                     }
             },
             tool_interceptors=[inject_langgraph_runtime]

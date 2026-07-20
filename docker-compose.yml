@@ -49,7 +49,7 @@ services:
       retries: 10
 
   api:
-    build: ./api
+    build: ./API
     depends_on:
       postgres:
         condition: service_healthy
