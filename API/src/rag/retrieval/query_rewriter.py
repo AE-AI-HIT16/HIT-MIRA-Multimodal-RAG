@@ -39,6 +39,8 @@ class QueryRewriter:
             kwargs["max_tokens"] = llm_config.max_tokens
         if llm_config.base_url:
             kwargs["base_url"] = llm_config.base_url
+        if llm_config.api_key:
+            kwargs["api_key"] = llm_config.api_key
         return init_chat_model(llm_config.model_name, **kwargs)
 
     @staticmethod
