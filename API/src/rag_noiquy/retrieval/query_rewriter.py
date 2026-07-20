@@ -4,7 +4,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from src.config.config import config_prompts
+from src.config.config import config_prompts, _PROJECT_ROOT
 from src.configuration import AppConfig
 from src.log.logger import logger
 
@@ -14,8 +14,9 @@ class QueryRewriter:
 
     def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig()
+        prompt_path = _PROJECT_ROOT / config_prompts.PROMPT.PROMPT_REWRITING
         self.chain = (
-            PromptTemplate.from_file(config_prompts.PROMPT.PROMPT_REWRITING)
+            PromptTemplate.from_file(prompt_path)
             | self._llm()
             | StrOutputParser()
         )

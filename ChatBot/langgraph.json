@@ -2,8 +2,8 @@
   "$schema": "https://langgra.ph/schema.json",
   "dependencies": ["."],
   "graphs": {
-    "agent": "deep_agent.graph:get_agent"
+    "agent": "src.graph.graph:graph"
   },
-  "env": ".env",
+  "env": "../.env",
   "image_distro": "wolfi"
 }
