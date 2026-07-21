@@ -1,0 +1,53 @@
+           _                 _    
+  __ _  __| |_ __ __ _ _ __ | |_  
+ / _` |/ _` | '__/ _` | '_ \| __| 
+| (_| | (_| | | | (_| | | | | |_  
+ \__, |\__,_|_|  \__,_|_| |_|\__| 
+    |_|                           
+
+Version: 1.18.3, build: db8fa43f
+Access web UI at http://localhost:6333/dashboard
+Agentic Skills: https://skills.qdrant.tech/
+
+2026-07-18T05:04:06.678711Z  WARN qdrant::settings: Config file not found: config/config
+2026-07-18T05:04:06.678743Z  WARN qdrant::settings: Config file not found: config/development
+2026-07-18T05:04:06.679932Z  INFO storage::content_manager::consensus::persistent: Initializing new raft state at ./storage/raft_state.json
+2026-07-18T05:04:06.715547Z  INFO qdrant: Distributed mode disabled
+2026-07-18T05:04:06.715672Z  INFO qdrant: Telemetry reporting enabled, id: 8669518a-6b21-4f39-8cf5-a1f1befcd5d7
+2026-07-18T05:04:06.727553Z  WARN qdrant::actix::web_ui: Static content folder for Web UI './static' does not exist
+2026-07-18T05:04:06.727857Z  INFO qdrant::actix: REST transport settings: keep_alive=5s, client_request_timeout=5s, client_disconnect_timeout=5s
+2026-07-18T05:04:06.727869Z  INFO qdrant::actix: TLS disabled for REST API
+2026-07-18T05:04:06.727914Z  INFO qdrant::actix: Qdrant HTTP listening on 6333
+2026-07-18T05:04:06.727930Z  INFO actix_server::builder: starting 15 workers
+2026-07-18T05:04:06.727947Z  INFO actix_server::server: Actix runtime found; starting in Actix runtime
+2026-07-18T05:04:06.727954Z  INFO actix_server::server: starting service: "actix-web-service-0.0.0.0:6333", workers: 15, listening on: 0.0.0.0:6333
+2026-07-18T05:04:06.733631Z  INFO qdrant::tonic: Qdrant gRPC listening on 6334
+2026-07-18T05:04:06.733705Z  INFO qdrant::tonic: TLS disabled for gRPC API
+2026-07-18T05:15:07.776639Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections/rag_documents/exists HTTP/1.1" 200 69 "-" "python-client/1.18.0 python/3.13.14" 0.004274
+2026-07-18T05:15:07.785496Z  INFO storage::content_manager::toc::collection_meta_ops: Creating collection rag_documents
+2026-07-18T05:15:08.032509Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/rag_documents HTTP/1.1" 200 56 "-" "python-client/1.18.0 python/3.13.14" 0.253042
+2026-07-18T05:15:08.036474Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections/rag_documents/exists HTTP/1.1" 200 65 "-" "python-client/1.18.0 python/3.13.14" 0.000341
+2026-07-18T05:15:08.041836Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections/rag_documents HTTP/1.1" 200 451 "-" "python-client/1.18.0 python/3.13.14" 0.004664
+2026-07-18T05:15:08.065655Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/rag_documents/points?wait=true HTTP/1.1" 200 84 "-" "python-client/1.18.0 python/3.13.14" 0.015230
+2026-07-18T05:34:43.776262Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections/rag_documents HTTP/1.1" 200 453 "-" "python-client/1.18.0 python/3.13.14" 0.000914
+2026-07-18T05:34:57.055812Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/rag_documents/points/query HTTP/1.1" 200 793 "-" "python-client/1.18.0 python/3.13.14" 0.018865
+2026-07-18T05:35:41.323908Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/rag_documents/points/query HTTP/1.1" 200 962 "-" "python-client/1.18.0 python/3.13.14" 0.001802
+2026-07-18T05:36:37.644011Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/rag_documents/points/query HTTP/1.1" 200 959 "-" "python-client/1.18.0 python/3.13.14" 0.002811
+2026-07-18T05:37:40.117880Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/rag_documents/points/query HTTP/1.1" 200 1345 "-" "python-client/1.18.0 python/3.13.14" 0.010860
+2026-07-18T06:49:10.102859Z  INFO actix_server::server: SIGTERM received; starting graceful shutdown
+2026-07-18T06:49:10.105618Z  INFO actix_server::accept: accept thread stopped
+2026-07-18T06:49:10.106350Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.106518Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107023Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107259Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107260Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107262Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.106223Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107950Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107804Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.107929Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.108138Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.106513Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.108138Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.108509Z  INFO actix_server::worker: shutting down idle worker
+2026-07-18T06:49:10.109026Z  INFO actix_server::worker: shutting down idle worker

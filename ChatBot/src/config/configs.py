@@ -1,11 +1,3 @@
-"""
-Cấu hình tập trung cho ChatBot.
-
-Sử dụng cùng pattern với chatbot_homepage:
-- Đọc file YAML config
-- Thay thế biến ${ENV_VAR} bằng giá trị thực từ .env
-- Chuyển đổi dict -> object (dot notation access)
-"""
 import json
 import os
 from pathlib import Path
@@ -14,8 +6,9 @@ import yaml
 from dotenv import load_dotenv
 from string import Template
 
-# Resolve project root: configs.py -> config/ -> src/ -> ChatBot/ -> project root
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Resolve paths: configs.py -> config/ -> src/ -> ChatBot/ -> project root
+_CHATBOT_ROOT = Path(__file__).resolve().parents[2]
+_PROJECT_ROOT = _CHATBOT_ROOT.parent
 load_dotenv(_PROJECT_ROOT / ".env")
 
 
@@ -41,12 +34,37 @@ def yaml2obj(yaml_path):
     return config_obj
 
 
+DEFAULT_CONFIG_PATHS = {
+    "CHATBOT_CONFIG_PATH": _CHATBOT_ROOT / "Resources" / "dev.yaml",
+    "CHATBOT_PROMPTS_PATH": _CHATBOT_ROOT / "Resources" / "prompts.yaml",
+    "CHATBOT_MODELS_PATH": _CHATBOT_ROOT / "Resources" / "models.yaml",
+    "CHATBOT_MESSAGES_PATH": _CHATBOT_ROOT / "Resources" / "messages.yaml",
+    "CHATBOT_AGENTS_PATH": _CHATBOT_ROOT / "Resources" / "agents.yaml",
+}
+
+
+def resolve_project_path(value: str | Path) -> Path:
+    """Resolve a YAML path across repo-root and ChatBot-root layouts."""
+    path = Path(value)
+    if path.is_absolute():
+        return path
+
+    candidates = [_PROJECT_ROOT / path, _CHATBOT_ROOT / path]
+    if path.parts and path.parts[0] == "ChatBot":
+        candidates.append(_CHATBOT_ROOT.joinpath(*path.parts[1:]))
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
 def _resolve_path(env_var: str) -> str:
-    """Resolve a path from env var relative to project root."""
-    path = os.getenv(env_var)
-    if path is None:
-        raise ValueError(f"Environment variable '{env_var}' is not set.")
-    return str(_PROJECT_ROOT / path)
+    """Resolve a config path from env var or the ChatBot defaults."""
+    configured_path = os.getenv(env_var)
+    if not configured_path:
+        return str(DEFAULT_CONFIG_PATHS[env_var])
+    return str(resolve_project_path(configured_path))
 
 
 config_object = yaml2obj(_resolve_path("CHATBOT_CONFIG_PATH"))
