@@ -1,0 +1,448 @@
+2026-07-21 05:28:56 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:39 | [INFO]: Created MinIO bucket 'hit-mira-media'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1001928175089001/media/photo_01.jpg' to MinIO object 'events/213347192060163_1001928175089001/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1001928175089001/post.json' to MinIO object 'events/213347192060163_1001928175089001/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1004018598213292/media/photo_01.jpg' to MinIO object 'events/213347192060163_1004018598213292/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1004018598213292/post.json' to MinIO object 'events/213347192060163_1004018598213292/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1005375724744246/media/photo_01.jpg' to MinIO object 'events/213347192060163_1005375724744246/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1005375724744246/post.json' to MinIO object 'events/213347192060163_1005375724744246/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1007476387867513/media/photo_01.jpg' to MinIO object 'events/213347192060163_1007476387867513/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1007476387867513/post.json' to MinIO object 'events/213347192060163_1007476387867513/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_01.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_02.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_02.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_03.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_03.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_04.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_04.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_05.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_05.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_06.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_06.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_07.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_07.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_08.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_08.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_09.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_09.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_10.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_10.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_11.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_11.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_12.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_12.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/media/photo_13.jpg' to MinIO object 'events/213347192060163_1009464154335403/media/photo_13.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1009464154335403/post.json' to MinIO object 'events/213347192060163_1009464154335403/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1010192457595906/media/photo_01.jpg' to MinIO object 'events/213347192060163_1010192457595906/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1010192457595906/post.json' to MinIO object 'events/213347192060163_1010192457595906/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1011657927449359/media/photo_01.jpg' to MinIO object 'events/213347192060163_1011657927449359/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1011657927449359/post.json' to MinIO object 'events/213347192060163_1011657927449359/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1013084480640037/media/video_01.mp4' to MinIO object 'events/213347192060163_1013084480640037/media/video_01.mp4'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1013084480640037/post.json' to MinIO object 'events/213347192060163_1013084480640037/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1018783733403445/media/photo_01.jpg' to MinIO object 'events/213347192060163_1018783733403445/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1018783733403445/post.json' to MinIO object 'events/213347192060163_1018783733403445/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020219956593156/media/photo_01.jpg' to MinIO object 'events/213347192060163_1020219956593156/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020219956593156/post.json' to MinIO object 'events/213347192060163_1020219956593156/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020655279882957/media/photo_01.jpg' to MinIO object 'events/213347192060163_1020655279882957/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020655279882957/media/photo_02.jpg' to MinIO object 'events/213347192060163_1020655279882957/media/photo_02.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020655279882957/media/photo_03.jpg' to MinIO object 'events/213347192060163_1020655279882957/media/photo_03.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020655279882957/media/photo_04.jpg' to MinIO object 'events/213347192060163_1020655279882957/media/photo_04.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1020655279882957/post.json' to MinIO object 'events/213347192060163_1020655279882957/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_01.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_02.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_02.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_03.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_03.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_04.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_04.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_05.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_05.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_06.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_06.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_07.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_07.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_08.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_08.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_09.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_09.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_10.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_10.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_11.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_11.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_12.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_12.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/media/photo_13.jpg' to MinIO object 'events/213347192060163_1021651903116628/media/photo_13.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1021651903116628/post.json' to MinIO object 'events/213347192060163_1021651903116628/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1023037482978070/media/photo_01.jpg' to MinIO object 'events/213347192060163_1023037482978070/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1023037482978070/post.json' to MinIO object 'events/213347192060163_1023037482978070/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1025152066099945/media/photo_01.jpg' to MinIO object 'events/213347192060163_1025152066099945/media/photo_01.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1025152066099945/media/photo_02.jpg' to MinIO object 'events/213347192060163_1025152066099945/media/photo_02.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1025152066099945/media/photo_03.jpg' to MinIO object 'events/213347192060163_1025152066099945/media/photo_03.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1025152066099945/media/photo_04.jpg' to MinIO object 'events/213347192060163_1025152066099945/media/photo_04.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1025152066099945/media/photo_05.jpg' to MinIO object 'events/213347192060163_1025152066099945/media/photo_05.jpg'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1025152066099945/post.json' to MinIO object 'events/213347192060163_1025152066099945/post.json'
+
+2026-07-21 07:07:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_01.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_02.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_03.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_04.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_05.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_05.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_06.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_06.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_07.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_07.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_08.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_08.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_09.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_09.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_10.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_10.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_11.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_11.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_12.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_12.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/media/photo_13.jpg' to MinIO object 'events/213347192060163_1026639209284564/media/photo_13.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1026639209284564/post.json' to MinIO object 'events/213347192060163_1026639209284564/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1028940839054401/media/video_01.mp4' to MinIO object 'events/213347192060163_1028940839054401/media/video_01.mp4'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1028940839054401/post.json' to MinIO object 'events/213347192060163_1028940839054401/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1036672484947903/media/photo_01.jpg' to MinIO object 'events/213347192060163_1036672484947903/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1036672484947903/post.json' to MinIO object 'events/213347192060163_1036672484947903/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1039404358008049/media/photo_01.jpg' to MinIO object 'events/213347192060163_1039404358008049/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1039404358008049/post.json' to MinIO object 'events/213347192060163_1039404358008049/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1041862667762218/media/photo_01.jpg' to MinIO object 'events/213347192060163_1041862667762218/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1041862667762218/post.json' to MinIO object 'events/213347192060163_1041862667762218/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_01.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_02.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_03.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_04.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_05.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_05.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_06.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_06.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_07.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_07.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_08.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_08.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_09.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_09.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_10.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_10.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_11.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_11.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_12.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_12.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/media/photo_13.jpg' to MinIO object 'events/213347192060163_1044239864191165/media/photo_13.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1044239864191165/post.json' to MinIO object 'events/213347192060163_1044239864191165/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1053290626619422/media/photo_01.jpg' to MinIO object 'events/213347192060163_1053290626619422/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1053290626619422/post.json' to MinIO object 'events/213347192060163_1053290626619422/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1057648652850286/media/photo_01.jpg' to MinIO object 'events/213347192060163_1057648652850286/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1057648652850286/post.json' to MinIO object 'events/213347192060163_1057648652850286/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1058373362777815/media/photo_01.jpg' to MinIO object 'events/213347192060163_1058373362777815/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1058373362777815/post.json' to MinIO object 'events/213347192060163_1058373362777815/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1059118082703343/media/photo_01.jpg' to MinIO object 'events/213347192060163_1059118082703343/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1059118082703343/post.json' to MinIO object 'events/213347192060163_1059118082703343/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1062247602390391/media/photo_01.jpg' to MinIO object 'events/213347192060163_1062247602390391/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1062247602390391/media/photo_02.jpg' to MinIO object 'events/213347192060163_1062247602390391/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1062247602390391/media/photo_03.jpg' to MinIO object 'events/213347192060163_1062247602390391/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1062247602390391/post.json' to MinIO object 'events/213347192060163_1062247602390391/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1063017125646772/media/photo_01.jpg' to MinIO object 'events/213347192060163_1063017125646772/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1063017125646772/post.json' to MinIO object 'events/213347192060163_1063017125646772/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1064430142172137/media/photo_01.jpg' to MinIO object 'events/213347192060163_1064430142172137/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1064430142172137/post.json' to MinIO object 'events/213347192060163_1064430142172137/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1066463558635462/media/photo_01.jpg' to MinIO object 'events/213347192060163_1066463558635462/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1066463558635462/post.json' to MinIO object 'events/213347192060163_1066463558635462/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_01.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_02.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_03.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_04.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_05.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_05.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_06.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_06.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_07.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_07.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_08.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_08.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_09.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_09.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/media/photo_10.jpg' to MinIO object 'events/213347192060163_1068596975088787/media/photo_10.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1068596975088787/post.json' to MinIO object 'events/213347192060163_1068596975088787/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1072497534698731/media/photo_01.jpg' to MinIO object 'events/213347192060163_1072497534698731/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1072497534698731/post.json' to MinIO object 'events/213347192060163_1072497534698731/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/media/photo_01.jpg' to MinIO object 'events/213347192060163_1073456527936165/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/media/photo_02.jpg' to MinIO object 'events/213347192060163_1073456527936165/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/media/photo_03.jpg' to MinIO object 'events/213347192060163_1073456527936165/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/media/photo_04.jpg' to MinIO object 'events/213347192060163_1073456527936165/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/media/photo_05.jpg' to MinIO object 'events/213347192060163_1073456527936165/media/photo_05.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/media/photo_06.jpg' to MinIO object 'events/213347192060163_1073456527936165/media/photo_06.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1073456527936165/post.json' to MinIO object 'events/213347192060163_1073456527936165/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1074820491133102/media/photo_01.jpg' to MinIO object 'events/213347192060163_1074820491133102/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1074820491133102/media/photo_02.jpg' to MinIO object 'events/213347192060163_1074820491133102/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1074820491133102/media/photo_03.jpg' to MinIO object 'events/213347192060163_1074820491133102/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1074820491133102/media/photo_04.jpg' to MinIO object 'events/213347192060163_1074820491133102/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1074820491133102/media/photo_05.jpg' to MinIO object 'events/213347192060163_1074820491133102/media/photo_05.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1074820491133102/post.json' to MinIO object 'events/213347192060163_1074820491133102/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_01.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_02.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_03.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_04.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_05.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_05.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_06.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_06.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/media/photo_07.jpg' to MinIO object 'events/213347192060163_1078480264100458/media/photo_07.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1078480264100458/post.json' to MinIO object 'events/213347192060163_1078480264100458/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1079163284032156/media/photo_01.jpg' to MinIO object 'events/213347192060163_1079163284032156/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1079163284032156/media/photo_02.jpg' to MinIO object 'events/213347192060163_1079163284032156/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1079163284032156/media/photo_03.jpg' to MinIO object 'events/213347192060163_1079163284032156/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1079163284032156/post.json' to MinIO object 'events/213347192060163_1079163284032156/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1081121160503035/media/photo_01.jpg' to MinIO object 'events/213347192060163_1081121160503035/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1081121160503035/post.json' to MinIO object 'events/213347192060163_1081121160503035/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1082035580411593/media/photo_01.jpg' to MinIO object 'events/213347192060163_1082035580411593/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1082035580411593/post.json' to MinIO object 'events/213347192060163_1082035580411593/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1084193270195824/media/photo_01.jpg' to MinIO object 'events/213347192060163_1084193270195824/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1084193270195824/post.json' to MinIO object 'events/213347192060163_1084193270195824/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1085604360054715/media/photo_01.jpg' to MinIO object 'events/213347192060163_1085604360054715/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1085604360054715/post.json' to MinIO object 'events/213347192060163_1085604360054715/post.json'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/media/photo_01.jpg' to MinIO object 'events/213347192060163_1087085056573312/media/photo_01.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/media/photo_02.jpg' to MinIO object 'events/213347192060163_1087085056573312/media/photo_02.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/media/photo_03.jpg' to MinIO object 'events/213347192060163_1087085056573312/media/photo_03.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/media/photo_04.jpg' to MinIO object 'events/213347192060163_1087085056573312/media/photo_04.jpg'
+
+2026-07-21 07:07:23 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/media/photo_05.jpg' to MinIO object 'events/213347192060163_1087085056573312/media/photo_05.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/media/photo_06.jpg' to MinIO object 'events/213347192060163_1087085056573312/media/photo_06.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1087085056573312/post.json' to MinIO object 'events/213347192060163_1087085056573312/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1089293869685764/media/photo_01.jpg' to MinIO object 'events/213347192060163_1089293869685764/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1089293869685764/post.json' to MinIO object 'events/213347192060163_1089293869685764/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_01.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_02.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_02.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_03.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_03.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_04.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_04.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_05.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_05.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_06.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_06.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_07.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_07.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_08.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_08.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_09.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_09.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_10.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_10.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_11.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_11.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_12.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_12.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/media/photo_13.jpg' to MinIO object 'events/213347192060163_1090773089537842/media/photo_13.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1090773089537842/post.json' to MinIO object 'events/213347192060163_1090773089537842/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1092381649376986/media/photo_01.jpg' to MinIO object 'events/213347192060163_1092381649376986/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1092381649376986/post.json' to MinIO object 'events/213347192060163_1092381649376986/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1093294315952386/media/video_01.mp4' to MinIO object 'events/213347192060163_1093294315952386/media/video_01.mp4'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1093294315952386/post.json' to MinIO object 'events/213347192060163_1093294315952386/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_01.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_02.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_02.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_03.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_03.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_04.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_04.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_05.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_05.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_06.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_06.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_07.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_07.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_08.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_08.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_09.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_09.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_10.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_10.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_11.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_11.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_12.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_12.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/media/photo_13.jpg' to MinIO object 'events/213347192060163_1097822468832904/media/photo_13.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1097822468832904/post.json' to MinIO object 'events/213347192060163_1097822468832904/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1104021571546327/media/video_01.mp4' to MinIO object 'events/213347192060163_1104021571546327/media/video_01.mp4'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1104021571546327/post.json' to MinIO object 'events/213347192060163_1104021571546327/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1110954957519655/media/photo_01.jpg' to MinIO object 'events/213347192060163_1110954957519655/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1110954957519655/post.json' to MinIO object 'events/213347192060163_1110954957519655/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1111716794110138/media/photo_01.jpg' to MinIO object 'events/213347192060163_1111716794110138/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1111716794110138/post.json' to MinIO object 'events/213347192060163_1111716794110138/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1112184910729993/media/photo_01.jpg' to MinIO object 'events/213347192060163_1112184910729993/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1112184910729993/post.json' to MinIO object 'events/213347192060163_1112184910729993/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_111361421941714/media/photo_01.jpg' to MinIO object 'events/213347192060163_111361421941714/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_111361421941714/post.json' to MinIO object 'events/213347192060163_111361421941714/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1114032333878584/media/photo_01.jpg' to MinIO object 'events/213347192060163_1114032333878584/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1114032333878584/post.json' to MinIO object 'events/213347192060163_1114032333878584/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1118085850139899/media/photo_01.jpg' to MinIO object 'events/213347192060163_1118085850139899/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1118085850139899/post.json' to MinIO object 'events/213347192060163_1118085850139899/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_01.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_01.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_02.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_02.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_03.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_03.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_04.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_04.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_05.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_05.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_06.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_06.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/media/photo_07.jpg' to MinIO object 'events/213347192060163_1119775716637579/media/photo_07.jpg'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:55 | [INFO]: Uploaded 'data/crawled/213347192060163_1119775716637579/post.json' to MinIO object 'events/213347192060163_1119775716637579/post.json'
+
+2026-07-21 07:07:24 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/minio_storage.py:120 | [WARNING]: Skipping 'data/crawled/213347192060163_1122314813050336' because post.json was not found
+
