@@ -28,6 +28,11 @@ sentence-transformers
 einops
 faster-whisper
 google-generativeai
+ultralytics
+paddleocr
+transformers
+torch
+opencv-python
 
 # Test / phát triển
 pytest
