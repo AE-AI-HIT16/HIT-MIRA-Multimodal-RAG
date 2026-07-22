@@ -1,0 +1,110 @@
+2026-07-22 03:57:33 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:261 | [INFO]: Downloaded MinIO object 'hit-mira-media/events/213347192060163_1028940839054401/media/video_01.mp4' to '/tmp/hit-mira-video-2nmnxt68/e1bf20b9-c044-4f01-addd-65eb675bca55.mp4'
+
+2026-07-22 03:57:33 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:77 | [INFO]: Starting media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 03:57:33 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_validator.py:82 | [INFO]: Media validation completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with valid=True
+
+2026-07-22 03:57:33 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_router.py:33 | [INFO]: Selected media route 'video'
+
+2026-07-22 03:57:34 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/keyframe_extractor.py:98 | [INFO]: Extracted 2 keyframe(s) for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 03:57:34 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'keyframe_extraction' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 1.22s
+
+2026-07-22 03:58:17 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'transcript_mapping' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 03:58:17 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/normalizer.py:98 | [INFO]: Normalized media metadata for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with schema 'v1'
+
+2026-07-22 03:58:17 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'normalization' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 03:58:17 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:183 | [INFO]: Completed media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with status 'partial_success' in 43.61s
+
+2026-07-22 03:58:17 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:152 | [INFO]: Reusing existing keyframe media_id 7f11b394-923a-4edb-b8fa-74822f2703d2 for frame_index 3308
+
+2026-07-22 03:58:17 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:152 | [INFO]: Reusing existing keyframe media_id 1f91f7e4-ab5a-49c7-b098-ec8e99d3857b for frame_index 5624
+
+2026-07-22 03:59:40 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:77 | [INFO]: Starting media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 03:59:40 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_validator.py:82 | [INFO]: Media validation completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with valid=True
+
+2026-07-22 03:59:40 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_router.py:33 | [INFO]: Selected media route 'video'
+
+2026-07-22 03:59:41 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/keyframe_extractor.py:98 | [INFO]: Extracted 2 keyframe(s) for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 03:59:41 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'keyframe_extraction' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 1.30s
+
+2026-07-22 03:59:59 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'transcript_mapping' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 03:59:59 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/normalizer.py:98 | [INFO]: Normalized media metadata for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with schema 'v1'
+
+2026-07-22 03:59:59 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'normalization' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 03:59:59 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:183 | [INFO]: Completed media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with status 'partial_success' in 19.44s
+
+2026-07-22 04:01:13 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:289 | [INFO]: Downloaded MinIO object 'hit-mira-media/events/213347192060163_1028940839054401/media/video_01.mp4' to '/tmp/hit-mira-video-ne6y2_lr/e1bf20b9-c044-4f01-addd-65eb675bca55.mp4'
+
+2026-07-22 04:01:13 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:77 | [INFO]: Starting media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 04:01:13 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_validator.py:82 | [INFO]: Media validation completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with valid=True
+
+2026-07-22 04:01:13 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_router.py:33 | [INFO]: Selected media route 'video'
+
+2026-07-22 04:01:14 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/keyframe_extractor.py:98 | [INFO]: Extracted 2 keyframe(s) for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 04:01:14 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'keyframe_extraction' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.87s
+
+2026-07-22 04:01:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'transcript_mapping' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 04:01:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/normalizer.py:98 | [INFO]: Normalized media metadata for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with schema 'v1'
+
+2026-07-22 04:01:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'normalization' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 04:01:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:183 | [INFO]: Completed media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with status 'partial_success' in 8.37s
+
+2026-07-22 04:01:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:152 | [INFO]: Reusing existing keyframe media_id 7f11b394-923a-4edb-b8fa-74822f2703d2 for frame_index 3308
+
+2026-07-22 04:01:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:152 | [INFO]: Reusing existing keyframe media_id 1f91f7e4-ab5a-49c7-b098-ec8e99d3857b for frame_index 5624
+
+2026-07-22 04:04:11 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:289 | [INFO]: Downloaded MinIO object 'hit-mira-media/events/213347192060163_1028940839054401/media/video_01.mp4' to '/tmp/hit-mira-video-dvmoz4v_/e1bf20b9-c044-4f01-addd-65eb675bca55.mp4'
+
+2026-07-22 04:04:11 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:77 | [INFO]: Starting media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 04:04:11 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_validator.py:82 | [INFO]: Media validation completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with valid=True
+
+2026-07-22 04:04:11 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_router.py:33 | [INFO]: Selected media route 'video'
+
+2026-07-22 04:04:12 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/keyframe_extractor.py:98 | [INFO]: Extracted 2 keyframe(s) for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 04:04:12 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'keyframe_extraction' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.86s
+
+2026-07-22 04:04:19 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'transcript_mapping' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 04:04:19 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/normalizer.py:98 | [INFO]: Normalized media metadata for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with schema 'v1'
+
+2026-07-22 04:04:19 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:258 | [INFO]: Stage 'normalization' completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' in 0.00s
+
+2026-07-22 04:04:19 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/pipeline_service.py:183 | [INFO]: Completed media pipeline for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with status 'partial_success' in 8.18s
+
+2026-07-22 04:04:19 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:152 | [INFO]: Reusing existing keyframe media_id 7f11b394-923a-4edb-b8fa-74822f2703d2 for frame_index 3308
+
+2026-07-22 04:04:19 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/video_processing_worker.py:152 | [INFO]: Reusing existing keyframe media_id 1f91f7e4-ab5a-49c7-b098-ec8e99d3857b for frame_index 5624
+
+2026-07-22 04:19:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:450 | [INFO]: Downloaded MinIO object 'hit-mira-media/events/213347192060163_1028940839054401/media/video_01.mp4' to '/tmp/hit-mira-keyframe-kkt6oibr/e1bf20b9-c044-4f01-addd-65eb675bca55.mp4'
+
+2026-07-22 04:19:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_validator.py:82 | [INFO]: Media validation completed for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55' with valid=True
+
+2026-07-22 04:19:21 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_router.py:33 | [INFO]: Selected media route 'video'
+
+2026-07-22 04:19:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/keyframe_extractor.py:98 | [INFO]: Extracted 2 keyframe(s) for media_id 'e1bf20b9-c044-4f01-addd-65eb675bca55'
+
+2026-07-22 04:19:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:288 | [INFO]: Reusing existing keyframe media_id 7f11b394-923a-4edb-b8fa-74822f2703d2 for frame_index 3308
+
+2026-07-22 04:19:22 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:288 | [INFO]: Reusing existing keyframe media_id 1f91f7e4-ab5a-49c7-b098-ec8e99d3857b for frame_index 5624
+
+2026-07-22 04:19:43 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:450 | [INFO]: Downloaded MinIO object 'hit-mira-media/frames/e1bf20b9-c044-4f01-addd-65eb675bca55/video_01_frame_005624.jpg' to '/tmp/hit-mira-ocr-77dzbnjk/1f91f7e4-ab5a-49c7-b098-ec8e99d3857b.jpg'
+
+2026-07-22 04:20:02 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:450 | [INFO]: Downloaded MinIO object 'hit-mira-media/events/213347192060163_1028940839054401/media/video_01.mp4' to '/tmp/hit-mira-asr-xmpvwd4_/e1bf20b9-c044-4f01-addd-65eb675bca55.mp4'
+
+2026-07-22 04:20:04 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:450 | [INFO]: Downloaded MinIO object 'hit-mira-media/frames/e1bf20b9-c044-4f01-addd-65eb675bca55/video_01_frame_005624.jpg' to '/tmp/hit-mira-object-2alfozg9/1f91f7e4-ab5a-49c7-b098-ec8e99d3857b.jpg'
+
+2026-07-22 04:20:15 | /home/ubuntu/HIT-MIRA-Multimodal-RAG/API/src/rag_video_anh/pipeline/media_task_worker.py:450 | [INFO]: Downloaded MinIO object 'hit-mira-media/frames/e1bf20b9-c044-4f01-addd-65eb675bca55/video_01_frame_003308.jpg' to '/tmp/hit-mira-caption-hgiwihg5/7f11b394-923a-4edb-b8fa-74822f2703d2.jpg'
+
