@@ -172,6 +172,16 @@ class VideoProcessingWorker:
         if result.ocr_results is None:
             return
         assert uow.results is not None
+        if not result.ocr_results.results:
+            for frame_media_id in frame_media_ids.values():
+                uow.results.upsert_ocr_result(
+                    frame_media_id,
+                    status=self._persistable_status(result.ocr_results.status.value, result.ocr_results.reason),
+                    text=result.ocr_results.reason,
+                    model="paddleocr",
+                    boxes=[],
+                )
+            return
         for ocr_result in result.ocr_results.results:
             frame_media_id = frame_media_ids.get(ocr_result.frame_id)
             if frame_media_id is None:
@@ -197,6 +207,15 @@ class VideoProcessingWorker:
         if result.caption_results is None:
             return
         assert uow.results is not None
+        if not result.caption_results.results:
+            for frame_media_id in frame_media_ids.values():
+                uow.results.upsert_caption_result(
+                    frame_media_id,
+                    status=self._persistable_status(result.caption_results.status.value, result.caption_results.reason),
+                    caption_text=result.caption_results.reason,
+                    model=self.config.media_models.caption_model_name,
+                )
+            return
         for caption_result in result.caption_results.results:
             frame_media_id = frame_media_ids.get(caption_result.frame_id)
             if frame_media_id is None:
@@ -212,6 +231,15 @@ class VideoProcessingWorker:
         if result.detection_results is None:
             return
         assert uow.results is not None
+        if not result.detection_results.results:
+            for frame_media_id in frame_media_ids.values():
+                uow.results.upsert_object_result(
+                    frame_media_id,
+                    status=self._persistable_status(result.detection_results.status.value, result.detection_results.reason),
+                    model=self.config.media_models.detection_model_name,
+                    objects=[],
+                )
+            return
         for detection_result in result.detection_results.results:
             frame_media_id = frame_media_ids.get(detection_result.frame_id)
             if frame_media_id is None:
@@ -247,7 +275,7 @@ class VideoProcessingWorker:
         full_text = " ".join(segment.text for segment in transcript.segments if segment.text).strip()
         uow.results.upsert_transcript_for_video_media(
             media.media_id,
-            status=transcript.status.value,
+            status=self._persistable_status(transcript.status.value, transcript.reason),
             language=transcript.language,
             model=transcript.transcription_meta.get("model") or self.config.media_models.whisper_model_size,
             full_text=full_text or None,
@@ -286,6 +314,19 @@ class VideoProcessingWorker:
         if not success:
             raise RuntimeError(f"failed to write keyframe image: {local_path}")
         return local_path
+
+    @staticmethod
+    def _persistable_status(status: str, reason: str | None = None) -> str:
+        normalized_status = str(status).strip().lower()
+        normalized_reason = str(reason or "").strip().lower()
+        if normalized_status == "error":
+            return "FAILED"
+        if normalized_status == "skipped" and any(
+            marker in normalized_reason
+            for marker in ("missing dependency", "load failed", "failed:", "runtimeerror", "attributeerror")
+        ):
+            return "FAILED"
+        return status
 
     @staticmethod
     def _frame_object_key(media: MediaRecord, frame: Any) -> str:
