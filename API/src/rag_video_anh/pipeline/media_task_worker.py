@@ -337,7 +337,7 @@ class MediaTaskWorker:
                     frame_media_id,
                     status=self._persistable_status(result.status.value, result.reason),
                     text=result.reason,
-                    model="paddleocr",
+                    model=getattr(self.ocr_service, "backend", "paddleocr"),
                     boxes=[],
                 )
                 return
@@ -351,7 +351,7 @@ class MediaTaskWorker:
                 status=self._persistable_status(ocr_result.status.value, ocr_result.reason),
                 text=ocr_result.full_text or ocr_result.reason,
                 avg_confidence=ocr_result.confidence,
-                model="paddleocr",
+                model=getattr(self.ocr_service, "backend", "paddleocr"),
                 boxes=boxes,
             )
 

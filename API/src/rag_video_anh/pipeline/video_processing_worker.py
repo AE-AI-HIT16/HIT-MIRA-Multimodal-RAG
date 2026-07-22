@@ -178,7 +178,7 @@ class VideoProcessingWorker:
                     frame_media_id,
                     status=self._persistable_status(result.ocr_results.status.value, result.ocr_results.reason),
                     text=result.ocr_results.reason,
-                    model="paddleocr",
+                    model=getattr(self.pipeline.ocr_service, "backend", "paddleocr"),
                     boxes=[],
                 )
             return
@@ -199,7 +199,7 @@ class VideoProcessingWorker:
                 status=ocr_result.status.value,
                 text=ocr_result.full_text,
                 avg_confidence=ocr_result.confidence,
-                model="paddleocr",
+                model=getattr(self.pipeline.ocr_service, "backend", "paddleocr"),
                 boxes=boxes,
             )
 
