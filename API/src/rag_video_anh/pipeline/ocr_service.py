@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from statistics import mean
 from typing import Any
 
@@ -17,6 +18,7 @@ class OCRService:
         self.config = config or AppConfig()
         self.pipeline_config = self.config.media_pipeline
         self.model_config = self.config.media_models
+        self.backend = os.getenv("OCR_BACKEND", "paddleocr").strip().lower()
         self._reader = reader
         self._reader_loaded = reader is not None
 
@@ -33,7 +35,7 @@ class OCRService:
             return OCRResultSet(
                 media_id=request.media_id,
                 status=StageStatus.SKIPPED,
-                reason="missing dependency 'paddleocr'",
+                reason=f"missing dependency '{self.backend}'",
             )
 
         results: list[OCRResult] = []
@@ -70,6 +72,24 @@ class OCRService:
     def _load_reader(self) -> Any | None:
         if self._reader_loaded:
             return self._reader
+        if self.backend == "easyocr":
+            return self._load_easyocr_reader()
+        return self._load_paddleocr_reader()
+
+    def _load_easyocr_reader(self) -> Any | None:
+        try:
+            import easyocr
+        except ImportError:
+            self._reader_loaded = True
+            self._reader = None
+            return None
+
+        languages = self.model_config.ocr_languages or ["vi", "en"]
+        self._reader = easyocr.Reader(languages, gpu=self.model_config.ocr_gpu)
+        self._reader_loaded = True
+        return self._reader
+
+    def _load_paddleocr_reader(self) -> Any | None:
         try:
             from paddleocr import PaddleOCR
         except ImportError:
@@ -82,10 +102,31 @@ class OCRService:
         self._reader_loaded = True
         return self._reader
 
-    @staticmethod
-    def _read_frame(reader: Any, image: Any) -> list[TextSpan]:
+    def _read_frame(self, reader: Any, image: Any) -> list[TextSpan]:
         if image is None:
             raise ValueError("keyframe image is not available")
+        if self.backend == "easyocr":
+            return self._read_frame_easyocr(reader, image)
+        return self._read_frame_paddleocr(reader, image)
+
+    
+    @staticmethod
+    def _read_frame_easyocr(reader: Any, image: Any) -> list[TextSpan]:
+        spans: list[TextSpan] = []
+        raw_results = reader.readtext(image)
+        for row in raw_results or []:
+            if not isinstance(row, (list, tuple)) or len(row) < 2:
+                continue
+            box = row[0]
+            text = str(row[1]).strip()
+            confidence = float(row[2]) if len(row) > 2 and row[2] is not None else None
+            if text:
+                spans.append(TextSpan(text=text, confidence=confidence, bbox=box))
+        return spans
+
+    
+    @staticmethod
+    def _read_frame_paddleocr(reader: Any, image: Any) -> list[TextSpan]:
         raw_results = reader.ocr(image, cls=True)
         spans: list[TextSpan] = []
         for block in raw_results or []:
