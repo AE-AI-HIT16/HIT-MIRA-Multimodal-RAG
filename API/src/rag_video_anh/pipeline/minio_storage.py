@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import mimetypes
+import os
+from datetime import timedelta
 from pathlib import Path
 
 from minio import Minio
@@ -80,6 +82,54 @@ class MinioStorage:
             if exc.code in {"NoSuchKey", "NoSuchObject", "NotFound"}:
                 return False
             raise
+
+    def presigned_download_url(
+        self,
+        object_key: str,
+        *,
+        bucket_name: str | None = None,
+        expires_seconds: int = 3600,
+    ) -> str:
+        """Return a URL a remote GPU worker can use to download one object.
+
+        The API container commonly reaches MinIO through its Docker hostname
+        (``minio:9000``), which is not resolvable from Runpod.  The optional
+        ``MINIO_PUBLIC_ENDPOINT`` creates the signature against the public
+        S3 address instead, while regular server-side reads keep using the
+        private client above.
+        """
+
+        return self._public_client().presigned_get_object(
+            bucket_name or self.bucket_name,
+            self.normalize_object_key(object_key),
+            expires=timedelta(seconds=expires_seconds),
+        )
+
+    def presigned_upload_url(
+        self,
+        object_key: str,
+        *,
+        bucket_name: str | None = None,
+        expires_seconds: int = 3600,
+    ) -> str:
+        """Return a URL a remote GPU worker can PUT an artifact to."""
+
+        return self._public_client().presigned_put_object(
+            bucket_name or self.bucket_name,
+            self.normalize_object_key(object_key),
+            expires=timedelta(seconds=expires_seconds),
+        )
+
+    def _public_client(self) -> Minio:
+        endpoint = os.getenv("MINIO_PUBLIC_ENDPOINT", "").strip() or self.minio_config.endpoint
+        secure_value = os.getenv("MINIO_PUBLIC_SECURE", "").strip().lower()
+        secure = self.minio_config.secure if not secure_value else secure_value in {"1", "true", "yes", "on"}
+        return Minio(
+            endpoint=endpoint,
+            access_key=self.minio_config.access_key,
+            secret_key=self.minio_config.secret_key,
+            secure=secure,
+        )
 
     def upload_directory(self, local_dir: str | Path, prefix: str) -> list[str]:
         """Upload every file under a directory while preserving relative paths."""

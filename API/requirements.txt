@@ -1,0 +1,17 @@
+fastapi
+python-multipart
+uvicorn[standard]
+pydantic
+pydantic-settings
+PyYAML
+python-dotenv
+qdrant-client
+langchain
+langchain-openai
+langchain-community
+langchain-text-splitters
+pypdf
+docx2txt
+sqlalchemy
+psycopg[binary]
+minio
