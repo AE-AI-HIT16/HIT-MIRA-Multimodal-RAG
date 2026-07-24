@@ -95,7 +95,7 @@ export function Composer({
             className="h-14 w-14 rounded-lg border border-zinc-200 object-cover"
           />
           <button
-            onClick={() => onPickImage(null)}
+            onClick={() => { onPickImage(null); setImgError(null); }}
             className="text-xs text-zinc-400 transition-colors hover:text-red-600"
           >
             Bỏ ảnh
@@ -114,7 +114,12 @@ export function Composer({
         <button
           onClick={() => fileRef.current?.click()}
           aria-label="Đính kèm ảnh"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+          title="Đính kèm ảnh (JPG / PNG / WEBP, tối đa 8MB)"
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors ${
+            image
+              ? "bg-accent-soft text-accent-ink"
+              : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+          }`}
         >
           <ImageIcon width={18} height={18} />
         </button>
