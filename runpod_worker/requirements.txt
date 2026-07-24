@@ -7,6 +7,10 @@ accelerate
 # compatible with PaddleOCR 3.1.0 and fails while creating PaddlePredictorOption.
 paddleocr==3.1.0
 paddlex[ie,multimodal,ocr,trans]==3.1.0
+# PaddleX 3.1 imports langchain.docstore; langchain 1.x removed it.
+langchain<1
+langchain-community<0.4
+langchain-openai<1
 timm
 einops
 faster-whisper==1.2.1
