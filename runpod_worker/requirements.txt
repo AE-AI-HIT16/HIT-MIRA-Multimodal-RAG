@@ -2,9 +2,14 @@
 # requirements.txt: it also contains web, database, RAG, and PaddleOCR stacks
 # which make the Serverless image unnecessarily large.
 accelerate
-paddleocr[all]==3.1.0
+# Keep PaddleOCR and PaddleX in the same 3.1.x generation. PaddleOCR 3.1.0
+# lets pip choose newer PaddleX releases, but PaddleX 3.7.x is not API
+# compatible with PaddleOCR 3.1.0 and fails while creating PaddlePredictorOption.
+paddleocr==3.1.0
+paddlex[ie,multimodal,ocr,trans]==3.1.0
+timm
 einops
-faster-whisper
+faster-whisper==1.2.1
 httpx
 opencv-python-headless
 pillow

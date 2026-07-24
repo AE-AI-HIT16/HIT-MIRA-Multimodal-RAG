@@ -28,10 +28,10 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY runpod_worker/requirements.txt /app/runpod-worker-requirements.txt
-RUN python -m pip install --upgrade pip \
-    && python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision \
-    && python -m pip install --index-url https://www.paddlepaddle.org.cn/packages/stable/cu123/ paddlepaddle-gpu==3.1.0 \
-    && python -m pip install -r /app/runpod-worker-requirements.txt
+RUN python -m pip install --upgrade pip
+RUN python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision
+RUN python -m pip install --retries 10 --timeout 120 --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu123/ paddlepaddle-gpu==3.1.0
+RUN python -m pip install -r /app/runpod-worker-requirements.txt
 
 # PipelineService imports the MinIO helper even though the remote worker only
 # exchanges presigned URLs, so keep this small dependency in a separate layer.

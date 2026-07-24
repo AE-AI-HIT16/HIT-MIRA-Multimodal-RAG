@@ -62,7 +62,7 @@ câu hỏi (text ± ảnh)
 
 ## 4. Điều chỉnh cho ràng buộc capstone (GPU/ngân sách hạn chế)
 - **Đẩy phần nặng lên API free-tier**: caption + làm sạch transcript + sinh câu trả lời → **Gemini 2.5 Flash** (không cần GPU). MERVIN chạy trên RTX 3060 12GB; ta né bằng cách này.
-- **Giữ local (chạy được trên Colab/GPU nhỏ)**: nhúng ảnh (Jina-CLIP v2 ~ViT-L), **PhoWhisper-large** (backend CTranslate2). Batch offline, không nằm trên request.
+- **Chạy trên GPU server**: nhúng ảnh (Jina-CLIP v2 ~ViT-L), **PhoWhisper-large** (backend CTranslate2). Batch offline, không nằm trên request.
 - **Không chọn PE-Core-bigG/BEiT-3** cho v1: mạnh nhưng nặng & English-centric; **multilingual CLIP (Jina-CLIP v2)** cho query tiếng Việt trực tiếp, đơn giản hơn (khỏi dịch query).
   - *Nếu chất lượng text→ảnh chưa đạt Recall@5 ≥ 0.80*: fallback = **SigLIP 2 / PE-Core** cho ảnh + **dịch query VN→EN** rồi mới nhúng.
 - **Trần quota Gemini free-tier (2026)**: 2.5 Flash ~**15 req/phút · 1.500 req/ngày · 250k token/phút**. Đường answer online gọi Gemini mỗi request → dễ đụng trần lúc demo đông. Giảm thiểu:
