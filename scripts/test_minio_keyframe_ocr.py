@@ -31,14 +31,6 @@ from src.rag_video_anh.schemas import KeyFrame, KeyFrameSet, OCRRequest, StageSt
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 
 
-def parse_float_list(raw: str) -> list[float]:
-    values: list[float] = []
-    for item in raw.split(","):
-        item = item.strip()
-        if item:
-            values.append(float(item))
-    return values
-
 
 def list_image_keys(storage: MinioStorage, prefix: str, limit: int | None) -> list[str]:
     keys: list[str] = []
@@ -66,14 +58,8 @@ def configure_ocr_service(args: argparse.Namespace) -> OCRService:
         service.model_config.ocr_gpu = False
     if args.gpu:
         service.model_config.ocr_gpu = True
-    if args.disable_preprocessing:
-        service.pipeline_config.ocr_enable_preprocessing = False
-    if args.upscale_factors:
-        service.pipeline_config.ocr_upscale_factors = parse_float_list(args.upscale_factors)
     if args.min_confidence is not None:
         service.pipeline_config.ocr_min_confidence = args.min_confidence
-    if args.disable_cleanup:
-        service.pipeline_config.ocr_text_cleanup = False
     return service
 
 
@@ -133,10 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--keep-downloads", action="store_true", help="Keep temporary downloads after OCR finishes.")
     parser.add_argument("--cpu", action="store_true", help="Force OCR on CPU.")
     parser.add_argument("--gpu", action="store_true", help="Force OCR on GPU.")
-    parser.add_argument("--disable-preprocessing", action="store_true", help="Use original images only.")
-    parser.add_argument("--upscale-factors", help="Comma-separated upscale factors, for example: 1,2,3.")
     parser.add_argument("--min-confidence", type=float, help="Override OCR minimum confidence.")
-    parser.add_argument("--disable-cleanup", action="store_true", help="Disable Vietnamese OCR text cleanup.")
     return parser
 
 
