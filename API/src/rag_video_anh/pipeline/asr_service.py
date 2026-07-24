@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
 from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_video_anh.schemas import ASRRequest, StageStatus, TranscriptSegment, TranscriptSet
+
+
+_ASR_BOILERPLATE_HALLUCINATION_PHRASES = (
+    "hay subscribe",
+    "subscribe cho kenh",
+    "dang ky kenh",
+    "ung ho kenh",
+    "bam chuong",
+    "nhan chuong",
+    "like va share",
+    "like share",
+    "dung quen dang ky",
+    "dung quen like",
+    "cam on cac ban da xem",
+    "khong bo lo nhung video",
+    "nhung video hap dan",
+)
 
 
 class AsrService:
@@ -49,25 +68,61 @@ class AsrService:
             )
 
         try:
+            language = request.asr_policy.get("language") or self.model_config.asr_language or media_input.language_hint
+            vad_parameters = self._vad_parameters() if self.model_config.whisper_vad_filter else None
             raw_segments, info = model.transcribe(
                 str(media_path),
                 beam_size=self.model_config.whisper_beam_size,
-                language=request.asr_policy.get("language") or self.model_config.asr_language or media_input.language_hint,
+                language=language,
+                temperature=self.model_config.whisper_temperature,
+                condition_on_previous_text=self.model_config.whisper_condition_on_previous_text,
+                compression_ratio_threshold=self.model_config.whisper_compression_ratio_threshold,
+                log_prob_threshold=self.model_config.whisper_log_prob_threshold,
+                no_speech_threshold=self.model_config.whisper_no_speech_threshold,
+                no_repeat_ngram_size=self.model_config.whisper_no_repeat_ngram_size,
+                repetition_penalty=self.model_config.whisper_repetition_penalty,
+                max_new_tokens=self.model_config.whisper_max_new_tokens,
+                vad_filter=self.model_config.whisper_vad_filter,
+                vad_parameters=vad_parameters,
             )
-            segments = [self._segment(media_input.media_id, index, segment) for index, segment in enumerate(raw_segments)]
+            raw_transcript_segments = [
+                self._segment(media_input.media_id, index, segment) for index, segment in enumerate(raw_segments)
+            ]
+            segments, filtered_count = self._filter_hallucinated_segments(raw_transcript_segments)
             language = getattr(info, "language", None) or media_input.language_hint
+            if filtered_count:
+                logger.info(
+                    f"ASR filtered {filtered_count} boilerplate hallucination segment(s) "
+                    f"for media_id '{media_input.media_id}'"
+                )
             logger.info(f"ASR produced {len(segments)} segment(s) for media_id '{media_input.media_id}'")
+            reason = self._transcript_reason(raw_transcript_segments, segments)
             return TranscriptSet(
                 media_id=media_input.media_id,
                 segments=segments,
                 language=language,
                 transcription_meta={
+                    "raw_segment_count": len(raw_transcript_segments),
+                    "filtered_segment_count": filtered_count,
                     "model": self.model_config.whisper_model_size,
                     "beam_size": self.model_config.whisper_beam_size,
                     "compute_type": self.model_config.whisper_compute_type,
+                    "device": self.model_config.whisper_device,
+                    "temperature": self.model_config.whisper_temperature,
+                    "condition_on_previous_text": self.model_config.whisper_condition_on_previous_text,
+                    "compression_ratio_threshold": self.model_config.whisper_compression_ratio_threshold,
+                    "log_prob_threshold": self.model_config.whisper_log_prob_threshold,
+                    "no_speech_threshold": self.model_config.whisper_no_speech_threshold,
+                    "no_repeat_ngram_size": self.model_config.whisper_no_repeat_ngram_size,
+                    "repetition_penalty": self.model_config.whisper_repetition_penalty,
+                    "max_new_tokens": self.model_config.whisper_max_new_tokens,
+                    "vad_filter": self.model_config.whisper_vad_filter,
+                    "vad_parameters": vad_parameters,
+                    "duration": getattr(info, "duration", None),
+                    "duration_after_vad": getattr(info, "duration_after_vad", None),
                 },
                 status=StageStatus.DONE if segments else StageStatus.NOT_FOUND,
-                reason=None if segments else "empty transcript",
+                reason=reason,
             )
         except Exception as exc:
             return TranscriptSet(
@@ -85,6 +140,39 @@ class AsrService:
             return None
         path = Path(str(value))
         return path if path.exists() else None
+
+    def _vad_parameters(self) -> dict[str, int | float]:
+        return {
+            "threshold": self.model_config.whisper_vad_threshold,
+            "min_silence_duration_ms": self.model_config.whisper_vad_min_silence_duration_ms,
+            "speech_pad_ms": self.model_config.whisper_vad_speech_pad_ms,
+        }
+
+    def _filter_hallucinated_segments(
+        self, segments: list[TranscriptSegment]
+    ) -> tuple[list[TranscriptSegment], int]:
+        filtered_segments = [segment for segment in segments if not self._is_boilerplate_hallucination(segment.text)]
+        return filtered_segments, len(segments) - len(filtered_segments)
+
+    @staticmethod
+    def _transcript_reason(raw_segments: list[TranscriptSegment], segments: list[TranscriptSegment]) -> str | None:
+        if segments:
+            return None
+        if raw_segments:
+            return "transcript filtered by ASR hallucination gate"
+        return "empty transcript"
+
+    @staticmethod
+    def _is_boilerplate_hallucination(text: str) -> bool:
+        normalized = AsrService._normalize_transcript_text(text)
+        if not normalized:
+            return True
+        return any(phrase in normalized for phrase in _ASR_BOILERPLATE_HALLUCINATION_PHRASES)
+
+    @staticmethod
+    def _normalize_transcript_text(text: str) -> str:
+        ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+        return re.sub(r"\s+", " ", ascii_text.lower()).strip()
 
     def _load_model(self) -> Any | None:
         if self._model_loaded:

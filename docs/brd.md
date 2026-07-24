@@ -153,7 +153,7 @@
 
 - **Constraints.**
   - Thời gian: theo lịch capstone (giả định ~1 học kỳ — [cần xác minh]).
-  - Compute: tài nguyên sinh viên/Colab/GPU hạn chế → ưu tiên model open-source, lấy mẫu frame, giảm độ phân giải khi cần *(giả định — sửa nếu sai)*.
+  - Compute: GPU server của dự án → ưu tiên model open-source; lấy mẫu frame và giảm độ phân giải khi cần để tối ưu tài nguyên.
   - Ngân sách: gần như $0 → dùng model/hạ tầng miễn phí hoặc free-tier *(giả định)*.
 - **Assumptions.**
   - Dữ liệu fanpage được Ban Chủ nhiệm cấp quyền sử dụng cho mục đích học thuật (gắn với BR-101).
