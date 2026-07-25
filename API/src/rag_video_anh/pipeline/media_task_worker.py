@@ -411,7 +411,7 @@ class MediaTaskWorker:
                 video_media_id,
                 status=self._persistable_status(result.status.value, result.reason),
                 language=result.language,
-                model=result.transcription_meta.get("model") or self.config.media_models.whisper_model_size,
+                model=result.transcription_meta.get("model") or self.config.media_models.asr_model_name,
                 full_text=full_text or result.reason,
                 segments=segments,
             )

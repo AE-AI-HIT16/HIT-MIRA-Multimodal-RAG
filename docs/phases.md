@@ -64,7 +64,7 @@
 ### P0-6 · Provider ASR `[T-21]`
 - **File:** `shared/providers/asr.py`
 - **Chữ ký:** `ASRModel.transcribe(audio_path: str) -> list[TranscriptSegment]`; `TranscriptSegment(start_sec, end_sec, text, confidence)`.
-- **Impl:** `FasterWhisperASR(model_name="large-v3", language="vi", vad_filter=True)` — backend faster-whisper (CTranslate2) cho PhoWhisper.
+- **Impl:** `SherpaOnnxASR(model_name="hynt/Zipformer-30M-RNNT-6000h", language="vi")` — backend sherpa-onnx cho ZipFormer RNNT.
 - **DoD:** audio mẫu → ≥1 segment có text + timestamp tăng dần (`test_transcript_segments`).
 
 ### P0-7 · Provider Captioner `[T-22]`

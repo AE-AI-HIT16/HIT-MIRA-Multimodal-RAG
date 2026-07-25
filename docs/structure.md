@@ -33,7 +33,7 @@ HIT-MIRA-Multimodal-RAG/
 │   │
 │   ├── pipeline/                 # ── OFFLINE: job nặng, chạy worker/CLI  [NFR] ──
 │   │   ├── frames.py             #    BR-201  keyframe + timestamp
-│   │   ├── asr.py                #    BR-208  audio → Whisper → transcript
+│   │   ├── asr.py                #    BR-208  audio → ZipFormer RNNT → transcript
 │   │   ├── caption.py            #    BR-203  caption ảnh/frame
 │   │   ├── ocr.py                #    BR-204  (v2)
 │   │   ├── embed.py              #    BR-202/207/208  sinh embedding

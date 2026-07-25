@@ -13,7 +13,9 @@ langchain-community<0.4
 langchain-openai<1
 timm
 einops
-faster-whisper==1.2.1
+sherpa-onnx
+numpy
+huggingface-hub
 httpx
 opencv-python-headless
 pillow

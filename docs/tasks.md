@@ -51,7 +51,7 @@
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
 | T-20 | Embeddings: **Jina-CLIP v2** (ảnh) + **AITeamVN/Vietnamese_Embedding** (text) | AIE-1 | `providers/embeddings.py` | — | embed cùng dim; query text→ảnh liên quan | Must | 1 |
-| T-21 | ASR: **PhoWhisper-large** (backend CTranslate2/faster-whisper) | AIE-2 | `providers/asr.py` | — | audio mẫu → segment có text+timestamp | Must | 1 |
+| T-21 | ASR: **Zipformer-30M-RNNT-6000h** (backend sherpa-onnx) | AIE-2 | `providers/asr.py` | — | audio mẫu → segment có text+timestamp | Must | 1 |
 | T-22 | Captioner: **Gemini 2.5 Flash Vision** (VLM) | AIE-2 | `providers/captioner.py` | — | ảnh mẫu → caption tiếng Việt | Should | 2 |
 | T-23 | LLM: **Gemini 2.5 Flash / Flash-Lite** free-tier | AIE-2 | `providers/llm.py` | — | `generate(prompt)` trả text ổn định | Must | 1 |
 

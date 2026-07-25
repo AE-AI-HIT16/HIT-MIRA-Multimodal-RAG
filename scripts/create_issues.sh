@@ -80,7 +80,7 @@ T-13|Sinh embedding ảnh/text|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE
 T-14|Build/upsert Qdrant 3 collection|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/index.py · depends T-13 · DoD: test_index_upsert (sai chiều→từ chối)
 T-15|Orchestrator run.py|role/DE,epic/pipeline,prio/must,sprint/3|Owner DE · pipeline/run.py · depends T-10..14 · DoD: 1 video chạy trọn, lỗi 1 mục không chặn batch
 T-20|Embeddings Jina-CLIP v2 (ảnh) + Vietnamese_Embedding (text)|role/AIE-1,epic/providers,prio/must,sprint/1|Owner AIE-1 · providers/embeddings.py · DoD: embed cùng dim, text→ảnh liên quan
-T-21|ASR PhoWhisper-large (backend faster-whisper)|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/asr.py · DoD: audio→segment text+timestamp
+T-21|ASR Zipformer-30M-RNNT-6000h (backend sherpa-onnx)|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/asr.py · DoD: audio→segment text+timestamp
 T-22|Captioner Gemini 2.5 Flash Vision|role/AIE-2,epic/providers,prio/should,sprint/2|Owner AIE-2 · providers/captioner.py · DoD: ảnh→caption tiếng Việt
 T-23|LLM Gemini 2.5 Flash / Flash-Lite free-tier|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/llm.py · DoD: generate(prompt) trả text ổn định
 T-30|retrieve_media (embed→search)|role/AIE-1,epic/retrieval,prio/must,sprint/3|Owner AIE-1 · domains/retrieval · depends T-14,T-20 · DoD: TC-301 test_recall_at_k

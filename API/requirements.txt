@@ -15,3 +15,6 @@ docx2txt
 sqlalchemy
 psycopg[binary]
 minio
+sherpa-onnx
+numpy
+huggingface-hub

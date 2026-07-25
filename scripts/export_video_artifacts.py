@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import sys
 import traceback
@@ -232,7 +231,7 @@ def export_transcript(result: PipelineResult, run_dir: Path, config: AppConfig) 
         "status": stage_status(transcript),
         "reason": stage_reason(transcript),
         "language": getattr(transcript, "language", None),
-        "model": (transcript.transcription_meta.get("model") if transcript else None) or config.media_models.whisper_model_size,
+        "model": (transcript.transcription_meta.get("model") if transcript else None) or config.media_models.asr_model_name,
         "full_text": full_text,
         "transcription_meta": getattr(transcript, "transcription_meta", {}),
         "segments": [],
