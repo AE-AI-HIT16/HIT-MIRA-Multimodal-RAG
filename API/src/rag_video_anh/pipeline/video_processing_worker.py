@@ -277,7 +277,7 @@ class VideoProcessingWorker:
             media.media_id,
             status=self._persistable_status(transcript.status.value, transcript.reason),
             language=transcript.language,
-            model=transcript.transcription_meta.get("model") or self.config.media_models.whisper_model_size,
+            model=transcript.transcription_meta.get("model") or self.config.media_models.asr_model_name,
             full_text=full_text or None,
             segments=segments,
         )

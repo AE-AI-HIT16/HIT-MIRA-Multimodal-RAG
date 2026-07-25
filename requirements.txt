@@ -26,7 +26,9 @@ docx2txt
 pillow
 sentence-transformers
 einops
-faster-whisper
+sherpa-onnx
+numpy
+huggingface-hub
 google-generativeai
 ultralytics
 paddleocr

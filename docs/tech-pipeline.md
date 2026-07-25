@@ -16,7 +16,7 @@
 |---|---|---|---|---|
 | Keyframe video | MERVIN: **TransNetV2**, 3 frame/shot @0.15/0.5/0.85 | **TransNetV2** (fallback: ffmpeg theo bước thời gian) | Cắt theo shot → frame đại diện tốt hơn lấy mẫu cố định | `pipeline/frames.py` |
 | Nhúng ảnh/frame | MERVIN: PE-Core-bigG-14-448 · UIT: BEiT-3 | **Jina-CLIP v2** (đa ngôn ngữ 89 thứ tiếng + Matryoshka cắt dim) | Query **tiếng Việt → ảnh trực tiếp**, nhẹ hơn bigG. *SigLIP 2 mạnh về ảnh nhưng **không đa ngôn ngữ** → phải dịch query VN→EN, nên bỏ khỏi lựa chọn chính; giữ làm fallback.* | `providers/embeddings.py::ImageEmbedder` |
-| ASR (audio→text) | cả 2: **Whisper** | **PhoWhisper-large** (VinAI) chạy qua backend CTranslate2/faster-whisper | SOTA WER tiếng Việt (fine-tune Whisper trên **844h giọng Việt đa vùng miền**) → trực tiếp giảm rủi ro "ASR VN nhiễu"; vẫn giữ tốc độ + timestamp của faster-whisper | `providers/asr.py` + `pipeline/asr.py` |
+| ASR (audio→text) | ASR tiếng Việt | **hynt/Zipformer-30M-RNNT-6000h** chạy qua backend sherpa-onnx | ZipFormer RNNT tiếng Việt 30M tham số, nhẹ và nhanh trên CPU; transcript hiện lưu 1 segment phủ toàn audio vì backend hiện chunk timestamp thô theo cửa sổ audio | `providers/asr.py` + `pipeline/asr.py` |
 | Làm sạch transcript | MERVIN: **Gemini 1.5 Flash** (clean ~8k tok + summarize 3–4k) | **Gemini 2.5 Flash** (free-tier) làm sạch + tóm tắt | Khử nhiễu ASR tiếng Việt (đúng rủi ro đã ghi trong BRD). *(Gemini 2.0 Flash đã bị khai tử 3/3/2026 — không dùng.)* | `pipeline/asr.py` → `providers/llm.py` |
 | Nhúng text (transcript + nội quy) | MERVIN: dangvantuan/vietnamese-embedding (STS, không phải retrieval) | **AITeamVN/Vietnamese_Embedding** (fine-tune **từ bge-m3** trên 300k triplet query–pos–neg) | Tuned cho *retrieval* (không phải STS như dangvantuan); vì nền là bge-m3 nên **cùng lúc** retrieval-tuned + context dài + hỗ trợ hybrid → **một model dùng cho cả transcript lẫn nội quy** (bỏ được lựa chọn kép vi-embed/bge-m3) | `providers/embeddings.py::TextEmbedder` |
 | Caption ảnh/frame | *(2 paper không caption — họ dùng OCR + object)* | **Gemini 2.5 Flash Vision** → caption tiếng Việt | Không tốn GPU, ra tiếng Việt, cùng provider LLM | `pipeline/caption.py` + `providers/captioner.py` |
@@ -37,7 +37,7 @@
 ```
 video ──► TransNetV2 ──► keyframe(3/shot)+timestamp ──► Jina-CLIP v2 ──► [Qdrant: media]
   │                                                          └─► Gemini 2.5 Flash caption ──► (payload/caption)
-  └─► ffmpeg tách audio ──► PhoWhisper-large ──► transcript(+timestamp)
+  └─► ffmpeg tách audio ──► Zipformer-30M-RNNT-6000h ──► transcript
                                    └─► Gemini 2.5 Flash: clean + summarize ──► chunk ──► Vietnamese_Embedding ──► [Qdrant: transcript]
 
 nội quy ──► tách điều/khoản ──► chunk ──► Vietnamese_Embedding (nền bge-m3) ──► [Qdrant: regulation]
@@ -62,7 +62,7 @@ câu hỏi (text ± ảnh)
 
 ## 4. Điều chỉnh cho ràng buộc capstone (GPU/ngân sách hạn chế)
 - **Đẩy phần nặng lên API free-tier**: caption + làm sạch transcript + sinh câu trả lời → **Gemini 2.5 Flash** (không cần GPU). MERVIN chạy trên RTX 3060 12GB; ta né bằng cách này.
-- **Chạy trên GPU server**: nhúng ảnh (Jina-CLIP v2 ~ViT-L), **PhoWhisper-large** (backend CTranslate2). Batch offline, không nằm trên request.
+- **Chạy trên GPU server**: nhúng ảnh (Jina-CLIP v2 ~ViT-L), **hynt/Zipformer-30M-RNNT-6000h** (backend sherpa-onnx). Batch offline, không nằm trên request.
 - **Không chọn PE-Core-bigG/BEiT-3** cho v1: mạnh nhưng nặng & English-centric; **multilingual CLIP (Jina-CLIP v2)** cho query tiếng Việt trực tiếp, đơn giản hơn (khỏi dịch query).
   - *Nếu chất lượng text→ảnh chưa đạt Recall@5 ≥ 0.80*: fallback = **SigLIP 2 / PE-Core** cho ảnh + **dịch query VN→EN** rồi mới nhúng.
 - **Trần quota Gemini free-tier (2026)**: 2.5 Flash ~**15 req/phút · 1.500 req/ngày · 250k token/phút**. Đường answer online gọi Gemini mỗi request → dễ đụng trần lúc demo đông. Giảm thiểu:
@@ -73,7 +73,7 @@ câu hỏi (text ± ảnh)
 ## 5. Rủi ro & phương án thay thế
 | Rủi ro | Giảm thiểu |
 |---|---|
-| ASR tiếng Việt nhiễu (tạp âm sự kiện) | **PhoWhisper-large** (SOTA VN) + Gemini clean (MERVIN); transcript chỉ **bổ trợ** cạnh keyframe, không phải nguồn duy nhất |
+| ASR tiếng Việt nhiễu (tạp âm sự kiện) | **hynt/Zipformer-30M-RNNT-6000h** + Gemini clean (MERVIN); transcript chỉ **bổ trợ** cạnh keyframe, không phải nguồn duy nhất |
 | Multilingual CLIP yếu với tiếng Việt | Fallback SigLIP 2/PE-Core + dịch query; hoặc thêm caption (Gemini) để search bằng text VN |
 | Rerank tiếng Việt kém (MERVIN đo VN reranker chỉ 0.15) | Dùng điểm cosine, **chưa cần** cross-encoder reranker ở v1 |
 | Free-tier Gemini giới hạn quota (15 rpm/1.5k ngày) | Cache caption/summary offline; batch; Flash-Lite cho truy vấn đơn giản; key dự phòng |
@@ -81,6 +81,6 @@ câu hỏi (text ± ảnh)
 | Cold-start: chưa có dữ liệu thật | Chốt sớm nguồn video/ảnh/nội quy từ fanpage + người chuẩn hóa; không có input thì pipeline chạy rỗng |
 
 ## 6. Chốt cho `/write-hld`
-- Model v1: **TransNetV2 · Jina-CLIP v2 · PhoWhisper-large (backend faster-whisper) · Gemini 2.5 Flash / Flash-Lite (clean/caption/answer) · AITeamVN/Vietnamese_Embedding · Qdrant**.
+- Model v1: **TransNetV2 · Jina-CLIP v2 · Zipformer-30M-RNNT-6000h (backend sherpa-onnx) · Gemini 2.5 Flash / Flash-Lite (clean/caption/answer) · AITeamVN/Vietnamese_Embedding · Qdrant**.
 - **Thứ tự bắt buộc:** dựng **bộ eval có nhãn (T-70) ~30–50 truy vấn *trước*** rồi mới benchmark — không có ground-truth thì không đo Recall@5 được. (T-70 đã kéo lên sprint 1–2, xem `tasks.md`.)
 - Benchmark chốt số: **Jina-CLIP v2** (mặc định) vs fallback SigLIP 2+dịch cho ảnh; Vietnamese_Embedding cho text (đơn model, không còn phải chọn kép).

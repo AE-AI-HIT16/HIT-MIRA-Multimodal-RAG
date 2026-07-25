@@ -24,7 +24,7 @@
 
 ```
 video ─┬─► frames (ffmpeg keyframe + ts) ─► caption (Gemini, opt-in) ─► embed ảnh (Jina-CLIP) ─► Qdrant "media_clip"
-       └─► audio 16k mono (ffmpeg) ─► ASR (PhoWhisper) ─► chunk (~800 char, 15% overlap) ─► embed text (Vietnamese_Embedding) ─► Qdrant "video_transcript"
+       └─► audio 16k mono (ffmpeg) ─► ASR (ZipFormer RNNT) ─► chunk (~800 char, 15% overlap) ─► embed text (Vietnamese_Embedding) ─► Qdrant "video_transcript"
 
 file nội quy ─► tách điều/khoản (rule_chunks) ─► embed text ─► Qdrant "regulation_text"
 ```

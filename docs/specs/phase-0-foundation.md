@@ -55,7 +55,7 @@ Factory `app/deps.py::get_storage` chọn backend theo config; bucket tự tạo
 **Hành vi:**
 - `api` phụ thuộc `postgres` + `qdrant` + `minio` với `condition: service_healthy`.
 - Không có `.env` → api vẫn boot với default (`sqlite:///./data/dev.db` + qdrant localhost + storage filesystem) — dev không docker vẫn chạy được.
-- Model nặng (torch/faster-whisper) KHÔNG bắt buộc trong image v1 — pipeline offline chạy ngoài container được (CLI trên host có GPU).
+- Model ASR/sherpa-onnx KHÔNG bắt buộc trong image API v1 — pipeline offline chạy ngoài container được (CLI trên host có GPU).
 
 **Edge:**
 - Qdrant/MinIO chưa sẵn sàng khi api boot → api không được crash: provider lazy-init, chỉ connect khi request đầu chạm.
@@ -201,7 +201,7 @@ class ASRModel(ABC):
     def transcribe(self, audio_path: str) -> list[TranscriptSegment]
 ```
 
-**Impl:** `FasterWhisperASR(model_name="large-v3", *, device="auto", model=None)` — backend faster-whisper (CTranslate2); `language="vi"`, `vad_filter=True`; `confidence` = avg_logprob. Param `model=` để inject fake.
+**Impl:** `SherpaOnnxASR(model_name="hynt/Zipformer-30M-RNNT-6000h", *, provider="cpu", model=None)` — backend sherpa-onnx; `language="vi"`; chunk timestamp thô theo cửa sổ audio. Param `model=` để inject fake.
 
 **DoD:** audio mẫu → ≥1 segment, timestamp tăng dần trong thời lượng.
 
