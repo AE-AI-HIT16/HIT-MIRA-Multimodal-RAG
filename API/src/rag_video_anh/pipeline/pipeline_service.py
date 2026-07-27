@@ -9,18 +9,16 @@ from typing import Any, Callable
 from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_video_anh.pipeline.asr_service import AsrService
-from src.rag_video_anh.pipeline.caption_service import CaptionService
 from src.rag_video_anh.pipeline.detection_service import DetectionService
 from src.rag_video_anh.pipeline.keyframe_extractor import KeyframeExtractorService
 from src.rag_video_anh.pipeline.media_router import MediaRouterService
 from src.rag_video_anh.pipeline.media_validator import MediaValidatorService
 from src.rag_video_anh.pipeline.normalizer import NormalizerService
-from src.rag_video_anh.pipeline.ocr_service import OCRService
+from src.rag_video_anh.pipeline.qwen_vision_service import QwenVisionService
 from src.rag_video_anh.pipeline.transcript_mapper import TranscriptMapperService
 from src.rag_video_anh.schemas import (
     ASRRequest,
     AlignedTranscriptContext,
-    CaptionRequest,
     CaptionResultSet,
     DetectionRequest,
     DetectionResultSet,
@@ -28,7 +26,6 @@ from src.rag_video_anh.schemas import (
     KeyframeExtractionRequest,
     MediaInput,
     NormalizationRequest,
-    OCRRequest,
     OCRResultSet,
     PipelineError,
     PipelineRequest,
@@ -49,8 +46,7 @@ class PipelineService:
         validator: MediaValidatorService | None = None,
         router: MediaRouterService | None = None,
         keyframe_extractor: KeyframeExtractorService | None = None,
-        ocr_service: OCRService | None = None,
-        caption_service: CaptionService | None = None,
+        vision_service: QwenVisionService | None = None,
         detection_service: DetectionService | None = None,
         asr_service: AsrService | None = None,
         transcript_mapper: TranscriptMapperService | None = None,
@@ -61,8 +57,7 @@ class PipelineService:
         self.validator = validator or MediaValidatorService(config=self.config)
         self.router = router or MediaRouterService(config=self.config)
         self.keyframe_extractor = keyframe_extractor or KeyframeExtractorService(config=self.config)
-        self.ocr_service = ocr_service or OCRService(config=self.config)
-        self.caption_service = caption_service or CaptionService(config=self.config)
+        self.vision_service = vision_service or QwenVisionService(config=self.config)
         self.detection_service = detection_service or DetectionService(config=self.config)
         self.asr_service = asr_service or AsrService(config=self.config)
         self.transcript_mapper = transcript_mapper or TranscriptMapperService(config=self.config)
@@ -209,13 +204,12 @@ class PipelineService:
     ) -> tuple[OCRResultSet, CaptionResultSet, DetectionResultSet, TranscriptSet]:
         media_input = request.media_input
         tasks: dict[str, Callable[[], Any]] = {}
-        if route.requires_ocr:
-            tasks["ocr"] = lambda: self.ocr_service.recognize(
-                OCRRequest(media_id=media_input.media_id, keyframes=keyframes, ocr_policy=request.processing_options.get("ocr", {}))
-            )
-        if route.requires_caption:
-            tasks["caption"] = lambda: self.caption_service.caption(
-                CaptionRequest(media_id=media_input.media_id, keyframes=keyframes, caption_policy=request.processing_options.get("caption", {}))
+        if route.requires_ocr or route.requires_caption:
+            tasks["vision"] = lambda: self.vision_service.analyze(
+                media_id=media_input.media_id,
+                keyframes=keyframes,
+                ocr_policy=request.processing_options.get("ocr", {}),
+                caption_policy=request.processing_options.get("caption", {}),
             )
         if route.requires_detection:
             tasks["detection"] = lambda: self.detection_service.detect(
@@ -237,9 +231,12 @@ class PipelineService:
             for stage, task in tasks.items():
                 results[stage] = self._safe_stage(stage, task, errors, media_input, correlation_id)
 
+        vision_results = results.get("vision")
+        ocr_results = vision_results[0] if vision_results and route.requires_ocr else None
+        caption_results = vision_results[1] if vision_results and route.requires_caption else None
         return (
-            results.get("ocr") or OCRResultSet(media_id=media_input.media_id, status=StageStatus.SKIPPED, reason="OCR disabled by route"),
-            results.get("caption") or CaptionResultSet(media_id=media_input.media_id, status=StageStatus.SKIPPED, reason="caption disabled by route"),
+            ocr_results or OCRResultSet(media_id=media_input.media_id, status=StageStatus.SKIPPED, reason="OCR disabled by route"),
+            caption_results or CaptionResultSet(media_id=media_input.media_id, status=StageStatus.SKIPPED, reason="caption disabled by route"),
             results.get("detection") or DetectionResultSet(media_id=media_input.media_id, status=StageStatus.SKIPPED, reason="detection disabled by route"),
             results.get("asr") or TranscriptSet(media_id=media_input.media_id, status=StageStatus.SKIPPED, reason="ASR disabled by route"),
         )

@@ -12,9 +12,11 @@ langchain-community
 langchain-text-splitters
 pypdf
 docx2txt
+openai
 sqlalchemy
 psycopg[binary]
 minio
 sherpa-onnx
 numpy
 huggingface-hub
+httpx

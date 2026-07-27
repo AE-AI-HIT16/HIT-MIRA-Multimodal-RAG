@@ -100,39 +100,21 @@ class FrameRecord(FrameCreate):
 
 
 @dataclass(frozen=True)
-class OcrBoxCreate:
-    text: str | None = None
-    confidence: float | None = None
-    x1: float | None = None
-    y1: float | None = None
-    x2: float | None = None
-    y2: float | None = None
-
-
-@dataclass(frozen=True)
-class OcrBoxRecord(OcrBoxCreate):
-    box_id: UUID | None = None
-    ocr_id: UUID | None = None
-
-
-@dataclass(frozen=True)
 class OcrResultRecord:
     media_id: UUID
-    status: str = ProcessingStatus.PENDING.value
-    text: str | None = None
-    avg_confidence: float | None = None
-    model: str | None = None
+    ocr_status: str = ProcessingStatus.PENDING.value
+    ocr_text: str | None = None
     ocr_id: UUID | None = None
     created_at: datetime | None = None
-    boxes: list[OcrBoxRecord] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class CaptionResultRecord:
     media_id: UUID
-    status: str = ProcessingStatus.PENDING.value
+    caption_status: str = ProcessingStatus.PENDING.value
     caption_text: str | None = None
-    model: str | None = None
+    caption_model: str | None = None
+    vision_metadata: dict | None = None
     caption_id: UUID | None = None
     created_at: datetime | None = None
 

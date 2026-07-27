@@ -23,7 +23,6 @@ from src.rag_video_anh.schemas.transcript import (
     TranscriptSet,
 )
 from src.rag_video_anh.schemas.video_metadata import (
-    CaptionRequest,
     CaptionResult,
     CaptionResultSet,
     DetectionBox,
@@ -33,7 +32,6 @@ from src.rag_video_anh.schemas.video_metadata import (
     KeyFrame,
     KeyFrameSet,
     KeyframeExtractionRequest,
-    OCRRequest,
     OCRResult,
     OCRResultSet,
     TextSpan,
@@ -57,7 +55,6 @@ __all__ = [
     "TranscriptMappingRequest",
     "TranscriptSegment",
     "TranscriptSet",
-    "CaptionRequest",
     "CaptionResult",
     "CaptionResultSet",
     "DetectionBox",
@@ -67,7 +64,6 @@ __all__ = [
     "KeyFrame",
     "KeyFrameSet",
     "KeyframeExtractionRequest",
-    "OCRRequest",
     "OCRResult",
     "OCRResultSet",
     "TextSpan",

@@ -9,24 +9,20 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from time import sleep
-from typing import Any
-
 from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_video_anh.pipeline.asr_service import AsrService
-from src.rag_video_anh.pipeline.caption_service import CaptionService
 from src.rag_video_anh.pipeline.detection_service import DetectionService
 from src.rag_video_anh.pipeline.keyframe_extractor import KeyframeExtractorService
 from src.rag_video_anh.pipeline.media_router import MediaRouterService
 from src.rag_video_anh.pipeline.media_validator import MediaValidatorService
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
-from src.rag_video_anh.pipeline.ocr_service import OCRService
+from src.rag_video_anh.pipeline.qwen_vision_service import QwenVisionService
 from src.rag_video_anh.repository import (
     DetectedObjectCreate,
     FrameCreate,
     FrameRecord,
     MediaRecord,
-    OcrBoxCreate,
     ProcessingJobCreate,
     ProcessingJobRecord,
     ProcessingStatus,
@@ -37,7 +33,6 @@ from src.rag_video_anh.repository import (
 )
 from src.rag_video_anh.schemas import (
     ASRRequest,
-    CaptionRequest,
     CaptionResultSet,
     DetectionRequest,
     DetectionResultSet,
@@ -45,7 +40,6 @@ from src.rag_video_anh.schemas import (
     KeyFrameSet,
     KeyframeExtractionRequest,
     MediaInput,
-    OCRRequest,
     OCRResultSet,
     StageStatus,
     TranscriptSet,
@@ -77,8 +71,7 @@ class MediaTaskWorker:
         validator: MediaValidatorService | None = None,
         router: MediaRouterService | None = None,
         keyframe_extractor: KeyframeExtractorService | None = None,
-        ocr_service: OCRService | None = None,
-        caption_service: CaptionService | None = None,
+        vision_service: QwenVisionService | None = None,
         detection_service: DetectionService | None = None,
         asr_service: AsrService | None = None,
     ) -> None:
@@ -88,8 +81,7 @@ class MediaTaskWorker:
         self.validator = validator or MediaValidatorService(config=self.config)
         self.router = router or MediaRouterService(config=self.config)
         self.keyframe_extractor = keyframe_extractor or KeyframeExtractorService(config=self.config)
-        self.ocr_service = ocr_service or OCRService(config=self.config)
-        self.caption_service = caption_service or CaptionService(config=self.config)
+        self.vision_service = vision_service or QwenVisionService(config=self.config)
         self.detection_service = detection_service or DetectionService(config=self.config)
         self.asr_service = asr_service or AsrService(config=self.config)
 
@@ -197,36 +189,36 @@ class MediaTaskWorker:
             return TaskRunResult(True, f"extracted {len(keyframes.frames)} keyframe(s)")
 
     def process_ocr(self, frame_media_id: str | uuid.UUID) -> TaskRunResult:
-        """Run OCR for one frame media row."""
+        """Run unified Qwen vision analysis for one frame media row."""
 
-        frame, media = self._get_frame_and_media(frame_media_id)
-        with tempfile.TemporaryDirectory(prefix="hit-mira-ocr-") as tmp_dir:
-            local_frame = self._download_frame(media, Path(tmp_dir))
-            keyframe = self._keyframe_from_record(frame, local_frame)
-            result = self.ocr_service.recognize(
-                OCRRequest(
-                    media_id=str(media.media_id),
-                    keyframes=KeyFrameSet(media_id=str(media.media_id), frames=[keyframe], status=StageStatus.DONE),
-                )
-            )
-        self._persist_ocr(media.media_id, result)
-        return self._task_result_from_stage(result.status.value, result.reason)
+        ocr_result, caption_result = self._analyze_frame_media(frame_media_id, prefix="hit-mira-vision-")
+        self._persist_ocr(uuid.UUID(str(frame_media_id)), ocr_result)
+        self._persist_caption(uuid.UUID(str(frame_media_id)), caption_result)
+        return self._task_result_from_stage(
+            self._combined_status(ocr_result.status.value, caption_result.status.value),
+            ocr_result.reason or caption_result.reason,
+        )
 
     def process_caption(self, frame_media_id: str | uuid.UUID) -> TaskRunResult:
-        """Generate a caption for one frame media row."""
+        """Run unified Qwen vision analysis for one frame media row."""
 
+        ocr_result, caption_result = self._analyze_frame_media(frame_media_id, prefix="hit-mira-vision-")
+        self._persist_ocr(uuid.UUID(str(frame_media_id)), ocr_result)
+        self._persist_caption(uuid.UUID(str(frame_media_id)), caption_result)
+        return self._task_result_from_stage(
+            self._combined_status(ocr_result.status.value, caption_result.status.value),
+            ocr_result.reason or caption_result.reason,
+        )
+
+    def _analyze_frame_media(self, frame_media_id: str | uuid.UUID, *, prefix: str) -> tuple[OCRResultSet, CaptionResultSet]:
         frame, media = self._get_frame_and_media(frame_media_id)
-        with tempfile.TemporaryDirectory(prefix="hit-mira-caption-") as tmp_dir:
+        with tempfile.TemporaryDirectory(prefix=prefix) as tmp_dir:
             local_frame = self._download_frame(media, Path(tmp_dir))
             keyframe = self._keyframe_from_record(frame, local_frame)
-            result = self.caption_service.caption(
-                CaptionRequest(
-                    media_id=str(media.media_id),
-                    keyframes=KeyFrameSet(media_id=str(media.media_id), frames=[keyframe], status=StageStatus.DONE),
-                )
+            return self.vision_service.analyze(
+                media_id=str(media.media_id),
+                keyframes=KeyFrameSet(media_id=str(media.media_id), frames=[keyframe], status=StageStatus.DONE),
             )
-        self._persist_caption(media.media_id, result)
-        return self._task_result_from_stage(result.status.value, result.reason)
 
     def process_object_detection(self, frame_media_id: str | uuid.UUID) -> TaskRunResult:
         """Run object detection for one frame media row."""
@@ -305,12 +297,9 @@ class MediaTaskWorker:
         return persisted_frames
 
     def _enqueue_downstream_jobs(self, uow: RepositoryUnitOfWork, media: MediaRecord, frames: list[FrameRecord]) -> None:
-        if self.config.media_pipeline.enable_ocr:
+        if self.config.media_pipeline.enable_ocr or self.config.media_pipeline.enable_caption:
             for frame in frames:
                 self._ensure_job(uow, frame.media_id, TaskType.OCR.value)
-        if self.config.media_pipeline.enable_caption:
-            for frame in frames:
-                self._ensure_job(uow, frame.media_id, TaskType.CAPTION.value)
         if self.config.media_pipeline.enable_detection:
             for frame in frames:
                 self._ensure_job(uow, frame.media_id, TaskType.OBJECT_DETECTION.value)
@@ -337,22 +326,13 @@ class MediaTaskWorker:
                     frame_media_id,
                     status=self._persistable_status(result.status.value, result.reason),
                     text=result.reason,
-                    model=getattr(self.ocr_service, "backend", "paddleocr"),
-                    boxes=[],
                 )
                 return
             ocr_result = result.results[0]
-            boxes = [
-                OcrBoxCreate(text=span.text, confidence=span.confidence, **self._bbox_kwargs(span.bbox))
-                for span in ocr_result.text_spans
-            ]
             uow.results.upsert_ocr_result(
                 frame_media_id,
                 status=self._persistable_status(ocr_result.status.value, ocr_result.reason),
                 text=ocr_result.full_text or ocr_result.reason,
-                avg_confidence=ocr_result.confidence,
-                model=getattr(self.ocr_service, "backend", "paddleocr"),
-                boxes=boxes,
             )
 
     def _persist_caption(self, frame_media_id: uuid.UUID, result: CaptionResultSet) -> None:
@@ -363,7 +343,8 @@ class MediaTaskWorker:
                     frame_media_id,
                     status=self._persistable_status(result.status.value, result.reason),
                     caption_text=result.reason,
-                    model=self.config.media_models.caption_model_name,
+                    caption_model=self.config.media_models.vision_model_name,
+                    vision_metadata={},
                 )
                 return
             caption_result = result.results[0]
@@ -371,7 +352,8 @@ class MediaTaskWorker:
                 frame_media_id,
                 status=self._persistable_status(caption_result.status.value, caption_result.reason),
                 caption_text=caption_result.caption_text or caption_result.reason,
-                model=caption_result.generation_meta.get("model") or self.config.media_models.caption_model_name,
+                caption_model=caption_result.generation_meta.get("model") or self.config.media_models.vision_model_name,
+                vision_metadata=self._vision_metadata(caption_result.generation_meta),
             )
 
     def _persist_detection(self, frame_media_id: uuid.UUID, result: DetectionResultSet) -> None:
@@ -497,6 +479,23 @@ class MediaTaskWorker:
         return TaskRunResult(True, reason or f"stage status: {status}")
 
     @staticmethod
+    def _combined_status(*statuses: str) -> str:
+        normalized = {str(status).strip().lower() for status in statuses}
+        if "error" in normalized or "failed" in normalized:
+            return StageStatus.ERROR.value
+        if normalized and normalized <= {"skipped"}:
+            return StageStatus.SKIPPED.value
+        return StageStatus.DONE.value
+
+    @staticmethod
+    def _vision_metadata(generation_meta: dict) -> dict:
+        return {
+            key: generation_meta.get(key)
+            for key in ("ocr_blocks", "scene", "objects", "activities", "keywords")
+            if generation_meta.get(key) not in (None, "", [])
+        }
+
+    @staticmethod
     def _persistable_status(status: str, reason: str | None = None) -> str:
         normalized_status = str(status).strip().lower()
         normalized_reason = str(reason or "").strip().lower()
@@ -504,7 +503,7 @@ class MediaTaskWorker:
             return ProcessingStatus.FAILED.value
         if normalized_status == "skipped" and any(
             marker in normalized_reason
-            for marker in ("missing dependency", "load failed", "failed:", "runtimeerror", "attributeerror")
+            for marker in ("missing dependency", "missing qwen vision", "api key", "base url", "load failed", "failed:", "runtimeerror", "attributeerror")
         ):
             return ProcessingStatus.FAILED.value
         return status

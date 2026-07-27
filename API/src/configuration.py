@@ -1,3 +1,4 @@
+import os
 from typing import Any, Optional
 
 from pydantic import BaseModel
@@ -27,6 +28,7 @@ def _config_bool(root: Any, dotted_path: str, default: bool = False) -> bool:
         if normalized in {"0", "false", "no", "n", "off", ""}:
             return False
     return bool(value)
+
 
 
 class QdrantConfig(BaseModel):
@@ -84,7 +86,7 @@ class MediaPipelineConfig(BaseModel):
     enable_detection: bool = _config_value(config_object, "MEDIA_PIPELINE.ENABLE_DETECTION", True)
     enable_asr: bool = _config_value(config_object, "MEDIA_PIPELINE.ENABLE_ASR", True)
     short_scene_threshold: int = _config_value(config_object, "MEDIA_PIPELINE.SHORT_SCENE_THRESHOLD", 10)
-    keyframe_base_positions: list[float] = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_BASE_POSITIONS", [0.0, 0.5, 1.0])
+    keyframe_base_positions: list[float] = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_BASE_POSITIONS", [0.15, 0.5, 0.85])
     keyframe_long_scene_interval_sec: float = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_LONG_SCENE_INTERVAL_SEC", 2.5)
     keyframe_max_candidates_per_scene: int = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_MAX_CANDIDATES_PER_SCENE", 8)
     fps_fallback: float = _config_value(config_object, "MEDIA_PIPELINE.FPS_FALLBACK", 25.0)
@@ -102,19 +104,6 @@ class MediaPipelineConfig(BaseModel):
     frame_id_pattern: str = _config_value(config_object, "MEDIA_PIPELINE.FRAME_ID_PATTERN", "{media_id}_f{index:06d}")
     keyframe_output_sort_order: str = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_OUTPUT_SORT_ORDER", "frame_index")
     jpeg_quality: int = _config_value(config_object, "MEDIA_PIPELINE.JPEG_QUALITY", 95)
-    ocr_batch_size: int = _config_value(config_object, "MEDIA_PIPELINE.OCR_BATCH_SIZE", 1)
-    ocr_min_confidence: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_MIN_CONFIDENCE", 0.25)
-    ocr_min_box_width: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_MIN_BOX_WIDTH", 8.0)
-    ocr_min_box_height: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_MIN_BOX_HEIGHT", 12.0)
-    ocr_min_box_area_ratio: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_MIN_BOX_AREA_RATIO", 0.00003)
-    ocr_min_text_chars: int = _config_value(config_object, "MEDIA_PIPELINE.OCR_MIN_TEXT_CHARS", 2)
-    ocr_logo_max_area_ratio: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_LOGO_MAX_AREA_RATIO", 0.015)
-    ocr_logo_corner_margin_ratio: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_LOGO_CORNER_MARGIN_RATIO", 0.18)
-    ocr_logo_max_chars: int = _config_value(config_object, "MEDIA_PIPELINE.OCR_LOGO_MAX_CHARS", 8)
-    ocr_other_min_text_chars: int = _config_value(config_object, "MEDIA_PIPELINE.OCR_OTHER_MIN_TEXT_CHARS", 4)
-    ocr_other_min_width_ratio: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_OTHER_MIN_WIDTH_RATIO", 0.03)
-    ocr_other_min_area_ratio: float = _config_value(config_object, "MEDIA_PIPELINE.OCR_OTHER_MIN_AREA_RATIO", 0.0003)
-    caption_batch_size: int = _config_value(config_object, "MEDIA_PIPELINE.CAPTION_BATCH_SIZE", 1)
     detection_batch_size: int = _config_value(config_object, "MEDIA_PIPELINE.DETECTION_BATCH_SIZE", 1)
     missing_dependency_policy: str = _config_value(config_object, "MEDIA_PIPELINE.MISSING_DEPENDENCY_POLICY", "skip")
     timestamp_match_strategy: str = _config_value(config_object, "MEDIA_PIPELINE.TIMESTAMP_MATCH_STRATEGY", "inclusive_interval_match")
@@ -131,6 +120,12 @@ class MediaModelConfig(BaseModel):
     temporal_model_name: str = _config_value(config_models, "MEDIA_MODELS.TEMPORAL_MODEL_NAME", "TransNetV2")
     temporal_checkpoint_name: str = _config_value(config_models, "MEDIA_MODELS.TEMPORAL_CHECKPOINT_NAME", "transnetv2-pytorch-weights.pth")
     temporal_checkpoint_dir: str = _config_value(config_models, "MEDIA_MODELS.TEMPORAL_CHECKPOINT_DIR", "data/models")
+    temporal_checkpoint_source_policy: str = _config_value(
+        config_models,
+        "MEDIA_MODELS.TEMPORAL_CHECKPOINT_SOURCE_POLICY",
+        "local_artifact_then_remote_artifact_source",
+    )
+    temporal_checkpoint_repo_id: str = _config_value(config_models, "MEDIA_MODELS.TEMPORAL_CHECKPOINT_REPO_ID", "Sn4kehead/TransNetV2")
     temporal_scene_detector_enabled: bool = _config_value(config_models, "MEDIA_MODELS.TEMPORAL_SCENE_DETECTOR_ENABLED", True)
     temporal_device_policy: str = _config_value(config_models, "MEDIA_MODELS.TEMPORAL_DEVICE_POLICY", "auto")
     frame_resize_width: int = _config_value(config_models, "MEDIA_MODELS.FRAME_RESIZE_WIDTH", 48)
@@ -144,20 +139,26 @@ class MediaModelConfig(BaseModel):
     duplicate_threshold: float = _config_value(config_models, "MEDIA_MODELS.DUPLICATE_THRESHOLD", 0.90)
     clip_model_name: str = _config_value(config_models, "MEDIA_MODELS.CLIP_MODEL_NAME", "openai/clip-vit-base-patch32")
     similarity_metric: str = _config_value(config_models, "MEDIA_MODELS.SIMILARITY_METRIC", "cosine")
-    ocr_languages: list[str] = _config_value(config_models, "MEDIA_MODELS.OCR_LANGUAGES", ["vi", "en"])
-    ocr_version: str = _config_value(config_models, "MEDIA_MODELS.OCR_VERSION", "PP-OCRv5")
-    ocr_detection_model_name: str = _config_value(config_models, "MEDIA_MODELS.OCR_DETECTION_MODEL_NAME", "PP-OCRv5_server_det")
-    ocr_recognition_model_name: str = _config_value(config_models, "MEDIA_MODELS.OCR_RECOGNITION_MODEL_NAME", "latin_PP-OCRv5_mobile_rec")
-    ocr_use_doc_orientation_classify: bool = _config_value(config_models, "MEDIA_MODELS.OCR_USE_DOC_ORIENTATION_CLASSIFY", False)
-    ocr_use_doc_unwarping: bool = _config_value(config_models, "MEDIA_MODELS.OCR_USE_DOC_UNWARPING", False)
-    ocr_use_textline_orientation: bool = _config_value(config_models, "MEDIA_MODELS.OCR_USE_TEXTLINE_ORIENTATION", True)
-    ocr_gpu: bool = _config_value(config_models, "MEDIA_MODELS.OCR_GPU", False)
-    caption_model_name: str = _config_value(config_models, "MEDIA_MODELS.CAPTION_MODEL_NAME", "microsoft/Florence-2-base-ft")
-    caption_model_version: str = _config_value(config_models, "MEDIA_MODELS.CAPTION_MODEL_VERSION", "base-ft")
-    caption_trust_remote_code: bool = _config_value(config_models, "MEDIA_MODELS.CAPTION_TRUST_REMOTE_CODE", True)
-    caption_max_new_tokens: int = _config_value(config_models, "MEDIA_MODELS.CAPTION_MAX_NEW_TOKENS", 100)
-    caption_device: str = _config_value(config_models, "MEDIA_MODELS.CAPTION_DEVICE", "cpu")
-    caption_dtype: str = _config_value(config_models, "MEDIA_MODELS.CAPTION_DTYPE", "auto")
+    vision_model_name: str = (
+        os.getenv("MEDIA_VISION_MODEL_NAME")
+        or os.getenv("OPENROUTER_MODEL_NAME")
+        or _config_value(config_models, "MEDIA_MODELS.VISION_MODEL_NAME", "qwen/qwen2.5-vl-3b-instruct")
+    )
+    vision_api_base_url: Optional[str] = (
+        os.getenv("MEDIA_VISION_API_BASE_URL")
+        or os.getenv("OPENROUTER_BASE_URL")
+        or _config_value(config_models, "MEDIA_MODELS.VISION_API_BASE_URL", "https://openrouter.ai/api/v1")
+    )
+    vision_api_key: Optional[str] = (
+        os.getenv("MEDIA_VISION_API_KEY")
+        or os.getenv("OPENROUTER_API_KEY")
+        or _config_value(config_models, "MEDIA_MODELS.VISION_API_KEY", None)
+    )
+    vision_api_timeout: float = _config_value(config_models, "MEDIA_MODELS.VISION_API_TIMEOUT", 120.0)
+    vision_api_temperature: float = _config_value(config_models, "MEDIA_MODELS.VISION_API_TEMPERATURE", 0.0)
+    vision_max_tokens: int = _config_value(config_models, "MEDIA_MODELS.VISION_MAX_TOKENS", 1024)
+    vision_http_referer: Optional[str] = os.getenv("OPENROUTER_HTTP_REFERER") or _config_value(config_models, "MEDIA_MODELS.VISION_HTTP_REFERER", None)
+    vision_app_title: Optional[str] = os.getenv("OPENROUTER_APP_TITLE") or _config_value(config_models, "MEDIA_MODELS.VISION_APP_TITLE", "HIT-MIRA Multimodal RAG")
     detection_model_name: str = _config_value(config_models, "MEDIA_MODELS.DETECTION_MODEL_NAME", "yolo11n")
     detection_weight_file: str = _config_value(config_models, "MEDIA_MODELS.DETECTION_WEIGHT_FILE", "yolo11n.pt")
     detection_confidence_threshold: float = _config_value(config_models, "MEDIA_MODELS.DETECTION_CONFIDENCE_THRESHOLD", 0.5)
@@ -181,9 +182,25 @@ class MediaModelConfig(BaseModel):
     sherpa_debug: bool = _config_value(config_models, "MEDIA_MODELS.SHERPA_DEBUG", False)
 
 class MediaPromptConfig(BaseModel):
-    """Media prompt settings."""
-    caption_prompt: str = _config_value(config_prompts, "MEDIA_PROMPTS.CAPTION_PROMPT", "<MORE_DETAILED_CAPTION>")
-    caption_prompt_version: str = _config_value(config_prompts, "MEDIA_PROMPTS.CAPTION_PROMPT_VERSION", "v1")
+    """Media prompt settings for unified Qwen vision analysis."""
+
+    vision_system_prompt: str = _config_value(
+        config_prompts,
+        "MEDIA_PROMPTS.VISION_SYSTEM_PROMPT",
+        "You analyze video keyframes. Return only valid minified JSON and no markdown.",
+    )
+    vision_prompt: str | None = _config_value(config_prompts, "MEDIA_PROMPTS.VISION_PROMPT", None)
+    vision_caption_instruction: str = _config_value(
+        config_prompts,
+        "MEDIA_PROMPTS.VISION_CAPTION_INSTRUCTION",
+        "Write one factual Vietnamese caption describing the visible scene, people, objects, and context.",
+    )
+    vision_prompt_version: str = os.getenv("MEDIA_VISION_PROMPT_VERSION") or _config_value(
+        config_prompts,
+        "MEDIA_PROMPTS.VISION_PROMPT_VERSION",
+        "qwen-vision-v1",
+    )
+
 
 class LLMConfig(BaseModel):
     """The configurable fields for the model llm."""

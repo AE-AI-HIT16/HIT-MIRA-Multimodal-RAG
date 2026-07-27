@@ -17,7 +17,6 @@ from src.rag_video_anh.repository import (
     DetectedObjectCreate,
     FrameCreate,
     MediaRecord,
-    OcrBoxCreate,
     RepositoryUnitOfWork,
     TaskType,
     TranscriptSegmentCreate,
@@ -178,29 +177,16 @@ class VideoProcessingWorker:
                     frame_media_id,
                     status=self._persistable_status(result.ocr_results.status.value, result.ocr_results.reason),
                     text=result.ocr_results.reason,
-                    model=getattr(self.pipeline.ocr_service, "backend", "paddleocr"),
-                    boxes=[],
                 )
             return
         for ocr_result in result.ocr_results.results:
             frame_media_id = frame_media_ids.get(ocr_result.frame_id)
             if frame_media_id is None:
                 continue
-            boxes = [
-                OcrBoxCreate(
-                    text=span.text,
-                    confidence=span.confidence,
-                    **self._bbox_kwargs(span.bbox),
-                )
-                for span in ocr_result.text_spans
-            ]
             uow.results.upsert_ocr_result(
                 frame_media_id,
                 status=ocr_result.status.value,
                 text=ocr_result.full_text,
-                avg_confidence=ocr_result.confidence,
-                model=getattr(self.pipeline.ocr_service, "backend", "paddleocr"),
-                boxes=boxes,
             )
 
     def _persist_captions(self, uow: RepositoryUnitOfWork, result: PipelineResult, frame_media_ids: dict[str, uuid.UUID]) -> None:
@@ -213,7 +199,8 @@ class VideoProcessingWorker:
                     frame_media_id,
                     status=self._persistable_status(result.caption_results.status.value, result.caption_results.reason),
                     caption_text=result.caption_results.reason,
-                    model=self.config.media_models.caption_model_name,
+                    caption_model=self.config.media_models.vision_model_name,
+                    vision_metadata={},
                 )
             return
         for caption_result in result.caption_results.results:
@@ -224,7 +211,8 @@ class VideoProcessingWorker:
                 frame_media_id,
                 status=caption_result.status.value,
                 caption_text=caption_result.caption_text,
-                model=caption_result.generation_meta.get("model") or self.config.media_models.caption_model_name,
+                caption_model=caption_result.generation_meta.get("model") or self.config.media_models.vision_model_name,
+                vision_metadata=self._vision_metadata(caption_result.generation_meta),
             )
 
     def _persist_detections(self, uow: RepositoryUnitOfWork, result: PipelineResult, frame_media_ids: dict[str, uuid.UUID]) -> None:
@@ -316,6 +304,14 @@ class VideoProcessingWorker:
         return local_path
 
     @staticmethod
+    def _vision_metadata(generation_meta: dict) -> dict:
+        return {
+            key: generation_meta.get(key)
+            for key in ("ocr_blocks", "scene", "objects", "activities", "keywords")
+            if generation_meta.get(key) not in (None, "", [])
+        }
+
+    @staticmethod
     def _persistable_status(status: str, reason: str | None = None) -> str:
         normalized_status = str(status).strip().lower()
         normalized_reason = str(reason or "").strip().lower()
@@ -323,7 +319,7 @@ class VideoProcessingWorker:
             return "FAILED"
         if normalized_status == "skipped" and any(
             marker in normalized_reason
-            for marker in ("missing dependency", "load failed", "failed:", "runtimeerror", "attributeerror")
+            for marker in ("missing dependency", "missing qwen vision", "api key", "base url", "load failed", "failed:", "runtimeerror", "attributeerror")
         ):
             return "FAILED"
         return status

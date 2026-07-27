@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import CHAR, TypeDecorator
@@ -122,29 +122,11 @@ class OcrResultModel(Base):
 
     ocr_id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     media_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("media.media_id", ondelete="CASCADE"), unique=True, nullable=False)
-    status: Mapped[str | None] = mapped_column(String(20), default="PENDING")
-    text: Mapped[str | None] = mapped_column(Text)
-    avg_confidence: Mapped[float | None] = mapped_column(Float)
-    model: Mapped[str | None] = mapped_column(String(100))
+    ocr_status: Mapped[str | None] = mapped_column(String(20), default="PENDING")
+    ocr_text: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.current_timestamp())
 
     media: Mapped[MediaModel] = relationship(back_populates="ocr_result")
-    boxes: Mapped[list[OcrBoxModel]] = relationship(back_populates="ocr_result", cascade="all, delete-orphan")
-
-
-class OcrBoxModel(Base):
-    __tablename__ = "ocr_boxes"
-
-    box_id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
-    ocr_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("ocr_results.ocr_id", ondelete="CASCADE"), nullable=False)
-    text: Mapped[str | None] = mapped_column(Text)
-    confidence: Mapped[float | None] = mapped_column(Float)
-    x1: Mapped[float | None] = mapped_column(Float)
-    y1: Mapped[float | None] = mapped_column(Float)
-    x2: Mapped[float | None] = mapped_column(Float)
-    y2: Mapped[float | None] = mapped_column(Float)
-
-    ocr_result: Mapped[OcrResultModel] = relationship(back_populates="boxes")
 
 
 class CaptionResultModel(Base):
@@ -152,9 +134,10 @@ class CaptionResultModel(Base):
 
     caption_id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     media_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("media.media_id", ondelete="CASCADE"), unique=True, nullable=False)
-    status: Mapped[str | None] = mapped_column(String(20), default="PENDING")
+    caption_status: Mapped[str | None] = mapped_column(String(20), default="PENDING")
     caption_text: Mapped[str | None] = mapped_column(Text)
-    model: Mapped[str | None] = mapped_column(String(100))
+    caption_model: Mapped[str | None] = mapped_column(String(100))
+    vision_metadata: Mapped[dict | None] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.current_timestamp())
 
     media: Mapped[MediaModel] = relationship(back_populates="caption_result")
