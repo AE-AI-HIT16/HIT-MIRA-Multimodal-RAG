@@ -36,7 +36,6 @@ from src.rag_video_anh.repository import (  # noqa: E402
     DetectedObjectCreate,
     FrameCreate,
     MediaRecord,
-    OcrBoxCreate,
     ProcessingStatus,
     RepositoryUnitOfWork,
     TranscriptSegmentCreate,
@@ -200,22 +199,10 @@ class ArtifactImporter:
         results = result_by_frame(payload)
         for frame_id, frame_media_id in frame_media_ids.items():
             item = results.get(frame_id, {})
-            spans = item.get("text_spans") or item.get("spans") or []
-            boxes = [
-                OcrBoxCreate(
-                    text=span.get("text"),
-                    confidence=span.get("confidence"),
-                    **bbox_from_polygon(span.get("bbox")),
-                )
-                for span in spans
-            ]
             uow.results.upsert_ocr_result(
                 frame_media_id,
                 status=status(item.get("status"), status(payload.get("status"))),
-                text=item.get("full_text") or item.get("text"),
-                avg_confidence=item.get("confidence") or item.get("avg_confidence"),
-                model=item.get("model") or payload.get("model") or "unknown-ocr",
-                boxes=boxes,
+                text=item.get("full_text") or item.get("ocr_text") or item.get("text"),
             )
 
     def _import_captions(self, uow: RepositoryUnitOfWork, frame_media_ids: dict[str, UUID]) -> None:
@@ -228,7 +215,12 @@ class ArtifactImporter:
                 frame_media_id,
                 status=status(item.get("status"), status(payload.get("status"))),
                 caption_text=item.get("caption_text") or item.get("caption") or item.get("reason") or payload.get("reason"),
-                model=item.get("model") or generation_meta.get("model") or payload.get("model") or "unknown-caption",
+                caption_model=item.get("caption_model") or item.get("model") or generation_meta.get("model") or payload.get("caption_model") or payload.get("model") or "unknown-caption",
+                vision_metadata=item.get("vision_metadata") or {
+                    key: generation_meta.get(key)
+                    for key in ("ocr_blocks", "scene", "objects", "activities", "keywords")
+                    if generation_meta.get(key) not in (None, "", [])
+                },
             )
 
     def _import_detections(self, uow: RepositoryUnitOfWork, frame_media_ids: dict[str, UUID]) -> None:

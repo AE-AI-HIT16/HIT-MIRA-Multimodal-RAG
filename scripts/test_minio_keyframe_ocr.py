@@ -1,9 +1,9 @@
-"""Run the current OCR pipeline against keyframe images stored in MinIO.
+"""Run Qwen vision OCR/caption analysis against keyframes stored in MinIO.
 
 Examples:
     python scripts/test_minio_keyframe_ocr.py --prefix frames --limit 10
     python scripts/test_minio_keyframe_ocr.py --object-key frames/<media_id>/video_frame_000001.jpg
-    python scripts/test_minio_keyframe_ocr.py --prefix frames/<media_id> --output /tmp/ocr_results.json
+    python scripts/test_minio_keyframe_ocr.py --prefix frames/<media_id> --output /tmp/vision_results.json
 """
 
 from __future__ import annotations
@@ -24,12 +24,11 @@ sys.path.insert(0, str(API_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
 
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage  # noqa: E402
-from src.rag_video_anh.pipeline.ocr_service import OCRService  # noqa: E402
-from src.rag_video_anh.schemas import KeyFrame, KeyFrameSet, OCRRequest, StageStatus  # noqa: E402
+from src.rag_video_anh.pipeline.qwen_vision_service import QwenVisionService  # noqa: E402
+from src.rag_video_anh.schemas import KeyFrame, KeyFrameSet, StageStatus  # noqa: E402
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
-
 
 
 def list_image_keys(storage: MinioStorage, prefix: str, limit: int | None) -> list[str]:
@@ -52,82 +51,59 @@ def frame_index_from_key(object_key: str, fallback: int) -> int:
     return fallback
 
 
-def configure_ocr_service(args: argparse.Namespace) -> OCRService:
-    service = OCRService()
-    if args.cpu:
-        service.model_config.ocr_gpu = False
-    if args.gpu:
-        service.model_config.ocr_gpu = True
-    if args.min_confidence is not None:
-        service.pipeline_config.ocr_min_confidence = args.min_confidence
-    return service
-
-
-def result_to_dict(result: Any, object_keys: list[str]) -> dict[str, Any]:
-    items = []
+def result_to_dict(ocr_result: Any, caption_result: Any, object_keys: list[str]) -> dict[str, Any]:
     key_by_frame_id = {f"minio_keyframe_f{index:06d}": key for index, key in enumerate(object_keys)}
-    for item in result.results:
-        spans = [
-            {
-                "text": span.text,
-                "confidence": span.confidence,
-                "bbox": span.bbox,
-                "metadata": span.metadata,
-            }
-            for span in item.text_spans
-        ]
+    captions = {item.frame_id: item for item in caption_result.results}
+    items = []
+    for item in ocr_result.results:
+        caption = captions.get(item.frame_id)
         items.append(
             {
                 "object_key": key_by_frame_id.get(item.frame_id),
                 "frame_id": item.frame_id,
-                "status": item.status.value,
-                "reason": item.reason,
-                "confidence": item.confidence,
-                "full_text": item.full_text,
-                "spans": spans,
+                "ocr_status": item.status.value,
+                "ocr_reason": item.reason,
+                "ocr_text": item.full_text,
+                "caption_status": caption.status.value if caption else None,
+                "caption_reason": caption.reason if caption else None,
+                "caption_text": caption.caption_text if caption else "",
+                "caption_model": (caption.generation_meta.get("model") if caption else None),
             }
         )
     return {
-        "media_id": result.media_id,
-        "status": result.status.value,
-        "reason": result.reason,
+        "media_id": ocr_result.media_id,
+        "ocr_status": ocr_result.status.value,
+        "caption_status": caption_result.status.value,
         "count": len(items),
         "results": items,
     }
 
 
 def print_human_summary(payload: dict[str, Any]) -> None:
-    print(f"OCR status: {payload['status']} | frames: {payload['count']}")
+    print(f"Vision status: ocr={payload['ocr_status']} caption={payload['caption_status']} | frames: {payload['count']}")
     for item in payload["results"]:
         print("=" * 100)
         print(item["object_key"])
-        print(f"status={item['status']} confidence={item['confidence']} reason={item['reason']}")
-        print(item["full_text"] or "<no text>")
-        for span in item["spans"]:
-            print(f"  - {span['text']} | conf={span['confidence']} | meta={span['metadata']}")
+        print(f"ocr={item['ocr_status']} caption={item['caption_status']} model={item['caption_model']}")
+        print(item["ocr_text"] or "<no text>")
+        print(item["caption_text"] or "<no caption>")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Test OCR on keyframe images stored in MinIO.")
+    parser = argparse.ArgumentParser(description="Test Qwen vision OCR/caption analysis on keyframe images stored in MinIO.")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--prefix", help="MinIO prefix to scan, for example: frames or frames/<media_id>.")
     source.add_argument("--object-key", action="append", help="Specific MinIO object key. Repeat for multiple frames.")
     parser.add_argument("--bucket", help="Override bucket name from config.")
     parser.add_argument("--limit", type=int, help="Maximum number of images to process when using --prefix.")
-    parser.add_argument("--output", help="Write full OCR payload to this JSON file.")
+    parser.add_argument("--output", help="Write full Qwen vision payload to this JSON file.")
     parser.add_argument("--download-dir", help="Directory for downloaded keyframes. Defaults to a temporary directory.")
-    parser.add_argument("--keep-downloads", action="store_true", help="Keep temporary downloads after OCR finishes.")
-    parser.add_argument("--cpu", action="store_true", help="Force OCR on CPU.")
-    parser.add_argument("--gpu", action="store_true", help="Force OCR on GPU.")
-    parser.add_argument("--min-confidence", type=float, help="Override OCR minimum confidence.")
+    parser.add_argument("--keep-downloads", action="store_true", help="Keep temporary downloads after analysis finishes.")
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    if args.cpu and args.gpu:
-        raise SystemExit("Choose only one of --cpu or --gpu.")
-
     storage = MinioStorage()
     if args.bucket:
         storage.bucket_name = args.bucket
@@ -136,7 +112,7 @@ def main() -> None:
     if not object_keys:
         raise SystemExit("No image objects found. Check --prefix, --bucket, or MinIO credentials.")
 
-    download_root = Path(args.download_dir) if args.download_dir else Path(tempfile.mkdtemp(prefix="minio-ocr-"))
+    download_root = Path(args.download_dir) if args.download_dir else Path(tempfile.mkdtemp(prefix="minio-vision-"))
     download_root.mkdir(parents=True, exist_ok=True)
 
     local_paths: list[Path] = []
@@ -150,7 +126,7 @@ def main() -> None:
         frames = [
             KeyFrame(
                 frame_id=f"minio_keyframe_f{index:06d}",
-                media_id="minio_keyframe_ocr_test",
+                media_id="minio_keyframe_vision_test",
                 frame_index=frame_index_from_key(object_keys[index], index),
                 timestamp_ms=0,
                 timestamp_sec=0.0,
@@ -160,18 +136,12 @@ def main() -> None:
             for index, path in enumerate(local_paths)
         ]
 
-        service = configure_ocr_service(args)
-        result = service.recognize(
-            OCRRequest(
-                media_id="minio_keyframe_ocr_test",
-                keyframes=KeyFrameSet(
-                    media_id="minio_keyframe_ocr_test",
-                    frames=frames,
-                    status=StageStatus.DONE,
-                ),
-            )
+        service = QwenVisionService()
+        ocr_result, caption_result = service.analyze(
+            media_id="minio_keyframe_vision_test",
+            keyframes=KeyFrameSet(media_id="minio_keyframe_vision_test", frames=frames, status=StageStatus.DONE),
         )
-        payload = result_to_dict(result, object_keys)
+        payload = result_to_dict(ocr_result, caption_result, object_keys)
         print_human_summary(payload)
 
         if args.output:

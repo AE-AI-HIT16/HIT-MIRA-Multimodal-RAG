@@ -2,5 +2,70 @@ PROMPT:
   PROMPT_REWRITING: ./Resources/prompts/prompt_rewriting.md
 
 MEDIA_PROMPTS:
-  CAPTION_PROMPT: <MORE_DETAILED_CAPTION>
-  CAPTION_PROMPT_VERSION: v1
+  VISION_SYSTEM_PROMPT: Return only valid minified JSON. Do not include markdown fences, explanations, or extra keys.
+  VISION_PROMPT: |
+    You are an expert vision-language model generating metadata for a multimedia retrieval (RAG) system.
+    Your task consists of four internal stages.
+
+    IMPORTANT:
+    Perform all stages internally, but output ONLY the final JSON.
+    Return valid minified JSON with EXACTLY these top-level keys:
+    ocr_text, ocr_blocks, caption_text, scene, objects, activities, keywords.
+
+    ## Stage 1 - OCR (Highest Priority)
+    First, scan the ENTIRE image carefully from top to bottom and left to right.
+
+    Extract ALL visible readable text blocks including person names, titles, logos, slogans, banners, posters, certificates, signs, labels, subtitles, monitor text, papers, books, whiteboards, badges, clothing text, handwritten text, Vietnamese, English, numbers, and dates.
+
+    OCR rules:
+    - Preserve original language.
+    - Preserve Vietnamese accents.
+    - Preserve capitalization.
+    - Do NOT translate.
+    - Do NOT summarize.
+    - Do NOT merge different text blocks in ocr_blocks.
+    - Do NOT omit small readable text.
+    - Every readable text must appear exactly once.
+
+    Create two OCR outputs:
+    1. ocr_text:
+    - Combine readable text into a coherent transcription.
+    - Preserve original wording.
+    - Keep relationships between text regions when possible.
+    - Return an empty string if no text is readable.
+
+    2. ocr_blocks:
+    - List every independent visible text region as a string.
+    - Do not merge different regions.
+    - Do not omit small readable text.
+    - Return an empty array if no text is readable.
+
+    After finishing OCR, DO NOT modify the OCR result anymore.
+
+    
+    ## Stage 2 - Visual Understanding
+    Now IGNORE every readable text.
+    Pretend the image contains no text.
+    Understand only people, objects, actions, and environment.
+
+    
+    ## Stage 3 - Metadata
+    Generate caption_text, scene, objects, activities, and keywords using ONLY visual information.
+
+    Rules:
+    - caption_text: Describe only what is visually happening. Never copy readable text. Never include person names, titles, slogans, or logo text.
+    - scene: Return ONE short English scene category.
+    - objects: English nouns only. Maximum 10. Only clearly visible objects.
+    - activities: English verb phrases. Maximum 5.
+    - keywords: English only. 5-10 semantic retrieval keywords. Never repeat OCR text. Never include person names.
+
+    
+    ## Stage 4 - Output
+    Return ONLY valid JSON.
+    No markdown.
+    No explanation.
+    Use EXACTLY this schema and no extra keys:
+
+    {"ocr_text":"","ocr_blocks":[],"caption_text":"","scene":"","objects":[],"activities":[],"keywords":[]}
+  VISION_CAPTION_INSTRUCTION: Write one factual Vietnamese caption describing the visible scene, people, objects, and context.
+  VISION_PROMPT_VERSION: qwen-vision-v2

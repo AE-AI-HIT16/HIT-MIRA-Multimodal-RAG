@@ -136,15 +136,13 @@ def export_manifest(
     json_dump(run_dir / "manifest.json", manifest)
 
 
-def export_ocr(result: PipelineResult, run_dir: Path) -> None:
+def export_ocr(result: PipelineResult, run_dir: Path, config: AppConfig) -> None:
     ocr = result.ocr_results
-    # OCRService currently only supports PaddleOCR. Keep artifact metadata tied
-    # to code reality instead of a deployment env var that can drift.
     payload = {
         "media_id": result.media_input.media_id,
         "status": stage_status(ocr),
         "reason": stage_reason(ocr),
-        "model": "paddleocr",
+        "model": config.media_models.vision_model_name,
         "results": [],
     }
     for item in ocr.results if ocr else []:
@@ -154,17 +152,6 @@ def export_ocr(result: PipelineResult, run_dir: Path) -> None:
                 "status": stage_status(item),
                 "reason": item.reason,
                 "full_text": item.full_text,
-                "confidence": item.confidence,
-                "language_hints": item.language_hints,
-                "text_spans": [
-                    {
-                        "text": span.text,
-                        "confidence": span.confidence,
-                        "bbox": span.bbox,
-                        "metadata": span.metadata,
-                    }
-                    for span in item.text_spans
-                ],
             }
         )
     json_dump(run_dir / "ocr.json", payload)
@@ -176,7 +163,7 @@ def export_captions(result: PipelineResult, run_dir: Path, config: AppConfig) ->
         "media_id": result.media_input.media_id,
         "status": stage_status(captions),
         "reason": stage_reason(captions),
-        "model": config.media_models.caption_model_name,
+        "caption_model": config.media_models.vision_model_name,
         "results": [],
     }
     for item in captions.results if captions else []:
@@ -187,6 +174,11 @@ def export_captions(result: PipelineResult, run_dir: Path, config: AppConfig) ->
                 "reason": item.reason,
                 "caption_text": item.caption_text,
                 "generation_meta": item.generation_meta,
+                "vision_metadata": {
+                    key: item.generation_meta.get(key)
+                    for key in ("ocr_blocks", "scene", "objects", "activities", "keywords")
+                    if item.generation_meta.get(key) not in (None, "", [])
+                },
                 "prompt_version": item.prompt_version,
             }
         )
@@ -330,7 +322,7 @@ def main() -> None:
             )
         )
         export_manifest(result, run_dir, video_path, args.bucket_name, args.source_object_key or video_path.name)
-        export_ocr(result, run_dir)
+        export_ocr(result, run_dir, config)
         export_captions(result, run_dir, config)
         export_detections(result, run_dir, config)
         export_transcript(result, run_dir, config)

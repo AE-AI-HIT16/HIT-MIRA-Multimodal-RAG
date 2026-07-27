@@ -21,18 +21,17 @@ langchain-openai
 langchain
 pypdf
 docx2txt
+openai
 
 # Media và các model AI
 pillow
 sentence-transformers
 einops
+transnetv2-pytorch==1.0.5
 sherpa-onnx
 numpy
 huggingface-hub
-google-generativeai
 ultralytics
-paddleocr
-transformers
 torch
 opencv-python
 

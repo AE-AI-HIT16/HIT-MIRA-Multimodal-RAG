@@ -122,22 +122,6 @@ class KeyframeExtractionRequest(BaseModel):
     extraction_policy: dict[str, Any] = Field(default_factory=dict)
 
 
-class OCRRequest(BaseModel):
-    """Input contract for OCR."""
-
-    media_id: str
-    keyframes: KeyFrameSet
-    ocr_policy: dict[str, Any] = Field(default_factory=dict)
-
-
-class CaptionRequest(BaseModel):
-    """Input contract for caption generation."""
-
-    media_id: str
-    keyframes: KeyFrameSet
-    caption_policy: dict[str, Any] = Field(default_factory=dict)
-
-
 class DetectionRequest(BaseModel):
     """Input contract for object detection."""
 

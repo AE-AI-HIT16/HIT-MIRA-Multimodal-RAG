@@ -34,6 +34,8 @@ class DefaultTransNetV2SceneDetector:
 
         checkpoint_path = self._checkpoint_path()
         if checkpoint_path is None:
+            checkpoint_path = self._download_checkpoint()
+        if checkpoint_path is None:
             raise FileNotFoundError(
                 f"TransNetV2 checkpoint not found: {getattr(self.model_config, 'temporal_checkpoint_name', None)}"
             )
@@ -87,8 +89,29 @@ class DefaultTransNetV2SceneDetector:
             )
         return next((path for path in candidates if path.is_file()), None)
 
-    @staticmethod
-    def _model_from_checkpoint(loaded: Any) -> Any:
+    def _download_checkpoint(self) -> Path | None:
+        policy = str(getattr(self.model_config, "temporal_checkpoint_source_policy", "") or "").lower()
+        if "remote" not in policy:
+            return None
+        repo_id = str(getattr(self.model_config, "temporal_checkpoint_repo_id", "") or "")
+        filename = str(getattr(self.model_config, "temporal_checkpoint_name", "") or "")
+        checkpoint_dir = Path(str(getattr(self.model_config, "temporal_checkpoint_dir", "data/models") or "data/models"))
+        if not repo_id or not filename:
+            return None
+
+        try:
+            from huggingface_hub import hf_hub_download
+        except ImportError as exc:
+            raise RuntimeError("missing dependency 'huggingface-hub' for TransNetV2 checkpoint download") from exc
+
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            downloaded = hf_hub_download(repo_id=repo_id, filename=filename, local_dir=checkpoint_dir)
+        except Exception as exc:
+            raise RuntimeError(f"failed to download TransNetV2 checkpoint from {repo_id}/{filename}: {exc}") from exc
+        return Path(downloaded)
+
+    def _model_from_checkpoint(self, loaded: Any) -> Any:
         if hasattr(loaded, "eval") and callable(getattr(loaded, "__call__", None)):
             return loaded
         if isinstance(loaded, dict):
@@ -96,7 +119,28 @@ class DefaultTransNetV2SceneDetector:
                 candidate = loaded.get(key)
                 if hasattr(candidate, "eval") and callable(getattr(candidate, "__call__", None)):
                     return candidate
+            state_dict = loaded.get("state_dict") or loaded
+            return self._model_from_state_dict(state_dict)
         raise RuntimeError("checkpoint does not contain an executable TransNetV2 model")
+
+    def _model_from_state_dict(self, state_dict: Any) -> Any:
+        try:
+            from transnetv2_pytorch import TransNetV2
+        except ImportError as exc:
+            raise RuntimeError("missing dependency 'transnetv2-pytorch' for TransNetV2 state_dict checkpoints") from exc
+
+        try:
+            model = TransNetV2(device=str(getattr(self.model_config, "temporal_device_policy", "auto") or "auto"))
+        except TypeError:
+            model = TransNetV2()
+        try:
+            model.load_state_dict(state_dict)
+        except RuntimeError:
+            if not hasattr(state_dict, "items"):
+                raise
+            cleaned_state_dict = {str(key).removeprefix("module."): value for key, value in state_dict.items()}
+            model.load_state_dict(cleaned_state_dict, strict=False)
+        return model
 
     def _select_device(self, torch: Any) -> Any:
         policy = str(getattr(self.model_config, "temporal_device_policy", "auto") or "auto").lower()
@@ -359,7 +403,7 @@ class KeyframeExtractorService:
         return sorted({min(max(index, 0), frame_count - 1) for index in indices})
 
     def _adaptive_scene_indices(self, start: int, end: int, length: int, fps: float) -> list[int]:
-        positions = getattr(self.pipeline_config, "keyframe_base_positions", [0.0, 0.5, 1.0]) or [0.0, 0.5, 1.0]
+        positions = getattr(self.pipeline_config, "keyframe_base_positions", [0.15, 0.5, 0.85]) or [0.15, 0.5, 0.85]
         candidates = [start + round((length - 1) * float(position)) for position in positions]
 
         interval_seconds = float(getattr(self.pipeline_config, "keyframe_long_scene_interval_sec", 2.5) or 0.0)

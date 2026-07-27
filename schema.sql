@@ -159,20 +159,14 @@ CREATE TABLE ocr_results (
     media_id UUID UNIQUE NOT NULL,
 
 
-    status VARCHAR(20) DEFAULT 'PENDING',
+    ocr_status VARCHAR(20) DEFAULT 'PENDING',
     -- PENDING
     -- PROCESSING
     -- DONE
     -- FAILED
 
 
-    text TEXT,
-
-
-    avg_confidence FLOAT,
-
-
-    model VARCHAR(100),
+    ocr_text TEXT,
 
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -187,38 +181,7 @@ CREATE TABLE ocr_results (
 
 
 --------------------------------------------------
--- 6. OCR BOUNDING BOX
---------------------------------------------------
-
-CREATE TABLE ocr_boxes (
-
-    box_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-
-
-    ocr_id UUID NOT NULL,
-
-
-    text TEXT,
-
-    confidence FLOAT,
-
-
-    x1 FLOAT,
-    y1 FLOAT,
-    x2 FLOAT,
-    y2 FLOAT,
-
-
-    CONSTRAINT fk_box_ocr
-        FOREIGN KEY(ocr_id)
-        REFERENCES ocr_results(ocr_id)
-        ON DELETE CASCADE
-);
-
-
-
---------------------------------------------------
--- 7. CAPTION RESULT
+-- 6. CAPTION RESULT
 --------------------------------------------------
 
 CREATE TABLE caption_results (
@@ -229,14 +192,17 @@ CREATE TABLE caption_results (
     media_id UUID UNIQUE NOT NULL,
 
 
-    status VARCHAR(20)
+    caption_status VARCHAR(20)
         DEFAULT 'PENDING',
 
 
     caption_text TEXT,
 
 
-    model VARCHAR(100),
+    caption_model VARCHAR(100),
+
+
+    vision_metadata JSONB DEFAULT '{}'::jsonb,
 
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -251,7 +217,7 @@ CREATE TABLE caption_results (
 
 
 --------------------------------------------------
--- 8. OBJECT DETECTION RESULT
+-- 7. OBJECT DETECTION RESULT
 --------------------------------------------------
 
 CREATE TABLE object_results (
@@ -281,7 +247,7 @@ CREATE TABLE object_results (
 
 
 --------------------------------------------------
--- 9. DETECTED OBJECTS
+-- 8. DETECTED OBJECTS
 --------------------------------------------------
 
 CREATE TABLE detected_objects (
@@ -313,7 +279,7 @@ CREATE TABLE detected_objects (
 
 
 --------------------------------------------------
--- 10. TRANSCRIPT
+-- 9. TRANSCRIPT
 --------------------------------------------------
 
 CREATE TABLE transcripts (
@@ -349,7 +315,7 @@ CREATE TABLE transcripts (
 
 
 --------------------------------------------------
--- 11. ASR SEGMENTS
+-- 10. ASR SEGMENTS
 --------------------------------------------------
 
 CREATE TABLE transcript_segments (
@@ -377,7 +343,7 @@ CREATE TABLE transcript_segments (
 
 
 --------------------------------------------------
--- 12. WORKER JOB QUEUE
+-- 11. WORKER JOB QUEUE
 --------------------------------------------------
 
 CREATE TABLE processing_jobs (
@@ -429,7 +395,7 @@ ON processing_jobs(task_type, status);
 
 
 --------------------------------------------------
--- 13. VECTOR DATABASE MAPPING
+-- 12. VECTOR DATABASE MAPPING
 --------------------------------------------------
 
 CREATE TABLE embeddings (

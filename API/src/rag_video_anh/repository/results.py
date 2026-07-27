@@ -10,7 +10,6 @@ from src.rag_video_anh.repository.models import (
     DetectedObjectModel,
     EmbeddingModel,
     ObjectResultModel,
-    OcrBoxModel,
     OcrResultModel,
     TranscriptModel,
     TranscriptSegmentModel,
@@ -22,8 +21,6 @@ from src.rag_video_anh.repository.schemas import (
     DetectedObjectRecord,
     EmbeddingRecord,
     ObjectResultRecord,
-    OcrBoxCreate,
-    OcrBoxRecord,
     OcrResultRecord,
     ProcessingStatus,
     TranscriptRecord,
@@ -48,13 +45,9 @@ class AIResultRepository:
         *,
         status: str = ProcessingStatus.DONE.value,
         text: str | None = None,
-        avg_confidence: float | None = None,
-        model: str | None = None,
-        boxes: list[OcrBoxCreate] | None = None,
     ) -> OcrResultRecord:
         row = self.session.scalar(
             select(OcrResultModel)
-            .options(selectinload(OcrResultModel.boxes))
             .where(OcrResultModel.media_id == media_id)
         )
         if row is None:
@@ -62,30 +55,14 @@ class AIResultRepository:
             self.session.add(row)
             self.session.flush()
 
-        row.status = self._status(status)
-        row.text = text
-        row.avg_confidence = avg_confidence
-        row.model = model
-        if boxes is not None:
-            row.boxes.clear()
-            for box in boxes:
-                row.boxes.append(
-                    OcrBoxModel(
-                        text=box.text,
-                        confidence=box.confidence,
-                        x1=box.x1,
-                        y1=box.y1,
-                        x2=box.x2,
-                        y2=box.y2,
-                    )
-                )
+        row.ocr_status = self._status(status)
+        row.ocr_text = text
         self.session.flush()
         return self._ocr_record(row)
 
     def get_ocr_result(self, media_id) -> OcrResultRecord | None:
         row = self.session.scalar(
             select(OcrResultModel)
-            .options(selectinload(OcrResultModel.boxes))
             .where(OcrResultModel.media_id == media_id)
         )
         return self._ocr_record(row) if row else None
@@ -96,16 +73,18 @@ class AIResultRepository:
         *,
         status: str = ProcessingStatus.DONE.value,
         caption_text: str | None = None,
-        model: str | None = None,
+        caption_model: str | None = None,
+        vision_metadata: dict | None = None,
     ) -> CaptionResultRecord:
         row = self.session.scalar(select(CaptionResultModel).where(CaptionResultModel.media_id == media_id))
         if row is None:
             row = CaptionResultModel(media_id=media_id)
             self.session.add(row)
 
-        row.status = self._status(status)
+        row.caption_status = self._status(status)
         row.caption_text = caption_text
-        row.model = model
+        row.caption_model = caption_model
+        row.vision_metadata = vision_metadata or {}
         self.session.flush()
         return self._caption_record(row)
 
@@ -263,28 +242,12 @@ class AIResultRepository:
 
     @staticmethod
     def _ocr_record(row: OcrResultModel) -> OcrResultRecord:
-        boxes = [
-            OcrBoxRecord(
-                box_id=box.box_id,
-                ocr_id=box.ocr_id,
-                text=box.text,
-                confidence=box.confidence,
-                x1=box.x1,
-                y1=box.y1,
-                x2=box.x2,
-                y2=box.y2,
-            )
-            for box in sorted(row.boxes, key=lambda item: str(item.box_id))
-        ]
         return OcrResultRecord(
             ocr_id=row.ocr_id,
             media_id=row.media_id,
-            status=row.status or ProcessingStatus.PENDING.value,
-            text=row.text,
-            avg_confidence=row.avg_confidence,
-            model=row.model,
+            ocr_status=row.ocr_status or ProcessingStatus.PENDING.value,
+            ocr_text=row.ocr_text,
             created_at=row.created_at,
-            boxes=boxes,
         )
 
     @staticmethod
@@ -292,9 +255,10 @@ class AIResultRepository:
         return CaptionResultRecord(
             caption_id=row.caption_id,
             media_id=row.media_id,
-            status=row.status or ProcessingStatus.PENDING.value,
+            caption_status=row.caption_status or ProcessingStatus.PENDING.value,
             caption_text=row.caption_text,
-            model=row.model,
+            caption_model=row.caption_model,
+            vision_metadata=row.vision_metadata or {},
             created_at=row.created_at,
         )
 

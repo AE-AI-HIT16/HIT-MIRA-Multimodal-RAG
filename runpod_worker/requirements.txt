@@ -1,18 +1,10 @@
-# Only dependencies used by the offline GPU worker.  Do not reuse the root
-# requirements.txt: it also contains web, database, RAG, and PaddleOCR stacks
+# Only dependencies used by the offline GPU worker. Do not reuse the root
+# requirements.txt: it also contains web, database, and RAG stacks
 # which make the Serverless image unnecessarily large.
 accelerate
-# Keep PaddleOCR and PaddleX in the same 3.1.x generation. PaddleOCR 3.1.0
-# lets pip choose newer PaddleX releases, but PaddleX 3.7.x is not API
-# compatible with PaddleOCR 3.1.0 and fails while creating PaddlePredictorOption.
-paddleocr==3.1.0
-paddlex[ie,multimodal,ocr,trans]==3.1.0
-# PaddleX 3.1 imports langchain.docstore; langchain 1.x removed it.
-langchain<1
-langchain-community<0.4
-langchain-openai<1
 timm
 einops
+transnetv2-pytorch==1.0.5
 sherpa-onnx
 numpy
 huggingface-hub
@@ -23,5 +15,6 @@ pydantic
 python-dotenv
 pyyaml
 runpod
-transformers==4.49.0
 ultralytics
+
+openai

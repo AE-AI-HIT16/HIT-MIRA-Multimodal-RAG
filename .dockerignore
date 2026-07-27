@@ -15,3 +15,7 @@ notebooks/
 *.ipynb
 *.log
 
+web/node_modules/
+web/.next/
+web/dist/
+web/build/
