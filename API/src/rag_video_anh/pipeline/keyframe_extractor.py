@@ -321,12 +321,19 @@ class DefaultTransNetV2SceneDetector:
 
     @staticmethod
     def _flatten_scores(output: Any, np: Any) -> list[float]:
-        if isinstance(output, dict):
-            for key in ("many_hot", "single_frame_pred", "predictions", "logits", "output"):
-                if key in output:
-                    output = output[key]
-                    break
-        elif isinstance(output, (list, tuple)):
+        while isinstance(output, (dict, list, tuple)):
+            if isinstance(output, dict):
+                next_output = None
+                for key in ("many_hot", "single_frame_pred", "predictions", "logits", "output"):
+                    if key in output:
+                        next_output = output[key]
+                        break
+                if next_output is None:
+                    raise RuntimeError(f"TransNetV2 returned a dict without known score keys: {list(output.keys())}")
+                output = next_output
+                continue
+            if not output:
+                raise RuntimeError("TransNetV2 returned an empty output sequence")
             output = output[-1] if len(output) > 1 else output[0]
         if hasattr(output, "detach"):
             output = output.detach().float().cpu().numpy()

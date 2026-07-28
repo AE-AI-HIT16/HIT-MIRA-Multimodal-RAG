@@ -8,7 +8,9 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
-data/
+data/*
+!data/models/
+!data/models/transnetv2-pytorch-weights.pth
 logs/
 outputs/
 notebooks/

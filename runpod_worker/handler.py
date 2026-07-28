@@ -10,10 +10,12 @@ Runpod API key.
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 import subprocess
 import tempfile
 import traceback
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -24,6 +26,29 @@ import runpod
 
 MAX_DOWNLOAD_BYTES = int(os.getenv("MAX_DOWNLOAD_BYTES", str(2 * 1024 * 1024 * 1024)))
 DEFAULT_TIMEOUT_SECONDS = int(os.getenv("PIPELINE_TIMEOUT_SECONDS", "3600"))
+
+
+def _runpod_version() -> str:
+    try:
+        return metadata.version("runpod")
+    except metadata.PackageNotFoundError:
+        return "unknown"
+
+
+def _log_startup() -> None:
+    env_keys = sorted(
+        key
+        for key in os.environ
+        if key.startswith(("RUNPOD", "RP_", "OPENROUTER", "CONFIG_", "MODELS_", "PROMPTS_"))
+    )
+    print(
+        "[runpod-worker] startup "
+        f"python={platform.python_version()} "
+        f"runpod={_runpod_version()} "
+        f"cwd={Path.cwd()} "
+        f"env_keys={env_keys}",
+        flush=True,
+    )
 
 
 def _require_text(payload: dict[str, Any], field: str) -> str:
@@ -115,6 +140,12 @@ def _export_artifacts(payload: dict[str, Any], work_dir: Path) -> Path:
 
 def handler(job: dict[str, Any]) -> dict[str, Any]:
     """Process one Runpod job and return an artifact reference, never video bytes."""
+    print(
+        "[runpod-worker] received job "
+        f"id={job.get('id')} "
+        f"input_keys={sorted((job.get('input') or {}).keys()) if isinstance(job.get('input'), dict) else 'invalid'}",
+        flush=True,
+    )
     payload = job.get("input") or {}
     if not isinstance(payload, dict):
         return {"error": "input must be an object"}
@@ -140,8 +171,10 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
                 "artifact_size_bytes": archive_path.stat().st_size,
             }
     except Exception as exc:  # Runpod receives a structured, non-secret error.
-        print(traceback.format_exc())
+        print(traceback.format_exc(), flush=True)
         return {"error": f"{exc.__class__.__name__}: {exc}"}
 
 
-runpod.serverless.start({"handler": handler})
+if __name__ == "__main__":
+    _log_startup()
+    runpod.serverless.start({"handler": handler})

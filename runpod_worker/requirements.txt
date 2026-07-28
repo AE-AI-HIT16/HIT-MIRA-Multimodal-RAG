@@ -14,7 +14,7 @@ pillow
 pydantic
 python-dotenv
 pyyaml
-runpod
+runpod==1.11.0
 ultralytics
 
 openai
