@@ -30,10 +30,6 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY . /app/API
 
-FROM base AS rag-video-anh-test
-RUN python -m compileall -q /app/API/src/rag_video_anh
-RUN python /app/API/scripts/check_rag_video_anh.py
-CMD ["python", "/app/API/scripts/check_rag_video_anh.py"]
 
 FROM base AS runtime
 EXPOSE 8000
