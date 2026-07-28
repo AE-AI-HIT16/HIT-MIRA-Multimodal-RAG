@@ -13,7 +13,9 @@ MEDIA_PROMPTS:
     ocr_text, ocr_blocks, caption_text, scene, objects, activities, keywords.
 
     ## Stage 1 - OCR (Highest Priority)
-    First, scan the ENTIRE image carefully from top to bottom and left to right.
+    First, scan the ENTIRE image carefully from:
+    - top to bottom
+    - left to right
 
     Extract ALL visible readable text blocks including person names, titles, logos, slogans, banners, posters, certificates, signs, labels, subtitles, monitor text, papers, books, whiteboards, badges, clothing text, handwritten text, Vietnamese, English, numbers, and dates.
 
@@ -23,21 +25,21 @@ MEDIA_PROMPTS:
     - Preserve capitalization.
     - Do NOT translate.
     - Do NOT summarize.
-    - Do NOT merge different text blocks in ocr_blocks.
-    - Do NOT omit small readable text.
+    - Do NOT merge different text blocks.
+    - Do NOT omit small text.
     - Every readable text must appear exactly once.
 
     Create two OCR outputs:
     1. ocr_text:
     - Combine readable text into a coherent transcription.
     - Preserve original wording.
-    - Keep relationships between text regions when possible.
+    - Keep relationships between text regions.
     - Return an empty string if no text is readable.
 
     2. ocr_blocks:
     - List every independent visible text region as a string.
     - Do not merge different regions.
-    - Do not omit small readable text.
+    - Do not omit small text.
     - Return an empty array if no text is readable.
 
     After finishing OCR, DO NOT modify the OCR result anymore.

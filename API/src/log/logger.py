@@ -69,6 +69,12 @@ class OperationLog:
         extra = self._get_caller_info()
         self.logger.error(f"[ERROR]: {content}\n", extra=extra)
 
+    def exception(self, content):
+        self.config_log()
+        self.logger.setLevel(logging.ERROR)
+        extra = self._get_caller_info()
+        self.logger.exception(f"[EXCEPTION]: {content}\n", extra=extra)
+
     def delete_expired_folder(self):
         self.config_log()
         folder = os.path.dirname(self.save_folder)

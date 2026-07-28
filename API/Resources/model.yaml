@@ -41,7 +41,7 @@ MEDIA_MODELS:
   DUPLICATE_THRESHOLD: 0.90
   CLIP_MODEL_NAME: openai/clip-vit-base-patch32
   SIMILARITY_METRIC: cosine
-  VISION_MODEL_NAME: qwen/qwen2.5-vl-3b-instruct
+  VISION_MODEL_NAME: qwen/qwen2.5-vl-72b-instruct
   VISION_API_BASE_URL: https://openrouter.ai/api/v1
   VISION_API_KEY: ${OPENROUTER_API_KEY}
   VISION_API_TIMEOUT: 120.0
