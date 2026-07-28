@@ -81,6 +81,22 @@ services:
       timeout: 3s
       retries: 5
 
+  api-rag-video-anh-test:
+    profiles:
+      - test
+    build:
+      context: ./API
+      target: rag-video-anh-test
+    environment:
+      DATABASE_URL: "sqlite+pysqlite:///:memory:"
+      QDRANT_URL: http://qdrant:6333
+      STORAGE_BACKEND: filesystem
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-hit-mira-media}
+    command: ["python", "/app/API/scripts/check_rag_video_anh.py"]
+
 volumes:
   pgdata:
   qdrant_storage:

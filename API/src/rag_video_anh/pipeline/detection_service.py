@@ -40,7 +40,7 @@ class DetectionService:
         for frame in request.keyframes.frames:
             try:
                 image = frame.image_payload if frame.image_payload is not None else frame.image_path
-                detections = self._detect_frame(model, image)
+                detections, device = self._detect_frame(model, image)
                 results.append(
                     DetectionResult(
                         frame_id=frame.frame_id,
@@ -48,6 +48,7 @@ class DetectionService:
                         inference_meta={
                             "model": self.model_config.detection_model_name,
                             "confidence_threshold": self.model_config.detection_confidence_threshold,
+                            "device": device,
                         },
                         status=StageStatus.DONE if detections else StageStatus.NOT_FOUND,
                         reason=None if detections else "no detections after filtering",
@@ -58,7 +59,7 @@ class DetectionService:
                     DetectionResult(
                         frame_id=frame.frame_id,
                         status=StageStatus.ERROR,
-                        reason=f"object detection failed: {exc.__class__.__name__}",
+                        reason=f"object detection failed: {self._exception_message(exc)}",
                     )
                 )
 
@@ -84,10 +85,10 @@ class DetectionService:
             self._load_error = f"detection model load failed: {exc.__class__.__name__}"
             return None
 
-    def _detect_frame(self, model: Any, image: Any) -> list[DetectionBox]:
+    def _detect_frame(self, model: Any, image: Any) -> tuple[list[DetectionBox], str]:
         if image is None:
             raise ValueError("keyframe image is not available")
-        raw_results = model(image, verbose=self.model_config.detection_verbose)
+        raw_results, device = self._run_model(model, image)
         boxes: list[DetectionBox] = []
         for result in raw_results or []:
             names = getattr(result, "names", {}) or {}
@@ -110,4 +111,33 @@ class DetectionService:
                         bbox=rounded_box,
                     )
                 )
-        return boxes
+        return boxes, device
+
+    def _run_model(self, model: Any, image: Any) -> tuple[Any, str]:
+        policy = str(self.model_config.detection_device_policy or "runtime_default").strip().lower()
+        kwargs: dict[str, Any] = {"verbose": self.model_config.detection_verbose}
+        if policy not in {"", "auto", "default", "runtime_default"}:
+            kwargs["device"] = policy
+            return model(image, **kwargs), policy
+
+        try:
+            return model(image, **kwargs), "runtime_default"
+        except Exception as exc:
+            if not self._is_accelerator_error(exc):
+                raise
+            logger.warning(f"Detection accelerator failed; retrying on CPU: {self._exception_message(exc)}")
+            return model(image, verbose=self.model_config.detection_verbose, device="cpu"), "cpu"
+
+    @staticmethod
+    def _is_accelerator_error(exc: Exception) -> bool:
+        text = f"{exc.__class__.__name__}: {exc}".lower()
+        return any(marker in text for marker in ("accelerator", "cuda", "cudnn", "mps"))
+
+    @staticmethod
+    def _exception_message(exc: Exception) -> str:
+        message = str(exc).strip()
+        if not message:
+            return exc.__class__.__name__
+        if len(message) > 300:
+            message = message[:300] + "..."
+        return f"{exc.__class__.__name__}: {message}"

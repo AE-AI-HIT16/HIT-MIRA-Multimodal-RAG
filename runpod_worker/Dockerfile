@@ -30,6 +30,7 @@ COPY runpod_worker/requirements.txt /app/runpod-worker-requirements.txt
 RUN python -m pip install --upgrade pip
 RUN python -m pip install --index-url https://download.pytorch.org/whl/cu129 torch==2.11.0+cu129 torchvision==0.26.0+cu129
 RUN python -m pip install -r /app/runpod-worker-requirements.txt
+RUN python -c "import transnetv2_pytorch; print('TransNetV2 OK')"
 
 # PipelineService imports the MinIO helper even though the remote worker only
 # exchanges presigned URLs, so keep this small dependency in a separate layer.
