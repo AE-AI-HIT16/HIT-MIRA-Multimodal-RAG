@@ -20,3 +20,5 @@ sherpa-onnx
 numpy
 huggingface-hub
 httpx
+
+Pillow
