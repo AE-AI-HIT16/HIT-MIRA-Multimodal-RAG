@@ -6,6 +6,7 @@ from typing import Any
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
+from langfuse import observe
 
 from src.configuration import AppConfig
 from src.log.logger import logger
@@ -45,6 +46,7 @@ class LangChainEmbeddingAdapter(Embeddings):
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return self.embedding_service.embed_documents(texts)
 
+    @observe(name="retrieval_embed_query")
     def embed_query(self, text: str) -> list[float]:
         return self.embedding_service.embed_query(text)
 
@@ -86,11 +88,14 @@ class VectorRetriever:
         self.embeddings = LangChainEmbeddingAdapter(embedding_service)
         self.vector_store = vector_store
         self.top_k = int(top_k or retrieval_config.top_k or 5)
-        # KEYWORD_THRESHOLD is a legacy keyword-search setting, not a calibrated
-        # cosine-similarity threshold. Filter only when explicitly requested.
-        self.score_threshold = score_threshold
+        self.score_threshold = (
+            score_threshold
+            if score_threshold is not None
+            else retrieval_config.keyword_threshold
+        )
         self._store = None
 
+    @observe(name="vector_search")
     def retrieve(
         self,
         query: str,
@@ -103,12 +108,50 @@ class VectorRetriever:
             max(requested_k * self.CANDIDATE_MULTIPLIER, requested_k),
             self.MAX_CANDIDATES,
         )
-        docs_with_scores = self._langchain_store().similarity_search_with_score(
-            query=normalized_query,
+        query_vector = self.embeddings.embed_query(normalized_query)
+        docs_with_scores = self._qdrant_vector_search(
+            query_vector=query_vector,
             k=candidate_k,
             filter=self._metadata_filter(document_ids),
         )
-        candidates = [
+        candidates = self._build_candidates(docs_with_scores)
+        chunks = self._rerank_and_deduplicate(normalized_query, candidates, requested_k)
+        logger.info(
+            f"Retrieved {len(chunks)} chunk(s) from {len(candidates)} candidate(s)"
+        )
+        return chunks
+
+    @observe(name="qdrant_vector_search")
+    def _qdrant_vector_search(
+        self,
+        query_vector: list[float],
+        k: int,
+        filter: Any | None,
+    ) -> list[tuple[Document, float]]:
+        response = self.vector_store.client.query_points(
+            collection_name=self.vector_store.collection_name,
+            query=query_vector,
+            query_filter=filter,
+            limit=k,
+            with_payload=True,
+            with_vectors=False,
+        )
+        points = getattr(response, "points", response)
+        results: list[tuple[Document, float]] = []
+        for point in points:
+            payload = dict(getattr(point, "payload", None) or {})
+            document = Document(
+                page_content=str(payload.get("text") or ""),
+                metadata=payload,
+            )
+            results.append((document, float(getattr(point, "score", 0.0))))
+        return results
+
+    @observe(name="build_retrieval_candidates")
+    def _build_candidates(
+        self, docs_with_scores: list[tuple[Document, float]]
+    ) -> list[RetrievedChunk]:
+        return [
             RetrievedChunk(
                 document=self._normalize_document(document), score=float(score)
             )
@@ -116,12 +159,8 @@ class VectorRetriever:
             if self.score_threshold is None
             or float(score) >= float(self.score_threshold)
         ]
-        chunks = self._rerank_and_deduplicate(normalized_query, candidates, requested_k)
-        logger.info(
-            f"Retrieved {len(chunks)} chunk(s) from {len(candidates)} candidate(s)"
-        )
-        return chunks
 
+    @observe(name="rerank")
     def _rerank_and_deduplicate(
         self, query: str, candidates: list[RetrievedChunk], top_k: int
     ) -> list[RetrievedChunk]:

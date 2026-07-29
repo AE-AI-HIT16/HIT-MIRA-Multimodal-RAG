@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langfuse import observe
+
 from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_noiquy.embedding.embedding_service import EmbeddingService
@@ -21,6 +23,7 @@ class RetrievalService:
         self.query_rewriter = query_rewriter
         self.retriever = retriever
 
+    @observe(name="retrieval_service")
     def retrieve(
         self,
         query: str,

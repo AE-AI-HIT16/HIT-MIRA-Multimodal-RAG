@@ -28,7 +28,7 @@ langgraph-sdk
 langsmith
 pypdf
 docx2txt
-
+langfuse
 # MCP / ChatBot integration
 mcp
 langchain-mcp-adapters

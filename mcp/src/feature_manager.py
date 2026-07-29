@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from langfuse import observe
+
 from clients.rag_api_client import get_rag_api_client
 from logger import get_logger, log_exceptions
 
@@ -12,6 +14,7 @@ class FeatureManager:
 
     @staticmethod
     @log_exceptions(logger)
+    @observe(name="mcp_search_regulations")
     async def search_regulations(
         query: str,
         top_k: int | None = None,

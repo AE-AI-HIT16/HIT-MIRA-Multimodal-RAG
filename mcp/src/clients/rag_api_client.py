@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from langfuse import observe
 
 from config.configs import config_object
 
@@ -22,6 +23,7 @@ class RAGApiClient:
         self.base_url = (base_url or config_object.API.BASE_URL).rstrip("/")
         self.timeout_seconds = timeout_seconds or config_object.API.TIMEOUT_SECONDS
 
+    @observe(name="http_call_fastapi")
     async def _request(
         self,
         method: str,
@@ -53,6 +55,7 @@ class RAGApiClient:
                 f"FastAPI {method} {path} không trả về JSON hợp lệ"
             ) from exc
 
+    @observe(name="mcp_search_call")
     async def search(
         self,
         query: str,

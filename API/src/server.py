@@ -7,6 +7,13 @@ API_ROOT = Path(__file__).resolve().parents[1]
 if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
+# Load .env BEFORE any langfuse import (langfuse reads env vars on init)
+from dotenv import load_dotenv
+load_dotenv(API_ROOT.parent / ".env")
+
+from langfuse import get_client
+get_client()  # init Langfuse client with env vars
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

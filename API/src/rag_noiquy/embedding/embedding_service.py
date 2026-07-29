@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langfuse import observe
+
 from src.configuration import AppConfig
 from src.log.logger import logger
 
@@ -46,12 +48,16 @@ class EmbeddingService:
         logger.info(f"Embedding {len(normalized_texts)} document chunk(s) with model '{self.model}'")
 
         try:
-            embeddings = self._embedding_client().embed_documents(normalized_texts)
+            embeddings = self._embedding_provider_request(normalized_texts)
         except Exception as exc:
             raise EmbeddingServiceError(f"Embedding provider request failed: {exc.__class__.__name__}.") from exc
 
         self._validate_embeddings(embeddings, expected_count=len(normalized_texts))
         return embeddings
+
+    @observe(name="embedding_provider_request")
+    def _embedding_provider_request(self, texts: list[str]) -> list[list[float]]:
+        return self._embedding_client().embed_documents(texts)
 
     def embed_query(self, query: str) -> list[float]:
         if not isinstance(query, str) or not query.strip():
@@ -72,6 +78,7 @@ class EmbeddingService:
             "base_url": self.base_url,
             "timeout": self.timeout,
             "tiktoken_enabled": False,
+            "check_embedding_ctx_length": False,
         }
         if self._dimension is not None:
             kwargs["dimensions"] = int(self._dimension)

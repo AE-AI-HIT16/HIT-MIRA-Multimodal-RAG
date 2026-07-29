@@ -3,6 +3,7 @@ from __future__ import annotations
 from langchain.chat_models import init_chat_model
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
+from langfuse import observe
 
 from src.config.config import config_prompts, resolve_project_path
 from src.configuration import AppConfig
@@ -21,6 +22,7 @@ class QueryRewriter:
             | StrOutputParser()
         )
 
+    @observe(name="query_rewrite")
     def rewrite(self, query: str) -> str:
         query = self._normalize_query(query)
         try:

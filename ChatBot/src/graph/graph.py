@@ -7,14 +7,16 @@ from src.graph.configuration import Context
 from src.config.configs import config_agents
 from src.graph.nodes import supervisor_node
 from src.graph.state import InputState, State
-
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
+langfuse = get_client()
 async def init_root_graph():
     builder = StateGraph(state_schema=State, input_schema=InputState, context_schema=Context)
     
     builder.add_node(config_agents.PROFILE_GRAPH.AGENT_SUPERVISOR, supervisor_node)
     builder.set_entry_point(config_agents.PROFILE_GRAPH.AGENT_SUPERVISOR)
-    
-    config_trace = RunnableConfig()
+    langfuse_handler = CallbackHandler()
+    config_trace = RunnableConfig(callbacks=[langfuse_handler])
     root_graph = builder.compile(name=config_agents.PROFILE_GRAPH.GRAPH_NAME).with_config(config=config_trace)
     return root_graph
 
