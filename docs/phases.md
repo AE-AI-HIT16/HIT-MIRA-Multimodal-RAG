@@ -56,9 +56,9 @@
 - **Chữ ký (ABC + impl):**
   - `TextEmbedder.embed(texts: list[str]) -> list[list[float]]`, `.dim`
   - `ImageEmbedder.embed(image_paths: list[str]) -> list[list[float]]`, `.embed_query(text: str) -> list[float]`, `.dim`
-  - `VietnameseTextEmbedder` = SentenceTransformer `AITeamVN/Vietnamese_Embedding`, `normalize_embeddings=True`
-  - `JinaClipEmbedder` = SentenceTransformer `jinaai/jina-clip-v2` — **ảnh và text query chung 1 không gian** (bật text→ảnh)
-- **Hành vi:** lazy import torch/ST trong `__init__`; `trust_remote_code=True`.
+  - `TextEmbedder` = OpenAI-compatible Embeddings API, cấu hình qua `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`
+  - `JinaClipEmbedder` = Jina Embeddings API `jina-clip-v2`, xác thực qua `JINA_API_KEY`; ảnh gửi base64, ảnh và text query chung 1 không gian
+- **Hành vi:** gọi HTTP theo batch; không tải weights embedding về máy.
 - **DoD:** embed cùng `dim`; query text tiếng Việt → ảnh liên quan ngữ nghĩa trong top-k (US-202.1).
 
 ### P0-6 · Provider ASR `[T-21]`

@@ -137,7 +137,13 @@ class MediaModelConfig(BaseModel):
     center_slice_end: int = _config_value(config_models, "MEDIA_MODELS.CENTER_SLICE_END", 75)
     shot_boundary_threshold: float = _config_value(config_models, "MEDIA_MODELS.SHOT_BOUNDARY_THRESHOLD", 0.3)
     duplicate_threshold: float = _config_value(config_models, "MEDIA_MODELS.DUPLICATE_THRESHOLD", 0.90)
-    clip_model_name: str = _config_value(config_models, "MEDIA_MODELS.CLIP_MODEL_NAME", "openai/clip-vit-base-patch32")
+    clip_model_name: str = _config_value(config_models, "MEDIA_MODELS.CLIP_MODEL_NAME", "jina-clip-v2")
+    clip_api_base_url: str = os.getenv("MEDIA_IMAGE_EMBEDDING_BASE_URL") or _config_value(
+        config_models, "MEDIA_MODELS.CLIP_API_BASE_URL", "https://api.jina.ai/v1/embeddings"
+    )
+    clip_api_key: Optional[str] = os.getenv("JINA_API_KEY") or _config_value(config_models, "MEDIA_MODELS.CLIP_API_KEY", None)
+    clip_embedding_dimensions: int = _config_value(config_models, "MEDIA_MODELS.CLIP_EMBEDDING_DIMENSIONS", 1024)
+    clip_api_timeout: float = _config_value(config_models, "MEDIA_MODELS.CLIP_API_TIMEOUT", 60.0)
     similarity_metric: str = _config_value(config_models, "MEDIA_MODELS.SIMILARITY_METRIC", "cosine")
     vision_model_name: str = (
         os.getenv("MEDIA_VISION_MODEL_NAME")

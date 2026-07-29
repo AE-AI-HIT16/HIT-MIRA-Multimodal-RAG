@@ -39,7 +39,11 @@ MEDIA_MODELS:
   CENTER_SLICE_END: 75
   SHOT_BOUNDARY_THRESHOLD: 0.3
   DUPLICATE_THRESHOLD: 0.90
-  CLIP_MODEL_NAME: openai/clip-vit-base-patch32
+  CLIP_MODEL_NAME: jina-clip-v2
+  CLIP_API_BASE_URL: https://api.jina.ai/v1/embeddings
+  CLIP_API_KEY: ${JINA_API_KEY}
+  CLIP_EMBEDDING_DIMENSIONS: 1024
+  CLIP_API_TIMEOUT: 60.0
   SIMILARITY_METRIC: cosine
   VISION_MODEL_NAME: qwen/qwen2.5-vl-72b-instruct
   VISION_API_BASE_URL: https://openrouter.ai/api/v1
