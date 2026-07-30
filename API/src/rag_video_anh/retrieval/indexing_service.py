@@ -12,7 +12,10 @@ from minio.error import S3Error
 from src.log.logger import logger
 from src.rag_video_anh.embedding.embedding_service import ImageEmbeddingService
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
-from src.rag_video_anh.retrieval.retrieval_units import VideoRetrievalUnitBuilder
+from src.rag_video_anh.retrieval.retrieval_units import (
+    ImageRetrievalUnitBuilder,
+    VideoRetrievalUnitBuilder,
+)
 from src.rag_video_anh.vector_store.vector_store import QdrantVideoVectorStore
 
 
@@ -54,6 +57,7 @@ class VideoRetrievalIndexingService:
         self,
         *,
         builder: Any | None = None,
+        image_builder: Any | None = None,
         storage: Any | None = None,
         image_embedder: Any | None = None,
         text_embedder: Any | None = None,
@@ -66,6 +70,10 @@ class VideoRetrievalIndexingService:
             self.storage = self.storage or MinioStorage()
             builder = VideoRetrievalUnitBuilder(storage=self.storage)
         self.builder = builder
+        if image_builder is None:
+            self.storage = self.storage or MinioStorage()
+            image_builder = ImageRetrievalUnitBuilder(storage=self.storage)
+        self.image_builder = image_builder
         self.image_embedder = image_embedder or ImageEmbeddingService()
         self.text_embedder = text_embedder or self.image_embedder
         self.vector_store = vector_store or QdrantVideoVectorStore()
@@ -265,11 +273,95 @@ class VideoRetrievalIndexingService:
             return
         raise RuntimeError("storage does not support bucket-specific object download")
 
+    def index_images(self, image_media_ids: list[str]) -> VideoRetrievalIndexSummary:
+        """Nhúng và index ảnh tĩnh vào CÙNG collection media_clip với keyframe.
+
+        Cùng một không gian vector (Jina-CLIP v2) nên một truy vấn text duy nhất
+        xếp hạng chung được cả ảnh lẫn keyframe video — đúng yêu cầu 'trả về ảnh
+        kèm mô tả + clip video' trong PRD.
+        """
+        summary = VideoRetrievalIndexSummary(
+            video_id=None,
+            video_media_id="",
+            collections={"media_clip": self.media_clip_collection},
+        )
+        units: list[dict[str, Any]] = []
+        for media_id in image_media_ids:
+            try:
+                unit = self.image_builder.build(media_id)
+            except Exception as exc:
+                summary.add_skip("image_unit_build_failed")
+                logger.warning(f"Could not build image unit '{media_id}': {exc.__class__.__name__}: {exc}")
+                continue
+            if unit is None:
+                summary.add_skip("missing_image_object")
+                continue
+            units.append(unit.to_dict())
+        summary.media_clip_units_received = len(units)
+        if not units:
+            return summary
+
+        with tempfile.TemporaryDirectory(prefix="hit-mira-image-index-") as temp_dir:
+            jobs: list[tuple[dict[str, Any], Path]] = []
+            for unit in units:
+                image_path = self._download_image(unit, Path(temp_dir), summary)
+                if image_path is not None:
+                    jobs.append((unit, image_path))
+            if not jobs:
+                return summary
+
+            vectors = self.image_embedder.embed_images([path for _, path in jobs])
+            self._validate_vector_payload_alignment(vectors, jobs, label="image")
+            result = self.vector_store.upsert_points(
+                collection_name=self.media_clip_collection,
+                point_ids=[str(unit["image_media_id"]) for unit, _ in jobs],
+                vectors=vectors,
+                payloads=[self._image_payload(unit) for unit, _ in jobs],
+            )
+            summary.media_clip_indexed += int(result.get("upserted", len(jobs)))
+        logger.info(f"Indexed image retrieval units: {summary.to_dict()}")
+        return summary
+
+    def _download_image(
+        self,
+        unit: dict[str, Any],
+        temp_dir: Path,
+        summary: VideoRetrievalIndexSummary,
+    ) -> Path | None:
+        # Dùng lại nguyên bộ xử lý lỗi của keyframe: khác tên khoá object thôi.
+        return self._download_frame(
+            {
+                "bucket_name": unit.get("bucket_name"),
+                "frame_object_key": unit.get("object_key"),
+                "frame_media_id": unit.get("image_media_id"),
+                "unit_id": unit.get("unit_id"),
+            },
+            temp_dir,
+            summary,
+        )
+
+    @staticmethod
+    def _image_payload(unit: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "media_kind": "image",
+            "unit_id": unit.get("unit_id"),
+            "image_media_id": unit.get("image_media_id"),
+            "post_id": unit.get("post_id"),
+            "bucket_name": unit.get("bucket_name"),
+            "frame_object_key": unit.get("object_key"),
+            "caption": unit.get("caption") or "",
+            "ocr_text": unit.get("ocr_text") or "",
+            "vision_metadata": unit.get("vision_metadata") or {},
+            "detected_objects": unit.get("detected_objects") or [],
+            "object_counts": unit.get("object_counts") or {},
+        }
+
     @staticmethod
     def _media_clip_payload(unit: dict[str, Any]) -> dict[str, Any]:
         context = unit.get("transcript_context") if isinstance(unit.get("transcript_context"), dict) else {}
         segments = context.get("segments") if isinstance(context.get("segments"), list) else []
         return {
+            "media_kind": "video_frame",
             "unit_id": unit.get("unit_id"),
             "video_id": unit.get("video_id"),
             "post_id": unit.get("post_id"),

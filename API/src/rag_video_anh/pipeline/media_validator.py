@@ -25,15 +25,22 @@ class MediaValidatorService:
         extension = Path(source_ref).suffix.lower()
         supported_types = {item.lower() for item in self.pipeline_config.supported_media_types}
 
+        supported_image_types = {item.lower() for item in self.pipeline_config.supported_image_types}
+        is_image = media_type == "image"
+
         if not media_input.media_id.strip():
             errors.append("media_id is required")
         if not media_type:
             errors.append("media_type is required")
-        if media_type and media_type != "video":
+        if media_type and media_type not in {"video", "image"}:
             errors.append(f"unsupported media_type: {media_input.media_type}")
-        if extension and extension not in supported_types:
+
+        # Ảnh và video có tập đuôi/mime riêng, không dùng chung danh sách được.
+        allowed_extensions = supported_image_types if is_image else supported_types
+        expected_mime_prefix = "image/" if is_image else "video/"
+        if extension and extension not in allowed_extensions:
             errors.append(f"unsupported media extension: {extension}")
-        if not extension and mime_type and not mime_type.startswith("video/"):
+        if not extension and mime_type and not mime_type.startswith(expected_mime_prefix):
             errors.append(f"unsupported mime_type: {media_input.mime_type}")
         if self.pipeline_config.minimum_duration is not None and media_input.duration is not None:
             if media_input.duration < self.pipeline_config.minimum_duration:
@@ -47,7 +54,7 @@ class MediaValidatorService:
         if self.pipeline_config.maximum_size_bytes is not None and media_input.size_bytes is not None:
             if media_input.size_bytes > self.pipeline_config.maximum_size_bytes:
                 errors.append("media size exceeds the configured maximum")
-        if self.pipeline_config.audio_required and media_input.metadata.get("audio_present") is False:
+        if not is_image and self.pipeline_config.audio_required and media_input.metadata.get("audio_present") is False:
             errors.append("audio track is required by policy")
 
         technical_profile = MediaMetadata(
@@ -64,12 +71,17 @@ class MediaValidatorService:
         route = None
         if not errors:
             route = ProcessingRoute(
-                route_type="video",
-                requires_keyframes=True,
+                route_type="image" if is_image else "video",
+                # Ảnh tự nó đã là một khung hình: không cần tách keyframe, cũng không có tiếng.
+                requires_keyframes=not is_image,
                 requires_ocr=self.pipeline_config.enable_ocr,
                 requires_caption=self.pipeline_config.enable_caption,
                 requires_detection=self.pipeline_config.enable_detection,
-                requires_asr=self.pipeline_config.enable_asr and technical_profile.audio_present is not False,
+                requires_asr=(
+                    not is_image
+                    and self.pipeline_config.enable_asr
+                    and technical_profile.audio_present is not False
+                ),
             )
 
         result = MediaValidationResult(

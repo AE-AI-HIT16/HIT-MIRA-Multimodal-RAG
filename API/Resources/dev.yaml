@@ -40,6 +40,11 @@ MEDIA_PIPELINE:
     - .mkv
     - .avi
     - .webm
+  SUPPORTED_IMAGE_TYPES:
+    - .jpg
+    - .jpeg
+    - .png
+    - .webp
   VALIDATION_STRICTNESS: strict
   MINIMUM_DURATION:
   MAXIMUM_DURATION:

@@ -5,6 +5,8 @@ from src.rag_video_anh.retrieval.retrieval_service import (
     build_video_retrieval_service,
 )
 from src.rag_video_anh.retrieval.retrieval_units import (
+    ImageRetrievalUnitBuilder,
+    ImageUnit,
     MediaClipUnit,
     RetrievalUnitBuildResult,
     RetrievalUnitBuildSummary,
@@ -21,6 +23,8 @@ from src.rag_video_anh.retrieval.retriever import (
 )
 
 __all__ = [
+    "ImageRetrievalUnitBuilder",
+    "ImageUnit",
     "MediaClipHit",
     "MediaClipUnit",
     "RetrievalUnitBuildResult",
