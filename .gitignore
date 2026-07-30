@@ -32,7 +32,23 @@ data/**
 .cache/
 models/
 
+# ---- Logs (mỗi lần chạy sinh file mới, KHÔNG commit) ----
+logs/
+*.log
+
+# ---- Qdrant chạy local: binary, tarball và data volume ----
+/qdrant
+/qdrant-*.tar.gz
+/storage/
+/.qdrant-initialized
+
+# ---- Pipeline artifacts (retrieval units, keyframe...) ----
+/outputs/
+/.tmp/
+
 # ---- Editor / OS ----
 .vscode/
 .idea/
 .DS_Store
+*.swp
+*.swo
