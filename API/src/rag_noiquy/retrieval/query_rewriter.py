@@ -4,7 +4,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from src.config.config import config_prompts
+from src.config.config import config_prompts, resolve_project_path
 from src.configuration import AppConfig
 from src.log.logger import logger
 
@@ -14,8 +14,9 @@ class QueryRewriter:
 
     def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig()
+        prompt_path = resolve_project_path(config_prompts.PROMPT.PROMPT_REWRITING)
         self.chain = (
-            PromptTemplate.from_file(config_prompts.PROMPT.PROMPT_REWRITING)
+            PromptTemplate.from_file(prompt_path)
             | self._llm()
             | StrOutputParser()
         )
@@ -39,6 +40,8 @@ class QueryRewriter:
             kwargs["max_tokens"] = llm_config.max_tokens
         if llm_config.base_url:
             kwargs["base_url"] = llm_config.base_url
+        if llm_config.api_key:
+            kwargs["api_key"] = llm_config.api_key
         return init_chat_model(llm_config.model_name, **kwargs)
 
     @staticmethod

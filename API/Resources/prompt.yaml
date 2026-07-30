@@ -1,5 +1,5 @@
 PROMPT:
-  PROMPT_REWRITING: ./Resources/prompts/prompt_rewriting.md
+  PROMPT_REWRITING: ./API/Resources/prompts/prompt_rewriting.md
 
 MEDIA_PROMPTS:
   VISION_SYSTEM_PROMPT: Return only valid minified JSON. Do not include markdown fences, explanations, or extra keys.

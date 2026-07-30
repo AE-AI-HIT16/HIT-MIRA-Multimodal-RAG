@@ -100,4 +100,3 @@ class DocumentCleaner:
             cleaned,
         )
         return cleaned.strip()
-        return cleaned.strip()

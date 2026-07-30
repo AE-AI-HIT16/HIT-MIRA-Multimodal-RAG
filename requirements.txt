@@ -4,6 +4,9 @@ python-multipart
 uvicorn[standard]
 pydantic
 pydantic-settings
+python-dotenv
+pyyaml
+typing-extensions
 
 # Cơ sở dữ liệu (SQLite cho dev/test, PostgreSQL cho Docker/prod)
 sqlalchemy
@@ -14,14 +17,22 @@ qdrant-client
 minio
 
 # LangChain adapters for document loading, splitting, and embeddings
+langchain
+langchain-core
 langchain-community
 langchain-qdrant
 langchain-text-splitters
 langchain-openai
-langchain
+langgraph
+langgraph-sdk
+langsmith
 pypdf
 docx2txt
 openai
+
+# MCP / ChatBot integration
+mcp
+langchain-mcp-adapters
 
 # Media và các model AI
 pillow
@@ -37,5 +48,7 @@ opencv-python
 
 # Test / phát triển
 pytest
+anyio
 httpx
 ruff
+langgraph-cli[inmem]
