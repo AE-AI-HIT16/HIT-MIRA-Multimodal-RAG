@@ -89,16 +89,32 @@ class VideoRetrievalIndexingService:
             if count:
                 summary.add_skip(reason, int(count))
 
-        with tempfile.TemporaryDirectory(prefix="hit-mira-video-index-") as temp_dir:
-            self._index_media_clip_units(
-                [unit.to_dict() for unit in build_result.media_clip_units],
-                temp_dir=Path(temp_dir),
+        # Hai nhánh độc lập: keyframe hỏng vẫn phải index được lời thoại, và ngược lại.
+        try:
+            with tempfile.TemporaryDirectory(prefix="hit-mira-video-index-") as temp_dir:
+                self._index_media_clip_units(
+                    [unit.to_dict() for unit in build_result.media_clip_units],
+                    temp_dir=Path(temp_dir),
+                    summary=summary,
+                )
+        except Exception as exc:
+            summary.add_skip("media_clip_indexing_failed", summary.media_clip_units_received)
+            logger.warning(
+                f"Media clip indexing failed for video '{video_media_id}'; "
+                f"continuing with transcripts: {exc.__class__.__name__}: {exc}"
+            )
+
+        try:
+            self._index_video_transcript_units(
+                [unit.to_dict() for unit in build_result.video_transcript_units],
                 summary=summary,
             )
-        self._index_video_transcript_units(
-            [unit.to_dict() for unit in build_result.video_transcript_units],
-            summary=summary,
-        )
+        except Exception as exc:
+            summary.add_skip("video_transcript_indexing_failed", summary.video_transcript_units_received)
+            logger.warning(
+                f"Transcript indexing failed for video '{video_media_id}': "
+                f"{exc.__class__.__name__}: {exc}"
+            )
         logger.info(f"Indexed video retrieval units: {summary.to_dict()}")
         return summary
 

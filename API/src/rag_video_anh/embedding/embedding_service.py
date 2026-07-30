@@ -11,6 +11,16 @@ from typing import Any, Callable
 from src.configuration import AppConfig
 from src.log.logger import logger
 
+DEFAULT_IMAGE_BATCH_SIZE = 8
+DEFAULT_TEXT_BATCH_SIZE = 64
+# ~5MB base64 mỗi request, chừa chỗ cho phần bao JSON.
+DEFAULT_MAX_REQUEST_BYTES = 5 * 1024 * 1024
+# Hạn mức token của Jina tính theo phút -> chờ hết cửa sổ rồi thử lại.
+RATE_LIMIT_COOLDOWN_SECONDS = 60.0
+# Jina-CLIP v2 xử lý ảnh ở 512px; gửi to hơn chỉ tốn token chứ không lợi gì.
+DEFAULT_MAX_IMAGE_SIDE = 512
+DEFAULT_IMAGE_JPEG_QUALITY = 90
+
 
 class ImageEmbeddingConfigurationError(ValueError):
     """Raised when image embedding configuration is missing or invalid."""
@@ -33,6 +43,11 @@ class ImageEmbeddingService:
         timeout: float | None = None,
         config: AppConfig | None = None,
         http_post: Callable[..., Any] | None = None,
+        image_batch_size: int | None = None,
+        text_batch_size: int | None = None,
+        max_request_bytes: int | None = None,
+        max_image_side: int | None = None,
+        image_jpeg_quality: int | None = None,
     ) -> None:
         model_config = (config or AppConfig()).media_models
         self.model_name = (
@@ -50,32 +65,113 @@ class ImageEmbeddingService:
         )
         self.dimensions = dimensions if dimensions is not None else getattr(model_config, "clip_embedding_dimensions", 1024)
         self.timeout = timeout if timeout is not None else getattr(model_config, "clip_api_timeout", 60.0)
+        self.image_batch_size = self._positive_int(
+            image_batch_size, os.getenv("MEDIA_IMAGE_EMBEDDING_BATCH_SIZE"), DEFAULT_IMAGE_BATCH_SIZE
+        )
+        self.text_batch_size = self._positive_int(
+            text_batch_size, os.getenv("MEDIA_TEXT_EMBEDDING_BATCH_SIZE"), DEFAULT_TEXT_BATCH_SIZE
+        )
+        self.max_request_bytes = self._positive_int(
+            max_request_bytes, os.getenv("MEDIA_EMBEDDING_MAX_REQUEST_BYTES"), DEFAULT_MAX_REQUEST_BYTES
+        )
+        # max_image_side <= 0 nghĩa là tắt thu nhỏ, nên không dùng _positive_int.
+        self.max_image_side = self._int_or_default(
+            max_image_side, os.getenv("MEDIA_IMAGE_EMBEDDING_MAX_SIDE"), DEFAULT_MAX_IMAGE_SIDE
+        )
+        self.image_jpeg_quality = self._positive_int(
+            image_jpeg_quality, os.getenv("MEDIA_IMAGE_EMBEDDING_JPEG_QUALITY"), DEFAULT_IMAGE_JPEG_QUALITY
+        )
         self._http_post = http_post
+
+    @staticmethod
+    def _int_or_default(explicit: int | None, from_env: str | None, fallback: int) -> int:
+        for candidate in (explicit, from_env):
+            if candidate is None or candidate == "":
+                continue
+            try:
+                return int(candidate)
+            except (TypeError, ValueError):
+                continue
+        return fallback
+
+    @staticmethod
+    def _positive_int(explicit: int | None, from_env: str | None, fallback: int) -> int:
+        for candidate in (explicit, from_env):
+            if candidate is None or candidate == "":
+                continue
+            try:
+                value = int(candidate)
+            except (TypeError, ValueError):
+                continue
+            if value > 0:
+                return value
+        return fallback
 
     def embed_images(self, image_paths: list[str | Path]) -> list[list[float]]:
         paths = self._validate_image_paths(image_paths)
         logger.info(f"Embedding {len(paths)} keyframe image(s) with Jina model '{self.model_name}'")
-        payload = {
-            "model": self.model_name,
-            "input": [{"image": self._image_as_base64(path)} for path in paths],
-            "embedding_type": "float",
-            "dimensions": self.dimensions,
-            "normalized": True,
-        }
-        return self._embed_payload(payload, expected_count=len(paths), label="Image")
+        encoded = [self._image_as_base64(path) for path in paths]
+        vectors: list[list[float]] = []
+        # Gửi theo lô: một video có thể có hơn trăm keyframe, gộp hết vào một
+        # request thì Jina trả 413 Payload Too Large.
+        for batch in self._batch_images(encoded):
+            payload = {
+                "model": self.model_name,
+                "input": [{"image": item} for item in batch],
+                "embedding_type": "float",
+                "dimensions": self.dimensions,
+                "normalized": True,
+            }
+            vectors.extend(self._embed_payload(payload, expected_count=len(batch), label="Image"))
+        self._validate_embeddings(vectors, expected_count=len(paths))
+        return vectors
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         clean_texts = self._validate_texts(texts)
         logger.info(f"Embedding {len(clean_texts)} transcript text chunk(s) with Jina model '{self.model_name}'")
-        payload = {
-            "model": self.model_name,
-            "input": [{"text": text} for text in clean_texts],
-            "task": "retrieval.query",
-            "embedding_type": "float",
-            "dimensions": self.dimensions,
-            "normalized": True,
-        }
-        return self._embed_payload(payload, expected_count=len(clean_texts), label="Text")
+        vectors: list[list[float]] = []
+        for start in range(0, len(clean_texts), self.text_batch_size):
+            batch = clean_texts[start : start + self.text_batch_size]
+            payload = {
+                "model": self.model_name,
+                "input": [{"text": text} for text in batch],
+                "task": "retrieval.query",
+                "embedding_type": "float",
+                "dimensions": self.dimensions,
+                "normalized": True,
+            }
+            vectors.extend(self._embed_payload(payload, expected_count=len(batch), label="Text"))
+        self._validate_embeddings(vectors, expected_count=len(clean_texts))
+        return vectors
+
+    def _batch_images(self, encoded_images: list[str]) -> list[list[str]]:
+        """Chia ảnh thành lô theo cả số lượng lẫn tổng dung lượng base64.
+
+        Chia theo số lượng thôi là chưa đủ: keyframe nặng nhẹ rất khác nhau, vài
+        ảnh lớn cũng đủ vượt giới hạn kích thước request của nhà cung cấp.
+        """
+        batches: list[list[str]] = []
+        current: list[str] = []
+        current_bytes = 0
+        for item in encoded_images:
+            item_bytes = len(item)
+            if current and (
+                len(current) >= self.image_batch_size
+                or current_bytes + item_bytes > self.max_request_bytes
+            ):
+                batches.append(current)
+                current, current_bytes = [], 0
+            # Ảnh đơn lẻ vượt hạn mức vẫn phải gửi một mình: không thể chia nhỏ hơn.
+            if not current and item_bytes > self.max_request_bytes:
+                logger.warning(
+                    f"Keyframe base64 size {item_bytes} exceeds the request budget "
+                    f"{self.max_request_bytes}; sending it alone"
+                )
+            current.append(item)
+            current_bytes += item_bytes
+        if current:
+            batches.append(current)
+        return batches
 
     def _embed_payload(self, payload: dict[str, Any], *, expected_count: int, label: str) -> list[list[float]]:
         self._validate_configuration()
@@ -143,14 +239,53 @@ class ImageEmbeddingService:
         retry_after = headers.get("retry-after") or headers.get("Retry-After")
         if retry_after:
             try:
-                return min(float(retry_after), 30.0)
+                return min(float(retry_after), RATE_LIMIT_COOLDOWN_SECONDS)
             except ValueError:
                 pass
+        # Hạn mức của Jina tính theo token/PHÚT. Backoff 1s, 2s không giải quyết
+        # được gì — phải chờ hết cửa sổ phút thì hạn mức mới nạp lại.
+        if getattr(response, "status_code", None) == 429:
+            return RATE_LIMIT_COOLDOWN_SECONDS
         return float(2 ** attempt)
 
-    @staticmethod
-    def _image_as_base64(path: Path) -> str:
-        return base64.b64encode(path.read_bytes()).decode("ascii")
+    def _image_as_base64(self, path: Path) -> str:
+        return base64.b64encode(self._downscaled_image_bytes(path)).decode("ascii")
+
+    def _downscaled_image_bytes(self, path: Path) -> bytes:
+        """Thu nhỏ keyframe trước khi gửi đi nhúng.
+
+        Jina-CLIP v2 vốn xử lý ảnh ở 512px; gửi keyframe 1280x720 nguyên bản
+        tốn 24.000 token/ảnh (hạn mức chỉ 100.000 token/phút) trong khi bản
+        512px chỉ tốn 4.000 token mà vector gần như không đổi (cosine ~0.994).
+        """
+        raw = path.read_bytes()
+        if self.max_image_side <= 0:
+            return raw
+        try:
+            import io
+
+            from PIL import Image
+        except ImportError:
+            # Thiếu Pillow thì vẫn nhúng được, chỉ tốn token hơn.
+            logger.warning("Pillow is unavailable; embedding keyframes at full resolution")
+            return raw
+
+        try:
+            with Image.open(io.BytesIO(raw)) as image:
+                if max(image.size) <= self.max_image_side:
+                    return raw
+                resized = image.convert("RGB")
+                resized.thumbnail((self.max_image_side, self.max_image_side), Image.LANCZOS)
+                buffer = io.BytesIO()
+                resized.save(buffer, format="JPEG", quality=self.image_jpeg_quality)
+                return buffer.getvalue()
+        except Exception as exc:
+            # Ảnh hỏng/định dạng lạ: gửi nguyên bản, để nhà cung cấp quyết định.
+            logger.warning(
+                f"Could not downscale keyframe '{path.name}' ({exc.__class__.__name__}); "
+                "sending it at full resolution"
+            )
+            return raw
 
     @classmethod
     def _response_embeddings(cls, response_data: Any) -> list[list[float]]:

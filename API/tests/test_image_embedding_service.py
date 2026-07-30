@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.rag_video_anh.embedding.embedding_service import (
+    RATE_LIMIT_COOLDOWN_SECONDS,
     ImageEmbeddingConfigurationError,
     ImageEmbeddingService,
 )
@@ -98,6 +99,103 @@ def test_image_embedding_service_posts_transcripts_to_jina_api() -> None:
     assert captured["json"]["dimensions"] == 3
     assert captured["json"]["normalized"] is True
     assert captured["json"]["input"] == [{"text": "mở đầu"}, {"text": "hoạt động"}]
+
+
+class RecordingPoster:
+    """Trả vector giả theo đúng số phần tử của từng lô và ghi lại mọi request."""
+
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+
+    def __call__(self, url, *, headers, json, timeout):
+        self.requests.append(json)
+        offset = sum(len(request["input"]) for request in self.requests[:-1])
+        return FakeResponse(
+            {"data": [{"index": i, "embedding": [float(offset + i)]} for i in range(len(json["input"]))]}
+        )
+
+
+def _service(poster: RecordingPoster, **kwargs) -> ImageEmbeddingService:
+    return ImageEmbeddingService(api_key="jina-test-key", dimensions=1, http_post=poster, **kwargs)
+
+
+def test_embed_images_splits_into_batches_and_keeps_order(tmp_path: Path) -> None:
+    """Gộp cả trăm keyframe vào một request thì Jina trả 413."""
+    paths = []
+    for i in range(5):
+        path = tmp_path / f"frame_{i}.jpg"
+        path.write_bytes(f"frame-{i}".encode())
+        paths.append(path)
+    poster = RecordingPoster()
+
+    vectors = _service(poster, image_batch_size=2).embed_images(paths)
+
+    assert [len(request["input"]) for request in poster.requests] == [2, 2, 1]
+    assert vectors == [[0.0], [1.0], [2.0], [3.0], [4.0]]
+
+
+def test_embed_images_splits_when_byte_budget_is_exceeded(tmp_path: Path) -> None:
+    """Keyframe nặng nhẹ khác nhau nên chỉ giới hạn số lượng là chưa đủ."""
+    paths = []
+    for i in range(3):
+        path = tmp_path / f"big_{i}.jpg"
+        path.write_bytes(b"x" * 3000)
+        paths.append(path)
+    poster = RecordingPoster()
+
+    _service(poster, image_batch_size=10, max_request_bytes=5000).embed_images(paths)
+
+    assert [len(request["input"]) for request in poster.requests] == [1, 1, 1]
+
+
+def test_embed_images_downscales_oversized_keyframes(tmp_path: Path) -> None:
+    """Ảnh 1280x720 tốn 24.000 token/ảnh, bản 512px chỉ tốn 4.000."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    path = tmp_path / "keyframe.jpg"
+    Image.new("RGB", (1280, 720), color=(120, 40, 200)).save(path, format="JPEG", quality=95)
+    poster = RecordingPoster()
+
+    _service(poster, max_image_side=512).embed_images([path])
+
+    sent = base64.b64decode(poster.requests[0]["input"][0]["image"])
+    with Image.open(BytesIO(sent)) as image:
+        assert max(image.size) == 512
+    assert len(sent) < path.stat().st_size
+
+
+def test_embed_images_keeps_full_resolution_when_downscaling_is_disabled(tmp_path: Path) -> None:
+    from PIL import Image
+
+    path = tmp_path / "keyframe.jpg"
+    Image.new("RGB", (1280, 720), color=(10, 10, 10)).save(path, format="JPEG")
+    poster = RecordingPoster()
+
+    _service(poster, max_image_side=0).embed_images([path])
+
+    assert base64.b64decode(poster.requests[0]["input"][0]["image"]) == path.read_bytes()
+
+
+def test_embed_texts_splits_into_batches() -> None:
+    poster = RecordingPoster()
+
+    vectors = _service(poster, text_batch_size=2).embed_texts(["a", "b", "c"])
+
+    assert [len(request["input"]) for request in poster.requests] == [2, 1]
+    assert vectors == [[0.0], [1.0], [2.0]]
+
+
+def test_rate_limited_retry_waits_for_the_whole_token_window() -> None:
+    """Hạn mức Jina tính theo phút, backoff 1s/2s không giúp được gì."""
+
+    class RateLimited(Exception):
+        class response:  # noqa: N801 - chỉ để giả thuộc tính của httpx
+            status_code = 429
+            headers: dict = {}
+
+    assert ImageEmbeddingService._retry_delay_seconds(RateLimited(), attempt=0) == RATE_LIMIT_COOLDOWN_SECONDS
 
 
 def test_image_embedding_service_requires_jina_api_key(tmp_path: Path) -> None:
