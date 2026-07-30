@@ -27,3 +27,40 @@ tools:
           description: "Có dùng LLM của API để viết lại truy vấn trước khi tìm kiếm hay không."
       required:
         - query
+
+  - category: mcp
+    name_tool: search_media
+    description: >
+      Tìm nội dung trong kho video và ảnh của CLB theo câu hỏi tự do: tìm
+      keyframe (hình ảnh, caption, chữ trong hình) và lời thoại trong video.
+      Đây là tool DUY NHẤT để tìm thông tin về video/ảnh hoạt động của CLB.
+      Kết quả trả về kèm video_id và mốc thời gian (giây) để trích dẫn.
+    inputSchema:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: "Câu hỏi hoặc nội dung cần tìm trong kho video/ảnh."
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: "Số kết quả tối đa cho mỗi nguồn. Mặc định theo cấu hình API."
+        video_ids:
+          type: array
+          items:
+            type: string
+          description: "Danh sách video_id để giới hạn phạm vi tìm kiếm (không bắt buộc)."
+        source:
+          type: string
+          enum:
+            - clip
+            - transcript
+            - both
+          default: both
+          description: >
+            Nguồn cần tìm: 'clip' chỉ tìm keyframe/hình ảnh, 'transcript' chỉ
+            tìm lời thoại, 'both' tìm cả hai (mặc định).
+      required:
+        - query

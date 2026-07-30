@@ -59,6 +59,95 @@ class QdrantVideoVectorStore:
         logger.info(f"Upserted {len(points)} point(s) into Qdrant collection '{collection_name}'")
         return {"collection_name": collection_name, "upserted": len(points)}
 
+    def search_points(
+        self,
+        *,
+        collection_name: str,
+        vector: list[float],
+        limit: int,
+        query_filter: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        """Tìm điểm gần nhất trong một collection.
+
+        Collection chưa tồn tại (video chưa được index) là trạng thái hợp lệ ->
+        trả về [] để tầng trên gọi luồng "không tìm thấy", không bịa kết quả.
+        """
+        self._validate_search_inputs(vector, limit)
+        if not self._collection_exists(collection_name):
+            logger.warning(
+                f"Qdrant collection '{collection_name}' does not exist yet; returning no results"
+            )
+            return []
+
+        raw_points = self._query_points(
+            collection_name=collection_name,
+            vector=vector,
+            limit=limit,
+            query_filter=query_filter,
+        )
+        results = [self._as_search_result(point) for point in raw_points]
+        logger.info(f"Qdrant search on '{collection_name}' returned {len(results)} point(s)")
+        return results
+
+    def video_id_filter(self, video_ids: list[str] | None) -> Any | None:
+        """Build filter giới hạn theo payload key `video_id` (None nếu không lọc)."""
+        clean_ids = [str(item).strip() for item in video_ids or [] if str(item or "").strip()]
+        if not clean_ids:
+            return None
+        conditions = [
+            self.models.FieldCondition(key="video_id", match=self.models.MatchValue(value=video_id))
+            for video_id in clean_ids
+        ]
+        return self.models.Filter(should=conditions)
+
+    def _query_points(
+        self,
+        *,
+        collection_name: str,
+        vector: list[float],
+        limit: int,
+        query_filter: Any | None,
+    ) -> list[Any]:
+        # qdrant-client >= 1.10 dùng query_points, bản cũ chỉ có search.
+        if hasattr(self.client, "query_points"):
+            response = self.client.query_points(
+                collection_name=collection_name,
+                query=vector,
+                limit=limit,
+                query_filter=query_filter,
+                with_payload=True,
+            )
+            points = getattr(response, "points", response)
+            return list(points or [])
+        response = self.client.search(
+            collection_name=collection_name,
+            query_vector=vector,
+            limit=limit,
+            query_filter=query_filter,
+            with_payload=True,
+        )
+        return list(response or [])
+
+    @staticmethod
+    def _as_search_result(point: Any) -> dict[str, Any]:
+        payload = getattr(point, "payload", None)
+        if not isinstance(payload, dict):
+            payload = {}
+        return {
+            "id": str(getattr(point, "id", "") or ""),
+            "score": float(getattr(point, "score", 0.0) or 0.0),
+            "payload": dict(payload),
+        }
+
+    @staticmethod
+    def _validate_search_inputs(vector: list[float], limit: int) -> None:
+        if not isinstance(vector, list) or not vector:
+            raise ValueError("vector must be a non-empty list")
+        if not all(isinstance(value, (int, float)) for value in vector):
+            raise ValueError("vector contains non-numeric values")
+        if not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
     def ensure_collection(self, *, collection_name: str, vector_size: int) -> None:
         if not isinstance(collection_name, str) or not collection_name.strip():
             raise ValueError("collection_name must be a non-empty string")
