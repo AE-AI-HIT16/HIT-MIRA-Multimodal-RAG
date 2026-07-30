@@ -8,12 +8,15 @@ Sử dụng cùng pattern với chatbot_homepage:
 """
 import json
 import os
+from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 from string import Template
 
-load_dotenv()
+# Resolve project root: configs.py -> config/ -> src/ -> ChatBot/ -> project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(_PROJECT_ROOT / ".env")
 
 
 class ConfigObj:
@@ -38,8 +41,17 @@ def yaml2obj(yaml_path):
     return config_obj
 
 
-config_object = yaml2obj(os.getenv("CONFIG_PATH"))
-config_prompts = yaml2obj(os.getenv("PROMPTS_PATH"))
-config_models = yaml2obj(os.getenv("MODELS_PATH"))
-config_messages = yaml2obj(os.getenv("MESSAGES_PATH"))
-config_agents = yaml2obj(os.getenv("AGENTS_PATH"))
+def _resolve_path(env_var: str) -> str:
+    """Resolve a path from env var relative to project root."""
+    path = os.getenv(env_var)
+    if path is None:
+        raise ValueError(f"Environment variable '{env_var}' is not set.")
+    return str(_PROJECT_ROOT / path)
+
+
+config_object = yaml2obj(_resolve_path("CHATBOT_CONFIG_PATH"))
+config_prompts = yaml2obj(_resolve_path("CHATBOT_PROMPTS_PATH"))
+config_models = yaml2obj(_resolve_path("CHATBOT_MODELS_PATH"))
+config_messages = yaml2obj(_resolve_path("CHATBOT_MESSAGES_PATH"))
+config_agents = yaml2obj(_resolve_path("CHATBOT_AGENTS_PATH"))
+

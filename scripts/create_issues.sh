@@ -75,13 +75,13 @@ T-07|Ingest upload + validate + gate consent|role/DE,epic/data,prio/must,sprint/
 T-08|Nạp nội quy tách điều/khoản|role/DE,epic/data,prio/must,sprint/2|Owner DE · domains/ingest load_regulations · depends T-05 · DoD: TC-107
 T-10|Trích keyframe + timestamp (ffmpeg)|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/frames.py · DoD: TC-201 test_frames_have_timestamp
 T-11|ASR transcript theo timestamp|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/asr.py · depends T-21 · DoD: TC-208
-T-12|Caption ảnh/frame|role/DE,epic/pipeline,prio/should,sprint/2|Owner DE · pipeline/caption.py · depends T-22 · DoD: TC-203
+T-12|Qwen vision OCR+caption cho keyframe|role/DE,epic/pipeline,prio/should,sprint/2|Owner DE · pipeline/qwen_vision_service.py · depends T-22 · DoD: TC-203
 T-13|Sinh embedding ảnh/text|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/embed.py · depends T-20 · DoD: test_embed_same_dim
 T-14|Build/upsert Qdrant 3 collection|role/DE,epic/pipeline,prio/must,sprint/2|Owner DE · pipeline/index.py · depends T-13 · DoD: test_index_upsert (sai chiều→từ chối)
 T-15|Orchestrator run.py|role/DE,epic/pipeline,prio/must,sprint/3|Owner DE · pipeline/run.py · depends T-10..14 · DoD: 1 video chạy trọn, lỗi 1 mục không chặn batch
 T-20|Embeddings Jina-CLIP v2 (ảnh) + Vietnamese_Embedding (text)|role/AIE-1,epic/providers,prio/must,sprint/1|Owner AIE-1 · providers/embeddings.py · DoD: embed cùng dim, text→ảnh liên quan
-T-21|ASR PhoWhisper-large (backend faster-whisper)|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/asr.py · DoD: audio→segment text+timestamp
-T-22|Captioner Gemini 2.5 Flash Vision|role/AIE-2,epic/providers,prio/should,sprint/2|Owner AIE-2 · providers/captioner.py · DoD: ảnh→caption tiếng Việt
+T-21|ASR Zipformer-30M-RNNT-6000h (backend sherpa-onnx)|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/asr.py · DoD: audio→segment text+timestamp
+T-22|Qwen2.5-VL qua OpenRouter cho OCR+caption|role/AIE-2,epic/providers,prio/should,sprint/2|Owner AIE-2 · pipeline/qwen_vision_service.py · DoD: 1 keyframe→1 API call trả OCR+caption
 T-23|LLM Gemini 2.5 Flash / Flash-Lite free-tier|role/AIE-2,epic/providers,prio/must,sprint/1|Owner AIE-2 · providers/llm.py · DoD: generate(prompt) trả text ổn định
 T-30|retrieve_media (embed→search)|role/AIE-1,epic/retrieval,prio/must,sprint/3|Owner AIE-1 · domains/retrieval · depends T-14,T-20 · DoD: TC-301 test_recall_at_k
 T-31|retrieve_regulations|role/AIE-1,epic/retrieval,prio/must,sprint/3|Owner AIE-1 · domains/retrieval · depends T-08,T-14 · DoD: TC-307

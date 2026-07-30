@@ -153,7 +153,7 @@
 
 - **Constraints.**
   - Thời gian: theo lịch capstone (giả định ~1 học kỳ — [cần xác minh]).
-  - Compute: tài nguyên sinh viên/Colab/GPU hạn chế → ưu tiên model open-source, lấy mẫu frame, giảm độ phân giải khi cần *(giả định — sửa nếu sai)*.
+  - Compute: GPU server của dự án → ưu tiên model open-source; lấy mẫu frame và giảm độ phân giải khi cần để tối ưu tài nguyên.
   - Ngân sách: gần như $0 → dùng model/hạ tầng miễn phí hoặc free-tier *(giả định)*.
 - **Assumptions.**
   - Dữ liệu fanpage được Ban Chủ nhiệm cấp quyền sử dụng cho mục đích học thuật (gắn với BR-101).
@@ -172,7 +172,7 @@
 | Không được cấp quyền Admin / Facebook hạn chế crawl | Cao | Xin văn bản đồng ý sớm; phương án tải tay + tập mẫu cho v1 (BR-102) |
 | Quyền riêng tư cá nhân khi tìm theo người (face search) | Cao | Hoãn sang v2; cơ chế opt-out/ẩn người không đồng thuận (BR-702/703) |
 | Embedding/caption tiếng Việt chất lượng thấp | Trung bình | Chọn model đa ngôn ngữ; đánh giá sớm bằng bộ truy vấn (BR-601/602) |
-| Chất lượng ASR transcript tiếng Việt thấp (tạp âm sự kiện, nhiều người nói) | Trung bình | Dùng model ASR mạnh tiếng Việt (vd WhisperX/faster-whisper); transcript chỉ **bổ trợ recall** cạnh keyframe, không phải nguồn duy nhất; chạy offline ở worker (BR-208) |
+| Chất lượng ASR transcript tiếng Việt thấp (tạp âm sự kiện, nhiều người nói) | Trung bình | Dùng model ASR tiếng Việt `hynt/Zipformer-30M-RNNT-6000h` qua sherpa-onnx; transcript chỉ **bổ trợ recall** cạnh keyframe, không phải nguồn duy nhất; chạy offline ở worker (BR-208) |
 | Dữ liệu/video lớn vượt khả năng compute | Trung bình | Lấy mẫu frame, giảm độ phân giải, index tăng tiến (BR-201/206) |
 | Bài cũ thiếu/nhiễu metadata | Trung bình | Chuẩn hóa metadata; bỏ qua mục thiếu trường bắt buộc (BR-104) |
 | Mô hình "bịa" câu trả lời (hallucination) | Trung bình | Bắt buộc trích dẫn nguồn & xử lý "không tìm thấy" (BR-405/406) |

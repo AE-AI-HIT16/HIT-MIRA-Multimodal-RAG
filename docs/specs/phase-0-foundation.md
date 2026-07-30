@@ -55,7 +55,7 @@ Factory `app/deps.py::get_storage` chọn backend theo config; bucket tự tạo
 **Hành vi:**
 - `api` phụ thuộc `postgres` + `qdrant` + `minio` với `condition: service_healthy`.
 - Không có `.env` → api vẫn boot với default (`sqlite:///./data/dev.db` + qdrant localhost + storage filesystem) — dev không docker vẫn chạy được.
-- Model nặng (torch/faster-whisper) KHÔNG bắt buộc trong image v1 — pipeline offline chạy ngoài container được (CLI trên host có GPU).
+- Model ASR/sherpa-onnx KHÔNG bắt buộc trong image API v1 — pipeline offline chạy ngoài container được (CLI trên host có GPU).
 
 **Edge:**
 - Qdrant/MinIO chưa sẵn sàng khi api boot → api không được crash: provider lazy-init, chỉ connect khi request đầu chạm.
@@ -175,11 +175,11 @@ class ImageEmbedder(ABC):
 ```
 
 **Impl:**
-- `VietnameseTextEmbedder` — SentenceTransformer `AITeamVN/Vietnamese_Embedding` (nền bge-m3), `normalize_embeddings=True`. Dùng cho transcript + nội quy.
-- `JinaClipEmbedder` — SentenceTransformer `jinaai/jina-clip-v2`, `trust_remote_code=True`. `embed()` mở PIL image; `embed_query()` nhúng text **cùng không gian** với ảnh (cho phép text→ảnh trực tiếp).
+- `TextEmbedder` — OpenAI-compatible Embeddings API, cấu hình qua `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`. Dùng cho transcript + nội quy.
+- `JinaClipEmbedder` — Jina Embeddings API `jina-clip-v2`, xác thực qua `JINA_API_KEY`; `embed()` gửi base64 image, `embed_query()` nhúng text **cùng không gian** với ảnh.
 
 **Bất biến:**
-- Lazy import torch/sentence-transformers TRONG `__init__` — `import shared.providers.embeddings` không kéo torch.
+- Không tải torch/sentence-transformers cho embedding; adapters gọi HTTP theo batch và fake-injectable trong test.
 - Vector đã normalize → cosine ≈ dot; Qdrant collection dùng distance Cosine.
 - Đổi model → phải re-embed toàn collection (không trộn không gian — US-202.1 edge).
 
@@ -201,7 +201,7 @@ class ASRModel(ABC):
     def transcribe(self, audio_path: str) -> list[TranscriptSegment]
 ```
 
-**Impl:** `FasterWhisperASR(model_name="large-v3", *, device="auto", model=None)` — backend faster-whisper (CTranslate2); `language="vi"`, `vad_filter=True`; `confidence` = avg_logprob. Param `model=` để inject fake.
+**Impl:** `SherpaOnnxASR(model_name="hynt/Zipformer-30M-RNNT-6000h", *, provider="cpu", model=None)` — backend sherpa-onnx; `language="vi"`; chunk timestamp thô theo cửa sổ audio. Param `model=` để inject fake.
 
 **DoD:** audio mẫu → ≥1 segment, timestamp tăng dần trong thời lượng.
 

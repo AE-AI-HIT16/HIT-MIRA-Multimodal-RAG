@@ -1,0 +1,41 @@
+# Web / API
+fastapi
+python-multipart
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Cơ sở dữ liệu (SQLite cho dev/test, PostgreSQL cho Docker/prod)
+sqlalchemy
+psycopg[binary]
+
+# Vector store và object storage
+qdrant-client
+minio
+
+# LangChain adapters for document loading, splitting, and embeddings
+langchain-community
+langchain-qdrant
+langchain-text-splitters
+langchain-openai
+langchain
+pypdf
+docx2txt
+openai
+
+# Media và các model AI
+pillow
+sentence-transformers
+einops
+transnetv2-pytorch==1.0.5
+sherpa-onnx
+numpy
+huggingface-hub
+ultralytics
+torch
+opencv-python
+
+# Test / phát triển
+pytest
+httpx
+ruff

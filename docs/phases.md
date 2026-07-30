@@ -56,15 +56,15 @@
 - **Chữ ký (ABC + impl):**
   - `TextEmbedder.embed(texts: list[str]) -> list[list[float]]`, `.dim`
   - `ImageEmbedder.embed(image_paths: list[str]) -> list[list[float]]`, `.embed_query(text: str) -> list[float]`, `.dim`
-  - `VietnameseTextEmbedder` = SentenceTransformer `AITeamVN/Vietnamese_Embedding`, `normalize_embeddings=True`
-  - `JinaClipEmbedder` = SentenceTransformer `jinaai/jina-clip-v2` — **ảnh và text query chung 1 không gian** (bật text→ảnh)
-- **Hành vi:** lazy import torch/ST trong `__init__`; `trust_remote_code=True`.
+  - `TextEmbedder` = OpenAI-compatible Embeddings API, cấu hình qua `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`
+  - `JinaClipEmbedder` = Jina Embeddings API `jina-clip-v2`, xác thực qua `JINA_API_KEY`; ảnh gửi base64, ảnh và text query chung 1 không gian
+- **Hành vi:** gọi HTTP theo batch; không tải weights embedding về máy.
 - **DoD:** embed cùng `dim`; query text tiếng Việt → ảnh liên quan ngữ nghĩa trong top-k (US-202.1).
 
 ### P0-6 · Provider ASR `[T-21]`
 - **File:** `shared/providers/asr.py`
 - **Chữ ký:** `ASRModel.transcribe(audio_path: str) -> list[TranscriptSegment]`; `TranscriptSegment(start_sec, end_sec, text, confidence)`.
-- **Impl:** `FasterWhisperASR(model_name="large-v3", language="vi", vad_filter=True)` — backend faster-whisper (CTranslate2) cho PhoWhisper.
+- **Impl:** `SherpaOnnxASR(model_name="hynt/Zipformer-30M-RNNT-6000h", language="vi")` — backend sherpa-onnx cho ZipFormer RNNT.
 - **DoD:** audio mẫu → ≥1 segment có text + timestamp tăng dần (`test_transcript_segments`).
 
 ### P0-7 · Provider Captioner `[T-22]`
