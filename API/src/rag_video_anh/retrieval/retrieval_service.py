@@ -99,10 +99,15 @@ class VideoRetrievalService:
         index = 0
         for clip in clips:
             index += 1
-            label = f"[{index}] video {clip.video_id or 'không rõ'}"
-            timestamp = cls._format_timestamp(clip.timestamp_sec)
-            if timestamp:
-                label = f"{label} tại {timestamp}"
+            if clip.is_image:
+                # Ảnh không nằm trên trục thời gian: trích dẫn theo bài đăng.
+                post_id = clip.payload.get("post_id")
+                label = f"[{index}] ảnh trong bài {post_id}" if post_id else f"[{index}] ảnh"
+            else:
+                label = f"[{index}] video {clip.video_id or 'không rõ'}"
+                timestamp = cls._format_timestamp(clip.timestamp_sec)
+                if timestamp:
+                    label = f"{label} tại {timestamp}"
             body = clip.caption or clip.ocr_text or "(không có caption)"
             if clip.caption and clip.ocr_text:
                 body = f"{clip.caption}\nChữ trong hình: {clip.ocr_text}"
