@@ -98,13 +98,53 @@ export interface IndexJobStatus {
   log_tail: string;
 }
 
-// Trạng thái 1 lượt hội thoại ở client.
+// ── LangGraph ──────────────────────────────────────────────────────────────
+
+/** Một message chunk trả về từ LangGraph SSE stream (stream_mode="messages"). */
+export interface LGChunk {
+  event: string; // "messages/partial" | "messages/complete" | "error" | ...
+  data: LGMessage | LGError | unknown;
+}
+
+export interface LGMessage {
+  type: string;          // "ai" | "human" | "tool" | ...
+  content: string | LGContentPart[];
+  id?: string;
+  name?: string | null;
+  tool_calls?: unknown[];
+  additional_kwargs?: Record<string, unknown>;
+}
+
+export interface LGContentPart {
+  type: "text" | "image_url";
+  text?: string;
+  image_url?: { url: string };
+}
+
+export interface LGError {
+  message: string;
+  error?: string;
+}
+
+// ── ChatTurn (mở rộng hỗ trợ LangGraph streaming) ─────────────────────────
+
+/** Trạng thái 1 lượt hội thoại ở client. */
 export interface ChatTurn {
   id: string;
   role: "user" | "assistant";
+
+  // Nội dung văn bản:
+  // - khi streaming: streamText tích luỹ dần, finalText chưa có
+  // - khi done: finalText là nội dung hoàn chỉnh
   text: string;
-  reply?: ChatReply;
-  status?: "loading" | "error" | "done";
-  query?: string; // câu hỏi gốc — dùng để "Gửi lại" khi lỗi
-  imagePreview?: string; // objectURL ảnh đính kèm (hiển thị ở bong bóng user)
+  streamText?: string;
+  finalText?: string;
+
+  reply?: ChatReply;          // dùng khi gọi FastAPI (legacy)
+  status?: "loading" | "streaming" | "error" | "done";
+  query?: string;             // câu hỏi gốc — dùng để "Gửi lại" khi lỗi
+  imagePreview?: string;      // objectURL ảnh đính kèm (hiển thị ở bong bóng user)
+
+  // LangGraph thread
+  threadId?: string;
 }
