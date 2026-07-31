@@ -34,8 +34,13 @@ class ImageProcessingWorker(VideoProcessingWorker):
             media = uow.media.get_media(media_id)
             if media is None:
                 raise ValueError(f"media does not exist: {media_id}")
-            if media.media_type != MediaType.IMAGE.value:
-                raise ValueError(f"media_id {media_id} is not an image row (media_type={media.media_type!r})")
+            # Keyframe do worker GPU tách ra cũng chỉ là một ảnh trên MinIO, và
+            # cần đúng OCR/caption như ảnh tĩnh — GPU không giúp gì cho hai khâu
+            # đó nên chạy tại chỗ bằng model ta đang cấu hình.
+            if media.media_type not in {MediaType.IMAGE.value, MediaType.FRAME.value}:
+                raise ValueError(
+                    f"media_id {media_id} is not an image/frame row (media_type={media.media_type!r})"
+                )
 
         suffix = Path(media.object_key).suffix or ".jpg"
         with tempfile.TemporaryDirectory(prefix="hit-mira-image-") as tmp_dir:
@@ -45,7 +50,10 @@ class ImageProcessingWorker(VideoProcessingWorker):
             result = self.pipeline.process(
                 MediaInput(
                     media_id=str(media.media_id),
-                    media_type=media.media_type,
+                    # Với pipeline thì keyframe không khác gì ảnh tĩnh: cùng một
+                    # file trên MinIO, cùng cần OCR/caption, không có lời thoại.
+                    # Giữ nguyên 'frame' thì media_validator loại ngay từ đầu.
+                    media_type=MediaType.IMAGE.value,
                     source_ref=media.object_key,
                     media_path=str(local_image),
                     metadata={
