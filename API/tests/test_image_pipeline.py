@@ -333,12 +333,19 @@ class FakeEmbedder:
 class FakeVectorStore:
     def __init__(self) -> None:
         self.upserts: list[dict] = []
+        self.payload_updates: list[dict] = []
 
     def upsert_points(self, *, collection_name, point_ids, vectors, payloads):
         self.upserts.append(
             {"collection_name": collection_name, "point_ids": point_ids, "vectors": vectors, "payloads": payloads}
         )
         return {"upserted": len(point_ids)}
+
+    def set_payloads(self, *, collection_name, point_ids, payloads):
+        self.payload_updates.append(
+            {"collection_name": collection_name, "point_ids": point_ids, "payloads": payloads}
+        )
+        return {"updated": len(point_ids)}
 
 
 class FakeDownloadStorage:
@@ -379,6 +386,46 @@ def test_index_images_writes_into_media_clip_with_image_kind() -> None:
     assert payload["post_id"] == str(media.post_id)
     assert "timestamp_sec" not in payload
     assert "video_id" not in payload
+
+
+class ExplodingEmbedder:
+    def embed_images(self, paths):  # pragma: no cover - chỉ để chứng minh là không bị gọi
+        raise AssertionError("cập nhật payload thì không được nhúng lại")
+
+
+def test_refresh_image_payloads_writes_caption_without_embedding_again() -> None:
+    """Caption có sau lúc index, mà vector thì không đổi.
+
+    Nhúng lại 1.628 ảnh tốn cả tiếng hạn mức Jina một cách vô ích, nên phải ghi
+    được phần chữ mà không đụng tới vector.
+    """
+    media = _image_media()
+    unit = _image_builder(
+        media,
+        caption=CaptionResultRecord(
+            media_id=media.media_id,
+            caption_status=ProcessingStatus.DONE.value,
+            caption_text="Lễ trao giải trên sân khấu",
+        ),
+    ).build(media.media_id)
+    store = FakeVectorStore()
+
+    summary = VideoRetrievalIndexingService(
+        builder=object(),
+        image_builder=FakeImageBuilder({str(media.media_id): unit}),
+        storage=FakeDownloadStorage(),
+        image_embedder=ExplodingEmbedder(),
+        vector_store=store,
+    ).refresh_image_payloads([str(media.media_id)])
+
+    assert summary.media_clip_indexed == 1
+    assert store.upserts == []
+    assert len(store.payload_updates) == 1
+    update = store.payload_updates[0]
+    assert update["collection_name"] == "media_clip"
+    assert update["point_ids"] == [str(media.media_id)]
+    assert update["payloads"][0]["caption"] == "Lễ trao giải trên sân khấu"
+    assert update["payloads"][0]["media_kind"] == MEDIA_KIND_IMAGE
 
 
 def test_index_images_skips_units_that_cannot_be_built() -> None:

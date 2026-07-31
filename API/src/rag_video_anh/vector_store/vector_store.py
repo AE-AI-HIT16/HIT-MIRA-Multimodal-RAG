@@ -59,6 +59,33 @@ class QdrantVideoVectorStore:
         logger.info(f"Upserted {len(points)} point(s) into Qdrant collection '{collection_name}'")
         return {"collection_name": collection_name, "upserted": len(points)}
 
+    def set_payloads(
+        self,
+        *,
+        collection_name: str,
+        point_ids: list[str],
+        payloads: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Ghi đè payload mà giữ nguyên vector.
+
+        Caption và OCR có sau lúc index (khâu phân tích chạy riêng), nên phải
+        cập nhật được phần chữ mà không nhúng lại — nhúng lại 1.628 ảnh tốn cả
+        tiếng đồng hồ hạn mức Jina mà vector thì không hề đổi.
+        """
+        if len(point_ids) != len(payloads):
+            raise ValueError("point_ids and payloads must have the same length")
+
+        for point_id, payload in zip(point_ids, payloads):
+            if not isinstance(payload, dict):
+                raise TypeError(f"payload for point '{point_id}' must be a dict")
+            self.client.set_payload(
+                collection_name=collection_name,
+                payload=payload,
+                points=[self.point_id(point_id)],
+            )
+        logger.info(f"Updated payload of {len(point_ids)} point(s) in Qdrant collection '{collection_name}'")
+        return {"collection_name": collection_name, "updated": len(point_ids)}
+
     def search_points(
         self,
         *,

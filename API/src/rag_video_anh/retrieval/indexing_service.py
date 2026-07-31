@@ -322,6 +322,44 @@ class VideoRetrievalIndexingService:
         logger.info(f"Indexed image retrieval units: {summary.to_dict()}")
         return summary
 
+    def refresh_image_payloads(self, image_media_ids: list[str]) -> VideoRetrievalIndexSummary:
+        """Cập nhật caption/OCR vào payload mà không nhúng lại ảnh.
+
+        Khâu phân tích chạy sau (hoặc song song) khâu index, nên ảnh nào được
+        index trước khi có caption sẽ mang payload rỗng. Vector thì không đổi,
+        nên chỉ cần ghi lại phần chữ.
+        """
+        summary = VideoRetrievalIndexSummary(
+            video_id=None,
+            video_media_id="",
+            collections={"media_clip": self.media_clip_collection},
+        )
+        units: list[dict[str, Any]] = []
+        for media_id in image_media_ids:
+            try:
+                unit = self.image_builder.build(media_id)
+            except Exception as exc:
+                summary.add_skip("image_unit_build_failed")
+                logger.warning(f"Could not build image unit '{media_id}': {exc.__class__.__name__}: {exc}")
+                continue
+            if unit is None:
+                summary.add_skip("missing_image_object")
+                continue
+            units.append(unit.to_dict())
+
+        summary.media_clip_units_received = len(units)
+        if not units:
+            return summary
+
+        result = self.vector_store.set_payloads(
+            collection_name=self.media_clip_collection,
+            point_ids=[str(unit["image_media_id"]) for unit in units],
+            payloads=[self._image_payload(unit) for unit in units],
+        )
+        summary.media_clip_indexed += int(result.get("updated", len(units)))
+        logger.info(f"Refreshed image payloads: {summary.to_dict()}")
+        return summary
+
     def _download_image(
         self,
         unit: dict[str, Any],
