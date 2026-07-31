@@ -5,11 +5,33 @@ from pathlib import Path
 
 import pytest
 
+from src.rag_video_anh.embedding import embedding_service
 from src.rag_video_anh.embedding.embedding_service import (
     RATE_LIMIT_COOLDOWN_SECONDS,
+    TOKENS_PER_IMAGE,
     ImageEmbeddingConfigurationError,
     ImageEmbeddingService,
 )
+
+
+class FakeClock:
+    """Đồng hồ giả để test việc giữ nhịp mà không phải chờ thật."""
+
+    def __init__(self) -> None:
+        self.now = 1_000.0
+        self.slept: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> FakeClock:
+        monkeypatch.setattr(embedding_service.time, "monotonic", self.monotonic)
+        monkeypatch.setattr(embedding_service.time, "sleep", self.sleep)
+        return self
 
 
 class FakeResponse:
@@ -196,6 +218,72 @@ def test_rate_limited_retry_waits_for_the_whole_token_window() -> None:
             headers: dict = {}
 
     assert ImageEmbeddingService._retry_delay_seconds(RateLimited(), attempt=0) == RATE_LIMIT_COOLDOWN_SECONDS
+
+
+def _throttle_service(**kwargs) -> ImageEmbeddingService:
+    return ImageEmbeddingService(api_key="jina-test-key", dimensions=1, http_post=lambda *a, **k: None, **kwargs)
+
+
+def test_reserve_tokens_waits_only_until_the_oldest_batch_leaves_the_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Đo thực tế: chờ 429 rồi ngủ 60s chỉ đạt ~10 ảnh/phút, chủ động thì ~25."""
+    clock = FakeClock().install(monkeypatch)
+    service = _throttle_service(tokens_per_minute=10_000)
+
+    service._reserve_tokens(6_000)
+    assert clock.slept == []
+
+    service._reserve_tokens(6_000)
+
+    assert clock.slept == [pytest.approx(60.0)]
+
+
+def test_reserve_tokens_can_be_switched_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = FakeClock().install(monkeypatch)
+    service = _throttle_service(tokens_per_minute=0)
+
+    for _ in range(5):
+        service._reserve_tokens(TOKENS_PER_IMAGE * 100)
+
+    assert clock.slept == []
+
+
+def test_reserve_tokens_does_not_hang_when_one_request_exceeds_the_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chờ mãi cũng không lọt thì phải gửi đi, để nhánh thử lại 429 xử lý."""
+    clock = FakeClock().install(monkeypatch)
+    service = _throttle_service(tokens_per_minute=1_000)
+
+    service._reserve_tokens(TOKENS_PER_IMAGE)
+
+    assert clock.slept == []
+
+
+def test_embed_images_reserves_the_token_budget_of_every_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ảnh thứ 25 trở đi trong một phút phải bị giữ lại, không được bắn thẳng."""
+    clock = FakeClock().install(monkeypatch)
+    paths = []
+    for i in range(30):
+        path = tmp_path / f"frame_{i}.jpg"
+        path.write_bytes(f"frame-{i}".encode())
+        paths.append(path)
+    poster = RecordingPoster()
+
+    ImageEmbeddingService(
+        api_key="jina-test-key",
+        dimensions=1,
+        http_post=poster,
+        image_batch_size=5,
+        max_image_side=0,
+    ).embed_images(paths)
+
+    assert len(poster.requests) == 6
+    # 30 ảnh = 120.000 token > 100.000/phút, nên phải có ít nhất một lần chờ.
+    assert clock.slept
 
 
 def test_image_embedding_service_requires_jina_api_key(tmp_path: Path) -> None:
