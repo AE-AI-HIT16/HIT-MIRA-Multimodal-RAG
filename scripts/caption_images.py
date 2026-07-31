@@ -48,7 +48,12 @@ PROGRESS_EVERY = 25
 DEFAULT_MAX_CONSECUTIVE_ERRORS = 10
 
 
-def pending_media_ids(post_id: str | None, redo: bool, stale: bool = False) -> tuple[list[str], int]:
+def pending_media_ids(
+    post_id: str | None,
+    redo: bool,
+    stale: bool = False,
+    media_type: str = MediaType.IMAGE.value,
+) -> tuple[list[str], int]:
     """Trả về ảnh cần chạy và số ảnh đã có caption thành công từ trước.
 
     Chỉ hàng caption_status='DONE' mới được coi là xong. Hàng FAILED vẫn phải
@@ -63,7 +68,7 @@ def pending_media_ids(post_id: str | None, redo: bool, stale: bool = False) -> t
         if uow.session is None:
             raise RuntimeError("RepositoryUnitOfWork did not expose session")
 
-        query = select(MediaModel.media_id).where(MediaModel.media_type == MediaType.IMAGE.value)
+        query = select(MediaModel.media_id).where(MediaModel.media_type == media_type)
         if post_id:
             query = query.where(MediaModel.post_id == post_id)
         media_ids = [str(row) for row in uow.session.scalars(query)]
@@ -151,6 +156,12 @@ def run(media_ids: list[str], workers: int, with_detection: bool, max_consecutiv
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Chạy OCR + caption cho ảnh tĩnh đã đăng ký.")
     parser.add_argument("--post-id", default=None, help="Chỉ xử lý ảnh của một bài.")
+    parser.add_argument(
+        "--media-type",
+        default=MediaType.IMAGE.value,
+        choices=[MediaType.IMAGE.value, MediaType.FRAME.value],
+        help="'image' cho ảnh tĩnh, 'frame' cho keyframe video do worker GPU tách ra.",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Chỉ xử lý N ảnh đầu tiên.")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help=f"Số luồng. Mặc định: {DEFAULT_WORKERS}")
     parser.add_argument("--redo", action="store_true", help="Chạy lại cả ảnh đã có caption thành công.")
@@ -180,11 +191,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    media_ids, already_done = pending_media_ids(args.post_id, args.redo, stale=args.stale)
+    media_ids, already_done = pending_media_ids(
+        args.post_id, args.redo, stale=args.stale, media_type=args.media_type
+    )
     if args.limit is not None:
         media_ids = media_ids[: args.limit]
 
-    print(f"Đã có caption thành công: {already_done} ảnh. Cần xử lý: {len(media_ids)} ảnh.")
+    label = "keyframe" if args.media_type == MediaType.FRAME.value else "ảnh"
+    print(f"Đã có caption thành công: {already_done} {label}. Cần xử lý: {len(media_ids)} {label}.")
     if not args.apply:
         print("Chưa gọi API, chưa ghi DB. Thêm --apply để thực hiện.")
         return
