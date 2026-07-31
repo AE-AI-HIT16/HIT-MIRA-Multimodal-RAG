@@ -39,6 +39,22 @@ class ImageEmbeddingServiceError(RuntimeError):
     """Raised when the image embedding provider returns invalid vectors."""
 
 
+class ImageEmbeddingProviderFatalError(RuntimeError):
+    """Nhà cung cấp từ chối theo cách mà thử lại không bao giờ khá hơn.
+
+    Hết số dư, sai khoá, hết quota — mọi lời gọi sau đó cũng hỏng y hệt. Tách
+    khỏi `ImageEmbeddingServiceError` có chủ đích: lỗi từng mục thì được nuốt
+    để một keyframe hỏng không giết cả video, còn lỗi này phải nổi lên tận
+    ngoài cùng. Không tách thì một tài khoản hết tiền trông giống hệt "ảnh này
+    hỏng", và mẻ index chạy tiếp hàng chục video, nhúng được số không, rồi báo
+    thành công.
+    """
+
+
+# 402/403: hết số dư hoặc bị chặn quyền. 401: khoá sai. Không cái nào tự khỏi.
+FATAL_PROVIDER_STATUS_CODES = frozenset({401, 402, 403})
+
+
 class ImageEmbeddingService:
     """Jina Embeddings API adapter for keyframe image and transcript text vectors."""
 
@@ -238,6 +254,12 @@ class ImageEmbeddingService:
             except ImageEmbeddingServiceError:
                 raise
             except Exception as exc:
+                fatal = self._fatal_provider_reason(exc)
+                if fatal is not None:
+                    raise ImageEmbeddingProviderFatalError(
+                        f"{label} embedding provider refused the request and will keep "
+                        f"refusing it: {fatal}"
+                    ) from exc
                 if attempt < max_attempts - 1 and self._is_retryable_provider_error(exc):
                     delay = self._retry_delay_seconds(exc, attempt)
                     logger.warning(
@@ -271,6 +293,21 @@ class ImageEmbeddingService:
         except ImportError as exc:
             raise ImageEmbeddingConfigurationError("Missing dependency 'httpx' for Jina image embedding API.") from exc
         return httpx.post(*args, **kwargs)
+
+    @staticmethod
+    def _fatal_provider_reason(exc: Exception) -> str | None:
+        """Trả về mô tả lỗi nếu nhà cung cấp từ chối vĩnh viễn, ngược lại None."""
+        response = getattr(exc, "response", None)
+        status_code = getattr(response, "status_code", None)
+        if status_code not in FATAL_PROVIDER_STATUS_CODES:
+            return None
+        detail = ""
+        try:
+            body = response.json()
+            detail = str(body.get("detail") or body.get("message") or body)
+        except Exception:
+            detail = str(getattr(response, "text", "") or "")
+        return f"HTTP {status_code} {detail}".strip()
 
     @staticmethod
     def _is_retryable_provider_error(exc: Exception) -> bool:
