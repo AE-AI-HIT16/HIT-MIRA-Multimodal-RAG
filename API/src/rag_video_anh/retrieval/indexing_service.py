@@ -10,14 +10,16 @@ from typing import Any
 from minio.error import S3Error
 
 from src.log.logger import logger
-from src.rag_video_anh.embedding.embedding_service import ImageEmbeddingService
+from src.rag_video_anh.embedding.embedding_service import (
+    ImageEmbeddingProviderFatalError,
+    ImageEmbeddingService,
+)
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
 from src.rag_video_anh.retrieval.retrieval_units import (
     ImageRetrievalUnitBuilder,
     VideoRetrievalUnitBuilder,
 )
 from src.rag_video_anh.vector_store.vector_store import QdrantVideoVectorStore
-
 
 DEFAULT_MEDIA_CLIP_COLLECTION = "media_clip"
 DEFAULT_VIDEO_TRANSCRIPT_COLLECTION = "video_transcript"
@@ -105,6 +107,10 @@ class VideoRetrievalIndexingService:
                     temp_dir=Path(temp_dir),
                     summary=summary,
                 )
+        except ImageEmbeddingProviderFatalError:
+            # Nhà cung cấp chết hẳn thì nuốt lỗi ở đây là tự lừa mình: mọi video
+            # sau cũng hỏng y hệt mà vẫn báo thành công. Để nó nổi lên.
+            raise
         except Exception as exc:
             summary.add_skip("media_clip_indexing_failed", summary.media_clip_units_received)
             logger.warning(
@@ -117,6 +123,8 @@ class VideoRetrievalIndexingService:
                 [unit.to_dict() for unit in build_result.video_transcript_units],
                 summary=summary,
             )
+        except ImageEmbeddingProviderFatalError:
+            raise
         except Exception as exc:
             summary.add_skip("video_transcript_indexing_failed", summary.video_transcript_units_received)
             logger.warning(
@@ -173,6 +181,9 @@ class VideoRetrievalIndexingService:
 
         try:
             vectors = self.text_embedder.embed_texts([unit["text"] for unit in valid_units])
+        except ImageEmbeddingProviderFatalError:
+            # Thử lại từng mục cũng vô nghĩa khi tài khoản hết tiền.
+            raise
         except Exception as exc:
             logger.warning(
                 f"Transcript batch embedding failed; retrying item-by-item: {exc.__class__.__name__}"
@@ -202,6 +213,8 @@ class VideoRetrievalIndexingService:
         for unit in units:
             try:
                 unit_vectors = self.text_embedder.embed_texts([unit["text"]])
+            except ImageEmbeddingProviderFatalError:
+                raise
             except Exception as exc:
                 summary.add_skip("transcript_embedding_failed")
                 logger.warning(

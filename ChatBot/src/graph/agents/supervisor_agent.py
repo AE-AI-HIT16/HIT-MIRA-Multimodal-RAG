@@ -8,6 +8,12 @@ from src.graph.configuration import Context
 from src.graph.agents.base_agent import BaseAgent
 from src.config.configs import config_object
 
+# Hai tool này là toàn bộ khả năng tra cứu của Mira: nội quy và kho media.
+# Liệt kê tường minh thay vì lấy hết tool của MCP server, để một tool mới thêm
+# vào Resources/tools.yaml không tự động chui vào tay supervisor mà chưa có ai
+# viết hướng dẫn dùng nó trong system prompt.
+REQUIRED_TOOLS = ["search_regulations", "search_media"]
+
 
 class SupervisorAgent(BaseAgent):
     def __init__(self,
@@ -23,7 +29,7 @@ class SupervisorAgent(BaseAgent):
         if self.agent is None:
             await self.setup_agent(
                 url_mcp_servers=config_object.MCP.BASE_MCP_SERVER_URL,
-                required_tools=["search_regulations"]
+                required_tools=REQUIRED_TOOLS,
             )
         try:
             response = await asyncio.wait_for(
