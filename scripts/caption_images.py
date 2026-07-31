@@ -48,12 +48,17 @@ PROGRESS_EVERY = 25
 DEFAULT_MAX_CONSECUTIVE_ERRORS = 10
 
 
-def pending_media_ids(post_id: str | None, redo: bool) -> tuple[list[str], int]:
+def pending_media_ids(post_id: str | None, redo: bool, stale: bool = False) -> tuple[list[str], int]:
     """Trả về ảnh cần chạy và số ảnh đã có caption thành công từ trước.
 
     Chỉ hàng caption_status='DONE' mới được coi là xong. Hàng FAILED vẫn phải
     chạy lại, nếu không thì một lượt hỏng sẽ khoá vĩnh viễn số ảnh đó.
+
+    `stale=True` coi cả caption do model KHÁC model đang cấu hình sinh ra là
+    chưa xong, để sau mỗi lần đổi model có cách làm đồng nhất lại dữ liệu cũ.
     """
+    current_model = str(AppConfig().media_models.vision_model_name)
+
     with RepositoryUnitOfWork() as uow:
         if uow.session is None:
             raise RuntimeError("RepositoryUnitOfWork did not expose session")
@@ -66,12 +71,11 @@ def pending_media_ids(post_id: str | None, redo: bool) -> tuple[list[str], int]:
         if redo:
             return media_ids, 0
 
-        done = {
-            str(row)
-            for row in uow.session.scalars(
-                select(CaptionResultModel.media_id).where(CaptionResultModel.caption_status == "DONE")
-            )
-        }
+        done_query = select(CaptionResultModel.media_id).where(CaptionResultModel.caption_status == "DONE")
+        if stale:
+            done_query = done_query.where(CaptionResultModel.caption_model == current_model)
+        done = {str(row) for row in uow.session.scalars(done_query)}
+
     pending = [media_id for media_id in media_ids if media_id not in done]
     return pending, len(media_ids) - len(pending)
 
@@ -151,6 +155,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help=f"Số luồng. Mặc định: {DEFAULT_WORKERS}")
     parser.add_argument("--redo", action="store_true", help="Chạy lại cả ảnh đã có caption thành công.")
     parser.add_argument(
+        "--stale",
+        action="store_true",
+        help="Chạy lại cả ảnh có caption do model KHÁC model đang cấu hình sinh ra.",
+    )
+    parser.add_argument(
         "--max-consecutive-errors",
         type=int,
         default=DEFAULT_MAX_CONSECUTIVE_ERRORS,
@@ -171,7 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    media_ids, already_done = pending_media_ids(args.post_id, args.redo)
+    media_ids, already_done = pending_media_ids(args.post_id, args.redo, stale=args.stale)
     if args.limit is not None:
         media_ids = media_ids[: args.limit]
 
