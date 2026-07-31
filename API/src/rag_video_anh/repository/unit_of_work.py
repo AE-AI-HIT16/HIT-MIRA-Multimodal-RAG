@@ -6,7 +6,7 @@ from types import TracebackType
 
 from sqlalchemy.orm import Session
 
-from src.rag_video_anh.repository.database import DatabaseSessionManager
+from src.rag_video_anh.repository.database import DatabaseSessionManager, get_session_manager
 from src.rag_video_anh.repository.jobs import ProcessingJobRepository
 from src.rag_video_anh.repository.media import MediaRepository
 from src.rag_video_anh.repository.posts import PostRepository
@@ -22,7 +22,9 @@ class RepositoryUnitOfWork:
         *,
         session: Session | None = None,
     ) -> None:
-        self.manager = manager or DatabaseSessionManager()
+        # Dùng chung engine của cả tiến trình: dựng mới mỗi lần thì pool kết nối
+        # cứ chồng lên nhau cho tới khi PostgreSQL từ chối (xem get_session_manager).
+        self.manager = manager or get_session_manager()
         self._external_session = session
         self.session: Session | None = session
         self.posts: PostRepository | None = None
