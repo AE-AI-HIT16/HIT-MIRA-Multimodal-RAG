@@ -50,7 +50,7 @@ Providers are injected as optional constructor parameters (`image_embedder=`, `t
 | Concern | Model | Wired in |
 | --- | --- | --- |
 | Images, video keyframes, transcript text, **and user queries** | **Jina-CLIP v2** (`jina-clip-v2`, 1024-d, cosine) | `rag_video_anh/embedding/embedding_service.py` |
-| Regulation/document text | `baai/bge-m3` via an OpenAI-compatible endpoint | `rag_noiquy/embedding/embedding_service.py` |
+| Regulation/document text | `EMBEDDING_MODEL` — **temporarily `jina-clip-v2`**, designed for `baai/bge-m3` | `rag_noiquy/embedding/embedding_service.py` |
 | ASR | `hynt/Zipformer-30M-RNNT-6000h` via `sherpa_onnx` | `pipeline/asr_service.py` |
 | Caption + OCR (one call returns both) | `MEDIA_VISION_MODEL_NAME`, else `OPENROUTER_MODEL_NAME` | `pipeline/qwen_vision_service.py` |
 | Query rewriting (regulation path) | `LLM_PROVIDER:LLM_MODEL` | `rag_noiquy/retrieval/query_rewriter.py` |
@@ -61,6 +61,7 @@ Two things that surprise people:
 
 1. **Transcripts are embedded with Jina-CLIP v2, not a dedicated Vietnamese text model.** `indexing_service.py` does `self.text_embedder = text_embedder or self.image_embedder`. That is what makes one query vector rank images *and* speech together — the joint space is the feature, not an oversight. `tech-pipeline.md` still names `AITeamVN/Vietnamese_Embedding`; changing to it would improve transcript retrieval but break the single-vector property.
 2. **`jina-clip-v2` only accepts `task="retrieval.query"`.** Sending `retrieval.passage` returns HTTP 422. Asymmetric query/passage embedding belongs to `jina-embeddings-v3`, a different model.
+3. **The regulation path is on Jina-CLIP v2 as a stopgap, not by design.** `baai/bge-m3` runs through OpenRouter, whose credit ran out (HTTP 402), so the whole regulation path was dead. Jina-CLIP v2 is an image-text model, so pure text-to-text retrieval is its weak axis: measured on the real regulation chunks it got 6/7 queries top-1, but absolute scores sit at 0.3–0.6 and the gap between rank 1 and rank 2 was as thin as 0.01 — that gets fragile as the corpus grows, and it makes a "not found" threshold hard to place. Regulations never share a space with images, so none of the joint-space benefit applies here. **When credit returns, switch `EMBEDDING_*` back to bge-m3 and re-embed `rag_documents`** — the two models are different vector spaces and must not be mixed in one collection. Note `EMBEDDING_CHECK_CTX_LENGTH=false`: LangChain otherwise tries to fetch a HuggingFace tokenizer for the model name and dies with `OSError` on providers that have no HF repo.
 
 ### Online Router RAG flow
 
