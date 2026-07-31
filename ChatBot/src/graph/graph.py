@@ -1,8 +1,8 @@
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 
-from src.graph.configuration import Context
 from src.config.configs import config_agents
+from src.graph.configuration import Context
 from src.graph.nodes import supervisor_node
 from src.graph.state import InputState, State
 
