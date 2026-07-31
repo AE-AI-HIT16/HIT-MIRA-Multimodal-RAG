@@ -262,9 +262,19 @@ class QdrantVideoVectorStore:
                 raise TypeError(f"payloads[{index}] must be a dict")
 
     @staticmethod
-    def _point_id(value: str) -> str:
+    def point_id(value: str) -> str:
+        """Suy point id từ khoá nghiệp vụ, luôn cho ra cùng một giá trị.
+
+        Nhờ tính tất định này mà index lại là ghi đè chứ không nhân bản điểm,
+        và công cụ bên ngoài hỏi được 'khoá này đã index chưa' mà không cần
+        chạm vào phương thức riêng tư.
+        """
         text = str(value).strip()
         try:
             return str(uuid.UUID(text))
         except ValueError:
             return str(uuid.uuid5(uuid.NAMESPACE_URL, text))
+
+    @classmethod
+    def _point_id(cls, value: str) -> str:
+        return cls.point_id(value)
