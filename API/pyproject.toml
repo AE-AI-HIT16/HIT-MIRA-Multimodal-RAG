@@ -55,4 +55,6 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
+# Không khai `asyncio_mode`: pytest-asyncio không có trong môi trường, nên pytest
+# chỉ cảnh báo "Unknown config option" rồi bỏ qua — một test async viết theo kiểu
+# đó sẽ không bao giờ chạy mà vẫn báo pass. Test async ở đây tự gọi asyncio.run.

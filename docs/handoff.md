@@ -64,17 +64,22 @@ số điểm thật trong Qdrant.
 | `rag_documents` | **4** điểm | corpus nội quy còn rất nhỏ |
 | Video đã index | **21 / 59** | 38 video còn lại, ~1.700 keyframe |
 | Caption keyframe | **2.428 / 2.429** | |
-| Test `API/` | **82 passed** | offline hoàn toàn |
-| Test `ChatBot/` | **11 passed, 1 xfailed** | xfail là chủ ý, xem §4 |
+| Test `API/` | **89 passed** | offline hoàn toàn |
+| Test `ChatBot/` | **15 passed** | offline hoàn toàn |
 
-Một keyframe **không bao giờ** caption được:
-`frames/161c0e31-0769-4e2e-8784-8b2c1a03853a/video_01_frame_012375.jpg` — có dòng
-trong PostgreSQL nhưng object không tồn tại trong MinIO. Thử lại vô ích; lúc index
-nó bị lọc ra. Nên xoá dòng DB cho sạch.
+Toàn bộ **2.359 điểm hiện có đã được gắn `source_url`** bằng đường payload-only
+(không nhúng lại, không tốn token — xem §3). Các video index sau này tự có sẵn.
 
-Trong Qdrant còn **8 collection rác** tên `*_test*` (tổng 34 điểm), vô hại nhưng
-nên dọn: `media_clip_api_test`, `media_clip_jina_test`, `…_2`, `…_3`, `…_4`,
-`video_transcript_api_test`, `video_transcript_jina_test_3`, `…_4`.
+**8 collection rác** `*_test*` trong Qdrant: **đã xoá** (34 điểm). Ba collection
+thật giữ nguyên số điểm.
+
+Một keyframe mồ côi — `frames/161c0e31-…/video_01_frame_012375.jpg`: object không
+tồn tại trong MinIO (`NoSuchKey`, trong khi 116 frame anh em cùng thư mục đều còn;
+frame cuối thật sự là `…_012371.jpg`). **Chưa xoá dòng DB**, vì khi kiểm lại thấy
+nó *có* `caption_results` trạng thái `DONE` kèm caption thật — mâu thuẫn với giả
+định "chưa bao giờ caption được" ban đầu. Dòng này vô hại (lúc index bị lọc ra vì
+thiếu object); ai muốn dọn thì xoá `media_id = 00062686-a5d6-45b8-b014-74ecc01c89b8`,
+FK sẽ CASCADE sang `frames`/`caption_results`/`ocr_results`/`object_results`.
 
 ---
 
@@ -112,6 +117,19 @@ PY
 → trần ~25 ảnh/phút → 1.700 keyframe ≈ **70 phút**. Đừng thay bộ giữ nhịp chủ động
 (`_reserve_tokens`) bằng backoff phản ứng-với-429: đo được ~10 ảnh/phút thay vì 20–25.
 
+### Sửa payload mà không nhúng lại
+
+Khi chỉ cần thêm/sửa **một khoá payload** (như `source_url` vừa rồi), đừng index
+lại — vector không hề đổi, nhúng lại là đốt quota vô ích. Cả hai nhánh đều có
+đường payload-only, **chạy được cả khi Jina hết tiền**:
+
+```bash
+"$PY" scripts/index_image_units.py --payload-only --apply          # ảnh tĩnh
+"$PY" scripts/index_video_retrieval_units.py <video_media_id> --payload-only
+```
+
+Đo thực tế: 1.628 ảnh mất ~1 phút, so với ~78 phút nếu nhúng lại.
+
 ---
 
 ## 4. Việc còn lại, theo thứ tự ưu tiên
@@ -123,23 +141,21 @@ PY
 3. **Xoay khoá API** — file `.env.bak.0640` từng suýt lọt vào commit (đã gỡ khỏi
    index trước khi đẩy, chưa rò ra ngoài, nhưng khoá đã nằm trên đĩa một thời gian).
 
-### Lệch PRD — code chưa đủ so với tài liệu
+### Lệch PRD — **đã đóng**, giữ lại để biết đường mà kiểm
 
-4. **US-401.1 AC-2** — timeout phải trả về *kết quả truy xuất thô kèm báo lỗi nhẹ*.
-   Hiện `SupervisorAgent._timeout_response` chỉ trả một lời xin lỗi: người dùng chờ
-   hết giờ rồi nhận về con số không.
-   → Đã có test đánh dấu sẵn: `ChatBot/tests/test_supervisor_agent.py::test_timeout_van_kem_theo_ket_qua_tho`
-   là `xfail(strict=True)`. Làm xong thì test XPASS và **bắt buộc phải gỡ marker** —
-   đó là cách mốc này tự báo là đã đóng.
-5. **US-405.1 `source_url`** — câu trả lời phải gắn link bài gốc; payload media hiện
-   chỉ có `post_id`. Thêm được, nhưng phải sửa payload Qdrant, mà nhánh video **không
-   có** `--payload-only` (chỉ `scripts/index_image_units.py` có) → với video là phải
-   nhúng lại thật. **Nên gộp vào lượt index ở §3**, đừng tách ra thành lượt riêng.
+4. ~~**US-401.1 AC-2**~~ — timeout nay kèm kết quả truy xuất thô. `ToolResultCollector`
+   ghi lại `context` của từng tool ngay khi tool trả về, nên khi `asyncio.wait_for`
+   cắt ngang thì vẫn còn thứ để đưa cho người dùng. Test:
+   `ChatBot/tests/test_supervisor_agent.py`.
+5. ~~**US-405.1 `source_url`**~~ — cột dữ liệu vốn đã có sẵn (`posts.post_url`,
+   496/496 bài đều có), chỉ thiếu đường ống. Nay đi hết: unit → payload Qdrant →
+   kết quả API → chuỗi `context` → prompt. Không có link thì ghi "nguồn nội bộ"
+   (AC-2), **không bao giờ** dựng URL. Test: `API/tests/test_source_url_citation.py`.
 
 ### Dọn dẹp
 
-6. Xoá 8 collection `*_test*` trong Qdrant (§2).
-7. Xoá dòng DB của keyframe mồ côi (§2).
+6. ~~Xoá 8 collection `*_test*`~~ — đã xoá.
+7. Dòng DB của keyframe mồ côi — **cố tình chưa xoá**, lý do ở §2.
 8. Một transcript chạy bằng `large-v3` thay vì Zipformer như phần còn lại → chạy lại
    cho đồng nhất.
 

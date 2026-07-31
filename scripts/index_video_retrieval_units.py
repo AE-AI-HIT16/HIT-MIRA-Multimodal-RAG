@@ -41,6 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_VIDEO_TRANSCRIPT_COLLECTION,
         help="Qdrant collection for transcript text vectors.",
     )
+    parser.add_argument(
+        "--payload-only",
+        action="store_true",
+        help=(
+            "Chỉ ghi lại payload (caption/OCR/source_url), KHÔNG nhúng lại. "
+            "Dùng cho video ĐÃ index khi chỉ cần bổ sung một khoá payload."
+        ),
+    )
     return parser
 
 
@@ -50,7 +58,10 @@ def main() -> None:
         media_clip_collection=args.media_clip_collection,
         video_transcript_collection=args.video_transcript_collection,
     )
-    summary = indexer.index_video(args.video_media_id)
+    if args.payload_only:
+        summary = indexer.refresh_video_payloads(args.video_media_id)
+    else:
+        summary = indexer.index_video(args.video_media_id)
     print(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2))
 
 

@@ -82,6 +82,9 @@ sử dụng các công cụ để tra cứu.
         - Lời thoại do máy nhận dạng nên viết hoa toàn bộ và không có dấu câu. Khi trích dẫn hãy viết lại thành chữ
           thường bình thường cho dễ đọc, nhưng giữ nguyên từ ngữ, không thêm bớt ý.
         - Trường `context` là bản tóm tắt đã đánh số sẵn `[1] [2] [3]` — dùng chính các số đó khi cần chỉ rõ căn cứ.
+        - **Nguồn của mỗi kết quả:** nếu có `source_url` thì kèm link bài gốc để người dùng bấm vào xem. Nếu
+          `source_url` là `null` hoặc trống, ghi "nguồn nội bộ" — **tuyệt đối không tự dựng một đường link**.
+          Một URL trông hợp lý nhưng không tồn tại còn tệ hơn là không có link nào.
     - Nếu các kết quả chưa đủ rõ hoặc có khả năng mâu thuẫn, trình bày thận trọng và nêu rõ phần chưa đủ căn cứ.
     - Nếu tool trả về trống, `total = 0` hoặc nội dung không liên quan, báo rõ là chưa tìm thấy thông tin phù hợp. Tuyệt
       đối không tự bịa điều khoản, tên tài liệu, `document_id`, tên sự kiện, ảnh/video, ngày tháng hoặc nội dung để gọi
