@@ -43,10 +43,17 @@ from src.rag_video_anh.repository.models import CaptionResultModel, MediaModel  
 
 DEFAULT_WORKERS = 4
 PROGRESS_EVERY = 25
+# Hết credit hay sai khoá thì mọi ảnh đều hỏng tức thì. Không chặn sớm thì cả
+# nghìn ảnh bị đánh dấu hỏng trong vài phút mà không ai kịp nhận ra.
+DEFAULT_MAX_CONSECUTIVE_ERRORS = 10
 
 
 def pending_media_ids(post_id: str | None, redo: bool) -> tuple[list[str], int]:
-    """Trả về ảnh cần chạy và số ảnh đã có caption từ trước."""
+    """Trả về ảnh cần chạy và số ảnh đã có caption thành công từ trước.
+
+    Chỉ hàng caption_status='DONE' mới được coi là xong. Hàng FAILED vẫn phải
+    chạy lại, nếu không thì một lượt hỏng sẽ khoá vĩnh viễn số ảnh đó.
+    """
     with RepositoryUnitOfWork() as uow:
         if uow.session is None:
             raise RuntimeError("RepositoryUnitOfWork did not expose session")
@@ -59,9 +66,26 @@ def pending_media_ids(post_id: str | None, redo: bool) -> tuple[list[str], int]:
         if redo:
             return media_ids, 0
 
-        done = {str(row) for row in uow.session.scalars(select(CaptionResultModel.media_id))}
+        done = {
+            str(row)
+            for row in uow.session.scalars(
+                select(CaptionResultModel.media_id).where(CaptionResultModel.caption_status == "DONE")
+            )
+        }
     pending = [media_id for media_id in media_ids if media_id not in done]
     return pending, len(media_ids) - len(pending)
+
+
+def failure_reason(result) -> str | None:
+    """None nếu ảnh có caption thật; ngược lại trả lý do hỏng để in ra."""
+    caption_set = getattr(result, "caption_results", None)
+    if caption_set is None:
+        return "không có kết quả caption"
+    items = list(getattr(caption_set, "results", None) or [])
+    if any((getattr(item, "caption_text", "") or "").strip() for item in items):
+        return None
+    reasons = [str(item.reason) for item in items if getattr(item, "reason", None)]
+    return reasons[0] if reasons else str(getattr(caption_set, "reason", "") or "caption rỗng")
 
 
 def build_worker(with_detection: bool) -> ImageProcessingWorker:
@@ -72,29 +96,49 @@ def build_worker(with_detection: bool) -> ImageProcessingWorker:
     return ImageProcessingWorker(config=config)
 
 
-def run(media_ids: list[str], workers: int, with_detection: bool) -> Counter:
+def run(media_ids: list[str], workers: int, with_detection: bool, max_consecutive_errors: int) -> Counter:
     worker = build_worker(with_detection)
     statuses: Counter = Counter()
     lock = threading.Lock()
+    stop = threading.Event()
     done = 0
+    consecutive_errors = 0
+    first_reason: str | None = None
     total = len(media_ids)
 
-    def process(media_id: str) -> str:
-        result = worker.process_media(media_id)
-        return result.status.value
+    def process(media_id: str) -> str | None:
+        if stop.is_set():
+            return "bỏ qua vì đã dừng sớm"
+        return failure_reason(worker.process_media(media_id))
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(process, media_id): media_id for media_id in media_ids}
         for future in as_completed(futures):
             media_id = futures[future]
             try:
-                status = future.result()
+                reason = future.result()
             except Exception as exc:
-                status = f"crashed:{exc.__class__.__name__}"
-                print(f"  ! {media_id}: {exc.__class__.__name__}: {exc}", flush=True)
+                reason = f"{exc.__class__.__name__}: {exc}"
             with lock:
                 done += 1
-                statuses[status] += 1
+                if reason is None:
+                    consecutive_errors = 0
+                    statuses["thành công"] += 1
+                elif reason.startswith("bỏ qua"):
+                    statuses["bỏ qua"] += 1
+                else:
+                    consecutive_errors += 1
+                    statuses["hỏng"] += 1
+                    if first_reason is None:
+                        first_reason = reason
+                        print(f"  ! {media_id}: {reason}", flush=True)
+                    if consecutive_errors >= max_consecutive_errors and not stop.is_set():
+                        stop.set()
+                        print(
+                            f"\n  DỪNG SỚM: {consecutive_errors} ảnh hỏng liên tiếp. Lý do đầu tiên:\n"
+                            f"  {first_reason}\n",
+                            flush=True,
+                        )
                 if done % PROGRESS_EVERY == 0 or done == total:
                     print(f"  ... {done}/{total} ảnh | {dict(statuses)}", flush=True)
     return statuses
@@ -105,7 +149,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--post-id", default=None, help="Chỉ xử lý ảnh của một bài.")
     parser.add_argument("--limit", type=int, default=None, help="Chỉ xử lý N ảnh đầu tiên.")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help=f"Số luồng. Mặc định: {DEFAULT_WORKERS}")
-    parser.add_argument("--redo", action="store_true", help="Chạy lại cả ảnh đã có caption.")
+    parser.add_argument("--redo", action="store_true", help="Chạy lại cả ảnh đã có caption thành công.")
+    parser.add_argument(
+        "--max-consecutive-errors",
+        type=int,
+        default=DEFAULT_MAX_CONSECUTIVE_ERRORS,
+        help=f"Dừng sớm sau ngần này ảnh hỏng liên tiếp. Mặc định: {DEFAULT_MAX_CONSECUTIVE_ERRORS}",
+    )
     parser.add_argument(
         "--with-detection",
         action="store_true",
@@ -125,7 +175,7 @@ def main() -> None:
     if args.limit is not None:
         media_ids = media_ids[: args.limit]
 
-    print(f"Đã có caption sẵn: {already_done} ảnh. Cần xử lý: {len(media_ids)} ảnh.")
+    print(f"Đã có caption thành công: {already_done} ảnh. Cần xử lý: {len(media_ids)} ảnh.")
     if not args.apply:
         print("Chưa gọi API, chưa ghi DB. Thêm --apply để thực hiện.")
         return
@@ -134,7 +184,7 @@ def main() -> None:
         return
 
     print(f"Detection: {'BẬT' if args.with_detection else 'tắt'} | {args.workers} luồng")
-    statuses = run(media_ids, max(1, args.workers), args.with_detection)
+    statuses = run(media_ids, max(1, args.workers), args.with_detection, max(1, args.max_consecutive_errors))
     print()
     for status, count in statuses.most_common():
         print(f"  {status}: {count}")
