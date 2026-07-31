@@ -10,6 +10,36 @@
 > HIT-MIRA thêm **RAG sinh câu trả lời + router đa nguồn + hỏi-đáp nội quy**. Nên ta *mượn
 > pipeline dữ liệu & truy xuất* của họ, rồi *chồng thêm tầng RAG/LLM* của mình.
 
+## 0. Sau khi code xong: đề xuất nào đã đổi, vì sao
+
+Phần còn lại của tài liệu này là **bản đề xuất viết trước khi code**, giữ lại vì
+phần đối chiếu với 2 paper vẫn còn giá trị. Nhưng có 4 quyết định đã đổi khi chạm
+dữ liệu thật. Bảng này là phần đúng; chỗ nào bên dưới mâu thuẫn thì tin bảng này
+và tin code.
+
+| Stage | Đề xuất ban đầu | **Thực tế v1** | Vì sao đổi |
+|---|---|---|---|
+| Nhúng text (transcript + nội quy) | AITeamVN/Vietnamese_Embedding (nền bge-m3) | **jina-clip-v2** — dùng chung với ảnh | Chỉ model đa phương thức mới nhúng được ảnh. Chọn model text mạnh nhất nghĩa là phải nuôi *hai* không gian vector và nhúng câu hỏi *hai* lần mỗi request. v1 chọn một model: một khoá, một trần rate limit, một số chiều. Đánh đổi và mốc phải xem lại: **CLAUDE.md § "One embedding model"** |
+| Caption ảnh/frame | Gemini 2.5 Flash Vision | **`MEDIA_VISION_MODEL_NAME`** (rơi về `OPENROUTER_MODEL_NAME`) — một lời gọi trả **cả caption lẫn OCR** | Gộp 2 việc vào 1 lời gọi giảm nửa số request và nửa quota; đổi provider được bằng biến môi trường, không phải sửa code |
+| Làm sạch transcript bằng LLM | Gemini 2.5 Flash clean + summarize | **chưa làm** | Chưa đo được là nó có đáng không. Transcript thô của Zipformer đang được nhúng thẳng — viết hoa toàn bộ, không dấu câu. Prompt của ChatBot chịu trách nhiệm viết lại cho dễ đọc lúc trích dẫn |
+| Sinh câu trả lời | Gemini 2.5 Flash | **`LLM_PROVIDER:LLM_MODEL`**, gọi từ `ChatBot/` (LangGraph) qua MCP | Tầng trả lời tách hẳn khỏi `API/`, xem `docs/structure.md` |
+
+Hai thứ **có** trong code mà bảng §1 xếp vào v2:
+
+- **OCR**: đã trích chữ trong hình và lưu ở payload `ocr_text`. Cái *chưa* có là
+  tìm kiếm từ khoá/hybrid trên nó — vẫn hoàn toàn là vector.
+- **Object detection**: đã chạy, lưu ở `detected_objects` / `object_counts`. Cái
+  *chưa* có là lọc kết quả theo object.
+
+Một thứ không hề có trong kế hoạch mà thực tế phải dựng: **`runpod_worker/`** —
+worker GPU chạy theo kiểu artifact-only (nhận URL presigned, trả về một file ZIP,
+không hề thấy thông tin đăng nhập PostgreSQL/MinIO). Đây là câu trả lời cho ràng
+buộc "không có GPU" ở §4, thay cho phương án "đẩy hết lên API free-tier".
+
+> Lưu ý cấu hình: biến `ASR_MODEL` từng có trong `.env.example` **không được đọc ở
+> đâu cả** và ghi sai model (`whisper`). Giá trị thật nằm ở
+> `API/Resources/model.yaml` → `MEDIA_MODELS.ASR_MODEL_NAME`.
+
 ## 1. Bảng công nghệ theo stage
 
 | Stage | Paper dùng gì | **Đề xuất v1** | Lý do | Map scaffold |
@@ -35,28 +65,32 @@
 ## 2. Pipeline OFFLINE (worker — không nằm trên request, đúng NFR)
 
 ```
-video ──► TransNetV2 ──► keyframe(3/shot)+timestamp ──► Jina-CLIP v2 ──► [Qdrant: media]
-  │                                                          └─► Gemini 2.5 Flash caption ──► (payload/caption)
-  └─► ffmpeg tách audio ──► Zipformer-30M-RNNT-6000h ──► transcript
-                                   └─► Gemini 2.5 Flash: clean + summarize ──► chunk ──► Vietnamese_Embedding ──► [Qdrant: transcript]
+video ──► TransNetV2 ──► keyframe+timestamp ──► Jina-CLIP v2 ──► [Qdrant: media_clip]
+  │                                    └─► vision model: caption + OCR (1 lời gọi) ──► payload
+  │                                    └─► detection ──► payload (chưa dùng để lọc)
+  └─► ffmpeg tách audio ──► Zipformer-30M-RNNT-6000h ──► transcript (thô, chưa clean)
+                                   └─► chunk ──► Jina-CLIP v2 ──► [Qdrant: video_transcript]
 
-nội quy ──► tách điều/khoản ──► chunk ──► Vietnamese_Embedding (nền bge-m3) ──► [Qdrant: regulation]
+nội quy ──► parse → clean → chunk ──► Jina-CLIP v2 ──► [Qdrant: rag_documents]
 ```
+> Sơ đồ này là bản đã cập nhật theo code; các mục còn nhắc Gemini/Vietnamese_Embedding
+> bên dưới là dấu vết của bản đề xuất — xem §0.
 Điều phối ở `pipeline/run.py`; lỗi 1 mục → log, không chặn batch.
 **Chunking (cần chốt sớm):** transcript cắt theo cửa sổ ~200–300 token, overlap ~15%, giữ timestamp đầu/cuối; nội quy cắt theo điều/khoản (1 khoản = 1 chunk, kèm số điều làm neo trích dẫn).
 
 ## 3. Luồng ONLINE (Router RAG — tầng của mình, 2 paper không có)
 
 ```
-câu hỏi (text ± ảnh)
-  └─► routing.intent.route()               # luật: có ảnh→media · từ khóa nội quy→regulation
-        ├─ media tool      → retrieve_media (Jina-CLIP v2)        ┐
-        │                    + retrieve_by_transcript (Vietnamese_Embedding) ├─ gộp theo video_id+timestamp
-        └─ regulation tool → retrieve_regulations (Vietnamese_Embedding)     ┘
-  └─► rank (cosine; ngưỡng "không tìm thấy")
-  └─► answer: Gemini 2.5 Flash synthesis + trích dẫn nguồn / neo điều-khoản + disclaimer
-             (Flash-Lite cho truy vấn đơn giản; cache câu trả lời để né quota — xem §4)
+câu hỏi (tiếng Việt)
+  └─► supervisor (LangGraph) tự chọn tool   # "router" nằm trong prompt, không phải bộ luật
+        ├─ search_media       → nhúng câu hỏi MỘT lần (Jina-CLIP v2)
+        │                       → tìm song song media_clip + video_transcript (cùng không gian)
+        └─ search_regulations → rag_documents (cùng model, cùng không gian)
+  └─► rank (cosine) + gộp theo video_id/timestamp + dựng chuỗi trích dẫn [1] [2] [3]
+  └─► LLM tổng hợp + trích dẫn nguồn + disclaimer (chỉ với câu trả lời nội quy)
 ```
+> Khác bản đề xuất ở hai chỗ: **không có** `routing/intent.py` (LLM chọn tool), và
+> **chỉ nhúng câu hỏi một lần** cho cả hai nhánh media vì dùng chung một model.
 > Gộp keyframe↔transcript theo `video_id`+timestamp chính là cách MERVIN kết hợp 2 nhánh —
 > validate cho thiết kế BR-308 của ta.
 
@@ -81,6 +115,9 @@ câu hỏi (text ± ảnh)
 | Cold-start: chưa có dữ liệu thật | Chốt sớm nguồn video/ảnh/nội quy từ fanpage + người chuẩn hóa; không có input thì pipeline chạy rỗng |
 
 ## 6. Chốt cho `/write-hld`
-- Model v1: **TransNetV2 · Jina-CLIP v2 · Zipformer-30M-RNNT-6000h (backend sherpa-onnx) · Gemini 2.5 Flash / Flash-Lite (clean/caption/answer) · AITeamVN/Vietnamese_Embedding · Qdrant**.
+- Model v1 **thực tế đang chạy**: **TransNetV2 · Jina-CLIP v2 (ảnh + transcript + nội quy + câu hỏi) ·
+  Zipformer-30M-RNNT-6000h (backend sherpa-onnx) · vision model qua `MEDIA_VISION_MODEL_NAME` (caption+OCR) ·
+  `LLM_PROVIDER:LLM_MODEL` (sinh câu trả lời) · Qdrant**. Dòng gạch bỏ của bản đề xuất: Gemini 2.5 Flash,
+  AITeamVN/Vietnamese_Embedding — xem §0.
 - **Thứ tự bắt buộc:** dựng **bộ eval có nhãn (T-70) ~30–50 truy vấn *trước*** rồi mới benchmark — không có ground-truth thì không đo Recall@5 được. (T-70 đã kéo lên sprint 1–2, xem `tasks.md`.)
 - Benchmark chốt số: **Jina-CLIP v2** (mặc định) vs fallback SigLIP 2+dịch cho ảnh; Vietnamese_Embedding cho text (đơn model, không còn phải chọn kép).
