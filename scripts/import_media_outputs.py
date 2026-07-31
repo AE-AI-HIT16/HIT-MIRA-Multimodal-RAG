@@ -64,7 +64,12 @@ def status(value: str | None, default: str = ProcessingStatus.DONE.value) -> str
         "ERROR": ProcessingStatus.FAILED.value,
         "FAILED": ProcessingStatus.FAILED.value,
         "FAILURE": ProcessingStatus.FAILED.value,
-        "SKIPPED": ProcessingStatus.DONE.value,
+        # Bỏ qua KHÁC với đã xong: khâu chưa hề chạy (tắt theo route, hoặc chạy
+        # ở nơi khác), nên phải để PENDING cho lượt sau nhặt lại. Ghi DONE là
+        # khoá vĩnh viễn số keyframe đó với caption rỗng.
+        "SKIPPED": ProcessingStatus.PENDING.value,
+        # NOT_FOUND thì khác: đã phân tích rồi, chỉ là không có gì để lấy (ảnh
+        # không có chữ). Đó là kết quả hợp lệ.
         "NOT_FOUND": ProcessingStatus.DONE.value,
     }
     return aliases.get(normalized, normalized)
@@ -214,7 +219,10 @@ class ArtifactImporter:
             uow.results.upsert_caption_result(
                 frame_media_id,
                 status=status(item.get("status"), status(payload.get("status"))),
-                caption_text=item.get("caption_text") or item.get("caption") or item.get("reason") or payload.get("reason"),
+                # KHÔNG lấy 'reason' làm caption. Đó là thông báo chẩn đoán
+                # ("caption disabled by route", "... Error code: 402 ...") và nó
+                # sẽ đi thẳng vào payload Qdrant rồi hiện ra như một trích dẫn.
+                caption_text=item.get("caption_text") or item.get("caption"),
                 caption_model=item.get("caption_model") or item.get("model") or generation_meta.get("model") or payload.get("caption_model") or payload.get("model") or "unknown-caption",
                 vision_metadata=item.get("vision_metadata") or {
                     key: generation_meta.get(key)
