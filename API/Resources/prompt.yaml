@@ -55,7 +55,7 @@ MEDIA_PROMPTS:
     Generate caption_text, scene, objects, activities, and keywords using ONLY visual information.
 
     Rules:
-    - caption_text: Describe only what is visually happening. Never copy readable text. Never include person names, titles, slogans, or logo text.
+    - caption_text: Write ONE factual sentence in VIETNAMESE. Vietnamese is required here because this caption is shown to the reader inside a Vietnamese answer; the fields below stay English on purpose, for retrieval. Describe only what is visually happening. Never copy readable text. Never include person names, titles, slogans, or logo text.
     - scene: Return ONE short English scene category.
     - objects: English nouns only. Maximum 10. Only clearly visible objects.
     - activities: English verb phrases. Maximum 5.

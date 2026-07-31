@@ -30,7 +30,16 @@ from src.rag_video_anh.retrieval.retriever import (
     MediaClipHit,
     VideoRetriever,
 )
-from src.rag_video_anh.schemas import MediaInput, StageStatus
+from src.rag_video_anh.schemas import (
+    CaptionResult,
+    CaptionResultSet,
+    DetectionResultSet,
+    MediaInput,
+    OCRResult,
+    OCRResultSet,
+    PipelineStatus,
+    StageStatus,
+)
 
 # --------------------------------------------------------------------------
 # Validate + route
@@ -120,6 +129,63 @@ def test_pipeline_wraps_image_into_single_frame_without_extractor(tmp_path: Path
 def test_single_frame_requires_a_readable_path() -> None:
     with pytest.raises(ValueError, match="no media_path"):
         PipelineService()._single_frame_set(MediaInput(media_id="img-1", media_type="image"))
+
+
+class ExplodingTranscriptMapper:
+    def map(self, request):  # pragma: no cover - chỉ để chứng minh là không bị gọi
+        raise AssertionError("ảnh không có lời thoại thì không được gióng transcript")
+
+
+class FakeVisionService:
+    """Trả OCR + caption đã xong, không gọi ra ngoài mạng."""
+
+    def analyze(self, *, media_id, keyframes, ocr_policy=None, caption_policy=None):
+        frame_id = keyframes.frames[0].frame_id
+        return (
+            OCRResultSet(
+                media_id=media_id,
+                status=StageStatus.DONE,
+                results=[OCRResult(frame_id=frame_id, full_text="HIT Club", status=StageStatus.DONE)],
+            ),
+            CaptionResultSet(
+                media_id=media_id,
+                status=StageStatus.DONE,
+                results=[
+                    CaptionResult(
+                        frame_id=frame_id,
+                        caption_text="Nhóm sinh viên chụp ảnh chung ngoài trời",
+                        status=StageStatus.DONE,
+                    )
+                ],
+            ),
+        )
+
+
+class FakeDetectionService:
+    def detect(self, request):
+        return DetectionResultSet(media_id=request.media_id, status=StageStatus.DONE, results=[])
+
+
+def test_image_run_is_success_not_partial_when_every_enabled_stage_finishes(tmp_path: Path) -> None:
+    """Ảnh không bao giờ có transcript.
+
+    Nếu khâu gióng transcript báo NOT_FOUND thay vì 'bỏ qua theo route' thì mọi
+    ảnh đều bị chấm partial_success, và lỗi thật lẫn vào đó không nhận ra được.
+    """
+    image_path = tmp_path / "anh.jpg"
+    image_path.write_bytes(b"fake-jpeg")
+
+    result = PipelineService(
+        vision_service=FakeVisionService(),
+        detection_service=FakeDetectionService(),
+        transcript_mapper=ExplodingTranscriptMapper(),
+    ).process(MediaInput(media_id="img-1", media_type="image", media_path=str(image_path)))
+
+    assert result.route is not None and result.route.requires_asr is False
+    assert result.aligned_context is not None
+    assert result.aligned_context.status == StageStatus.SKIPPED
+    assert "disabled by route" in (result.aligned_context.reason or "")
+    assert result.status == PipelineStatus.SUCCESS
 
 
 # --------------------------------------------------------------------------

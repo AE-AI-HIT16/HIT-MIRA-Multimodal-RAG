@@ -138,19 +138,29 @@ class PipelineService:
             correlation_id,
         )
 
-        aligned_context = self._safe_stage(
-            "transcript_mapping",
-            lambda: self.transcript_mapper.map(
-                TranscriptMappingRequest(
-                    keyframes=keyframes,
-                    transcript_set=transcript_set,
-                    mapping_policy=pipeline_request.processing_options.get("transcript_mapping", {}),
-                )
-            ),
-            errors,
-            media_input,
-            correlation_id,
-        )
+        if not route.requires_asr:
+            # Ảnh tĩnh không bao giờ có lời thoại để gióng. Không nói rõ là 'bỏ
+            # qua theo route' thì mọi ảnh đều bị chấm partial_success, và lỗi
+            # thật sẽ lẫn vào đó không phân biệt được.
+            aligned_context = AlignedTranscriptContext(
+                media_id=media_input.media_id,
+                status=StageStatus.SKIPPED,
+                reason="transcript mapping disabled by route",
+            )
+        else:
+            aligned_context = self._safe_stage(
+                "transcript_mapping",
+                lambda: self.transcript_mapper.map(
+                    TranscriptMappingRequest(
+                        keyframes=keyframes,
+                        transcript_set=transcript_set,
+                        mapping_policy=pipeline_request.processing_options.get("transcript_mapping", {}),
+                    )
+                ),
+                errors,
+                media_input,
+                correlation_id,
+            )
         if aligned_context is None:
             aligned_context = AlignedTranscriptContext(
                 media_id=media_input.media_id,
