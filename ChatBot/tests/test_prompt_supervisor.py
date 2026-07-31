@@ -43,6 +43,12 @@ def test_cam_gan_moc_thoi_gian_cho_anh_tinh(prompt: str) -> None:
     assert "null" in prompt
 
 
+def test_co_luat_ve_link_bai_goc(prompt: str) -> None:
+    """US-405.1: có link thì gắn link, không có thì nói "nguồn nội bộ", không bịa URL."""
+    assert "source_url" in prompt
+    assert "nguồn nội bộ" in prompt
+
+
 def test_co_luat_viet_lai_loi_thoai_asr(prompt: str) -> None:
     """Zipformer trả về chữ in hoa không dấu câu; phải dặn viết lại mà giữ nguyên từ."""
     assert "viết hoa toàn bộ" in prompt

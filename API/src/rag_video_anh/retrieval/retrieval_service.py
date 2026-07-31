@@ -108,6 +108,7 @@ class VideoRetrievalService:
                 timestamp = cls._format_timestamp(clip.timestamp_sec)
                 if timestamp:
                     label = f"{label} tại {timestamp}"
+            label = f"{label}{cls._format_source(clip.payload.get('source_url'))}"
             body = clip.caption or clip.ocr_text or "(không có caption)"
             if clip.caption and clip.ocr_text:
                 body = f"{clip.caption}\nChữ trong hình: {clip.ocr_text}"
@@ -116,6 +117,7 @@ class VideoRetrievalService:
         for video in videos:
             index += 1
             label = f"[{index}] video {video.video_id or 'không rõ'} (lời thoại)"
+            label = f"{label}{cls._format_source(video.source_url)}"
             lines: list[str] = []
             for moment in video.moments:
                 span = cls._format_span(moment.start_sec, moment.end_sec)
@@ -126,6 +128,17 @@ class VideoRetrievalService:
             parts.append("\n".join([label, *lines]))
 
         return "\n\n".join(parts)
+
+    @staticmethod
+    def _format_source(source_url: str | None) -> str:
+        """US-405.1: gắn link bài gốc, hoặc nói rõ là nguồn nội bộ.
+
+        Ghi thẳng vào chuỗi context vì đây là thứ tầng trả lời thật sự đọc.
+        Không có link thì phải nói "nguồn nội bộ" (AC-2) — im lặng sẽ khiến LLM
+        tự dựng một URL trông hợp lý.
+        """
+        url = str(source_url or "").strip()
+        return f" — nguồn: {url}" if url else " — nguồn nội bộ"
 
     @classmethod
     def _format_span(cls, start_sec: float | None, end_sec: float | None) -> str:

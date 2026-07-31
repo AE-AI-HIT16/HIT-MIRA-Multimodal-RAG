@@ -10,13 +10,18 @@ nào được ném ra để ai đó nhận ra.
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from src.graph.agents import base_agent as base_agent_module
 from src.graph.agents.base_agent import BaseAgent
-from src.graph.agents.supervisor_agent import REQUIRED_TOOLS, SupervisorAgent
+from src.graph.agents.supervisor_agent import (
+    REQUIRED_TOOLS,
+    SupervisorAgent,
+    ToolResultCollector,
+)
 
 
 def test_supervisor_duoc_cap_ca_hai_tool() -> None:
@@ -61,16 +66,41 @@ def test_timeout_tra_ve_cau_tra_loi_thay_vi_nem_loi() -> None:
     assert "45" in tin_nhan.content, "phải nói rõ đã chờ bao lâu"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "US-401.1 AC-2 chưa làm: khi timeout, fallback phải kèm kết quả truy xuất thô "
-        "chứ không chỉ một lời xin lỗi. Khi ai đó làm xong, test này sẽ XPASS và "
-        "bắt buộc phải gỡ marker — đó là ý đồ."
-    ),
-)
 def test_timeout_van_kem_theo_ket_qua_tho() -> None:
-    """US-401.1 AC-2: chờ 60 giây rồi nhận về con số không là mất trắng công truy xuất."""
-    phan_hoi = SupervisorAgent._timeout_response(45)
-    tin_nhan = phan_hoi["messages"][0]
-    assert phan_hoi.get("retrieved") or "nguồn" in tin_nhan.content.lower()
+    """US-401.1 AC-2: chờ hết giờ rồi nhận về con số không là mất trắng công truy xuất.
+
+    Phần truy xuất đã chạy xong và đã tốn quota nhúng — vứt đi là lãng phí đúng
+    thứ đắt nhất của lượt hỏi.
+    """
+    collector = ToolResultCollector()
+    collector.record(
+        "search_media",
+        json.dumps({"success": True, "context": "[1] video abc tại 02:00 — nguồn: https://fb.com/x"}),
+    )
+
+    phan_hoi = SupervisorAgent._timeout_response(45, collector)
+    noi_dung = phan_hoi["messages"][0].content
+
+    assert "45" in noi_dung, "vẫn phải báo lỗi nhẹ"
+    assert "[1] video abc tại 02:00" in noi_dung, "phải kèm kết quả truy xuất thô"
+    assert "chưa kịp tổng hợp" in noi_dung, "phải nói rõ đây chưa phải câu trả lời hoàn chỉnh"
+
+
+def test_timeout_khong_co_gi_de_khoe_thi_chi_xin_loi() -> None:
+    """Hết giờ trước cả khi gọi được tool: đừng dựng một mục 'nguồn' rỗng."""
+    noi_dung = SupervisorAgent._timeout_response(30, ToolResultCollector())["messages"][0].content
+    assert "nguồn" not in noi_dung.lower()
+    assert "thử lại" in noi_dung.lower()
+
+
+def test_collector_rut_dung_phan_nguoi_doc_duoc() -> None:
+    """Tool trả JSON; thứ đáng đưa cho người dùng là `context` đã đánh số sẵn."""
+    collector = ToolResultCollector()
+    collector.record("search_regulations", json.dumps({"success": True, "context": "[1] Nội quy CLB, trang 2"}))
+    collector.record("tool_la", "không phải JSON")
+    collector.record("tool_rong", "   ")
+
+    ket_qua = collector.as_text()
+    assert "[1] Nội quy CLB, trang 2" in ket_qua
+    assert "không phải JSON" in ket_qua
+    assert "tool_rong" not in ket_qua, "kết quả rỗng thì không ghi gì cả"
