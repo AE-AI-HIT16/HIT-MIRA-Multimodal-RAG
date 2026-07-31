@@ -5,7 +5,6 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ContextEditingMiddleware ,ClearToolUsesEdit, after_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
-from langchain_core.runnables import RunnableConfig
 from langgraph.constants import END
 from langgraph.runtime import Runtime
 
@@ -89,18 +88,6 @@ class BaseAgent:
         self.agent = self.init_agent(response_class, tools, middlewares)
         return self.agent
 
-    async def invoke(self, state, runtime, config=None):
-        pass
-
-    async def ainvoke(self, state, runtime, config=None):
-        pass
-
-    async def astream(self, state, runtime, config=None):
-        pass
-
-    @classmethod
-    async def init_node(cls, state: State, config: RunnableConfig):
-        pass
 
     async def enforce_structured_output(self, state: State, runtime: Runtime, config=None):
         messages: List[BaseMessage] = state["messages"]
