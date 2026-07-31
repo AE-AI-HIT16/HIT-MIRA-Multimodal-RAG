@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
+from threading import Lock
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -32,7 +33,15 @@ class DatabaseSessionManager:
         echo: bool = False,
         expire_on_commit: bool = False,
     ) -> None:
-        self.engine = engine or create_engine(database_url or get_database_url(), echo=echo, future=True)
+        # pool_pre_ping: worker chạy hàng giờ, kết nối nằm không dễ bị phía
+        # PostgreSQL đóng; kiểm tra trước khi dùng rẻ hơn là để lỗi bật ra giữa
+        # một lô đang chạy dở.
+        self.engine = engine or create_engine(
+            database_url or get_database_url(),
+            echo=echo,
+            future=True,
+            pool_pre_ping=True,
+        )
         self.session_factory = sessionmaker(
             bind=self.engine,
             autoflush=False,
@@ -64,3 +73,33 @@ class DatabaseSessionManager:
         """Drop mapped tables. Intended for tests and local reset only."""
 
         Base.metadata.drop_all(self.engine)
+
+
+_default_manager: DatabaseSessionManager | None = None
+_default_manager_lock = Lock()
+
+
+def get_session_manager() -> DatabaseSessionManager:
+    """Trả manager dùng chung cho cả tiến trình.
+
+    Mỗi DatabaseSessionManager dựng một engine kèm pool kết nối riêng, và
+    engine thì không tự đóng. Nếu mỗi UnitOfWork lại dựng một cái mới thì chỉ
+    vài trăm lượt là PostgreSQL trả 'sorry, too many clients already' — đã xảy
+    ra thật khi chạy caption 6 luồng. Một engine dùng chung là cách SQLAlchemy
+    khuyến nghị: pool lo phần tái sử dụng kết nối.
+    """
+    global _default_manager
+    if _default_manager is None:
+        with _default_manager_lock:
+            if _default_manager is None:
+                _default_manager = DatabaseSessionManager()
+    return _default_manager
+
+
+def reset_session_manager() -> None:
+    """Bỏ manager dùng chung và đóng engine của nó (dùng cho test/đổi cấu hình)."""
+    global _default_manager
+    with _default_manager_lock:
+        if _default_manager is not None:
+            _default_manager.engine.dispose()
+        _default_manager = None
