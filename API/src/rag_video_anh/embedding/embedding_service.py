@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable
 
@@ -20,6 +21,14 @@ RATE_LIMIT_COOLDOWN_SECONDS = 60.0
 # Jina-CLIP v2 xử lý ảnh ở 512px; gửi to hơn chỉ tốn token chứ không lợi gì.
 DEFAULT_MAX_IMAGE_SIDE = 512
 DEFAULT_IMAGE_JPEG_QUALITY = 90
+# Jina đếm token theo cửa sổ trượt 60 giây. Giữ nhịp dưới ngưỡng thay vì đâm
+# vào 429 rồi ngủ bù: cách phản ứng đó đo được ~10 ảnh/phút, chủ động thì ~25.
+DEFAULT_TOKENS_PER_MINUTE = 100_000
+RATE_WINDOW_SECONDS = 60.0
+# Mỗi ảnh 512px Jina tính tròn 4.000 token (đo trực tiếp từ trường usage).
+TOKENS_PER_IMAGE = 4_000
+# Không có số token thật cho text trước khi gửi; ~4 ký tự một token là đủ dùng.
+CHARS_PER_TEXT_TOKEN = 4
 
 
 class ImageEmbeddingConfigurationError(ValueError):
@@ -48,6 +57,7 @@ class ImageEmbeddingService:
         max_request_bytes: int | None = None,
         max_image_side: int | None = None,
         image_jpeg_quality: int | None = None,
+        tokens_per_minute: int | None = None,
     ) -> None:
         model_config = (config or AppConfig()).media_models
         self.model_name = (
@@ -81,7 +91,38 @@ class ImageEmbeddingService:
         self.image_jpeg_quality = self._positive_int(
             image_jpeg_quality, os.getenv("MEDIA_IMAGE_EMBEDDING_JPEG_QUALITY"), DEFAULT_IMAGE_JPEG_QUALITY
         )
+        # <= 0 nghĩa là tắt hẳn việc giữ nhịp (tests dùng fake không cần chờ).
+        self.tokens_per_minute = self._int_or_default(
+            tokens_per_minute, os.getenv("MEDIA_EMBEDDING_TOKENS_PER_MINUTE"), DEFAULT_TOKENS_PER_MINUTE
+        )
+        self._token_window: deque[tuple[float, int]] = deque()
         self._http_post = http_post
+
+    def _reserve_tokens(self, tokens: int) -> None:
+        """Chờ vừa đủ để request sắp gửi không vượt hạn mức token mỗi phút.
+
+        Rẻ hơn hẳn cách để Jina trả 429 rồi ngủ 60 giây: lúc đó cả cửa sổ bị
+        bỏ phí, còn ở đây chỉ chờ đúng tới khi lô cũ nhất rơi khỏi cửa sổ.
+        """
+        if self.tokens_per_minute <= 0 or tokens <= 0:
+            return
+
+        while True:
+            now = time.monotonic()
+            cutoff = now - RATE_WINDOW_SECONDS
+            while self._token_window and self._token_window[0][0] <= cutoff:
+                self._token_window.popleft()
+
+            used = sum(amount for _, amount in self._token_window)
+            # Cửa sổ rỗng mà vẫn quá hạn mức thì có chờ cũng vô ích: cứ gửi và
+            # để nhánh thử lại 429 lo, chờ mãi ở đây là treo cứng.
+            if used + tokens <= self.tokens_per_minute or not self._token_window:
+                self._token_window.append((now, tokens))
+                return
+
+            wait_for = self._token_window[0][0] + RATE_WINDOW_SECONDS - now
+            logger.info(f"Chờ {wait_for:.1f}s để giữ dưới hạn mức {self.tokens_per_minute} token/phút")
+            time.sleep(max(0.1, wait_for))
 
     @staticmethod
     def _int_or_default(explicit: int | None, from_env: str | None, fallback: int) -> int:
@@ -115,6 +156,7 @@ class ImageEmbeddingService:
         # Gửi theo lô: một video có thể có hơn trăm keyframe, gộp hết vào một
         # request thì Jina trả 413 Payload Too Large.
         for batch in self._batch_images(encoded):
+            self._reserve_tokens(len(batch) * TOKENS_PER_IMAGE)
             payload = {
                 "model": self.model_name,
                 "input": [{"image": item} for item in batch],
@@ -132,6 +174,7 @@ class ImageEmbeddingService:
         vectors: list[list[float]] = []
         for start in range(0, len(clean_texts), self.text_batch_size):
             batch = clean_texts[start : start + self.text_batch_size]
+            self._reserve_tokens(sum(len(text) for text in batch) // CHARS_PER_TEXT_TOKEN + len(batch))
             payload = {
                 "model": self.model_name,
                 "input": [{"text": text} for text in batch],
