@@ -122,6 +122,33 @@ def test_giu_dung_thu_tu_theo_index(service_noi_vao):
     assert [v[0] for v in vectors] == [0.0, 1.0, 2.0, 3.0]
 
 
+def test_nhan_ca_dang_input_cua_openai(app_va_encoder):
+    """Nhánh nội quy đi qua LangChain OpenAIEmbeddings, gửi `input` là chuỗi trần.
+
+    Hai nhánh dùng chung một endpoint nhưng KHÔNG chung định dạng: nhánh media
+    gửi `[{"text": …}]` kiểu Jina, nhánh nội quy gửi `["…"]` kiểu OpenAI. Chỉ
+    nhận một dạng thì nhánh kia ăn 422, và lỗi hiện ra tận trong LangChain nên
+    rất khó lần ra nguyên nhân.
+    """
+    app, encoder_gia = app_va_encoder
+    client = fastapi_testclient.TestClient(app)
+
+    phan_hoi = client.post(
+        "/v1/embeddings",
+        json={
+            "model": "jina-clip-v2",
+            "input": ["điều lệ sinh hoạt", "quy trình xin nghỉ"],
+            "dimensions": DIM,
+            "encoding_format": "base64",  # LangChain gửi kèm; server bỏ qua, trả float
+        },
+    )
+    assert phan_hoi.status_code == 200
+    du_lieu = phan_hoi.json()["data"]
+    assert [row["index"] for row in du_lieu] == [0, 1]
+    assert all(len(row["embedding"]) == DIM for row in du_lieu)
+    assert encoder_gia.lan_goi == [("text", 2)]
+
+
 def test_sai_so_chieu_bi_tu_choi_ngay(app_va_encoder):
     """Số chiều lệch mà lọt qua thì Qdrant mới báo, sau khi đã tốn cả mẻ nhúng."""
     app, _ = app_va_encoder

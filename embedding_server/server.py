@@ -46,11 +46,31 @@ class InputItem(BaseModel):
 
 class EmbeddingRequest(BaseModel):
     model: str | None = None
-    input: list[InputItem] = Field(min_length=1)
+    # Hai dạng `input` vì hai client khác nhau cùng gọi vào đây:
+    #   - nhánh media gửi kiểu Jina:   [{"image": b64}] hoặc [{"text": s}]
+    #   - nhánh nội quy đi qua LangChain OpenAIEmbeddings, gửi kiểu OpenAI:
+    #     ["chuỗi", "chuỗi"] — chuỗi trần, không bọc object.
+    # Chỉ nhận một dạng thì một trong hai nhánh ăn 422 mà rất khó đoán ra vì sao.
+    input: list[InputItem | str] = Field(min_length=1)
     task: str | None = None
     embedding_type: Literal["float"] | None = "float"
+    # LangChain gửi thêm trường này; nó tự xử lý được cả float lẫn base64 nên
+    # cứ trả float. Khai ra để pydantic không từ chối request.
+    encoding_format: str | None = None
     dimensions: int | None = None
     normalized: bool | None = True
+
+    def tach_text_va_anh(self) -> tuple[list[str], list[str]]:
+        texts: list[str] = []
+        images: list[str] = []
+        for item in self.input:
+            if isinstance(item, str):
+                texts.append(item)
+            elif item.text is not None:
+                texts.append(item.text)
+            elif item.image is not None:
+                images.append(item.image)
+        return texts, images
 
 
 @asynccontextmanager
@@ -87,8 +107,7 @@ def embeddings(request: EmbeddingRequest, authorization: str = Header(default=""
             detail=f"Server chỉ phục vụ {EMBED_DIM} chiều, client xin {request.dimensions}",
         )
 
-    texts = [item.text for item in request.input if item.text is not None]
-    images = [item.image for item in request.input if item.image is not None]
+    texts, images = request.tach_text_va_anh()
     if texts and images:
         # Trộn hai loại trong một request thì thứ tự trả về không còn khớp
         # `index` của client. Client thật không bao giờ trộn, nên từ chối thẳng
