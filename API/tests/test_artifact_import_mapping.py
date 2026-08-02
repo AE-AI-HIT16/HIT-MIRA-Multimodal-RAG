@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.import_media_outputs import status  # noqa: E402
+from scripts.import_media_outputs import so_dau_tien, status  # noqa: E402
 
 from src.rag_video_anh.repository.schemas import ProcessingStatus  # noqa: E402
 
@@ -50,3 +50,28 @@ def test_caption_import_never_uses_reason_as_caption_text() -> None:
 
     assert "caption_text=item.get(\"caption_text\") or item.get(\"caption\")" in block
     assert "reason" not in block.split("caption_text=")[1].split("\n")[0]
+
+
+def test_moc_thoi_gian_0_giay_khong_bi_bien_thanh_none() -> None:
+    """Giây 0 là mốc hợp lệ, không phải "thiếu mốc".
+
+    `segment.get("start_sec") or segment.get("start_time")` rơi sang nhánh sau
+    khi start_sec là 0.0, vì 0.0 falsy. Segment đầu của MỌI transcript bắt đầu
+    ở giây 0, nên cả 56 transcript đều mất mốc, bộ dựng unit loại chúng vì
+    "invalid_timestamp", và 11 video chỉ có một segment thì biến mất hoàn toàn
+    khỏi `video_transcript`.
+    """
+    assert so_dau_tien(0.0, 12.0) == 0.0
+    assert so_dau_tien(None, 0.0) == 0.0
+    assert so_dau_tien(None, None) is None
+    assert so_dau_tien(60.0) == 60.0
+
+
+def test_import_transcript_giu_nguyen_moc_giay_0() -> None:
+    """Chốt bằng chính mã nguồn: không được quay lại lối viết `or` cho số."""
+    source = (PROJECT_ROOT / "scripts" / "import_media_outputs.py").read_text(encoding="utf-8")
+    block = source[source.index("def _import_transcript") :]
+    block = block[: block.index("\n    def ") if "\n    def " in block else len(block)]
+
+    assert 'segment.get("start_sec") or' not in block
+    assert "so_dau_tien(segment.get(\"start_sec\")" in block
