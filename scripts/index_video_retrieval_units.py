@@ -49,6 +49,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Dùng cho video ĐÃ index khi chỉ cần bổ sung một khoá payload."
         ),
     )
+    parser.add_argument(
+        "--transcript-only",
+        action="store_true",
+        help=(
+            "Chỉ index nhánh lời thoại, KHÔNG đụng tới keyframe. Dùng khi chỉ "
+            "transcript đổi — nhúng lại hàng trăm keyframe cho ra đúng vector cũ "
+            "là đốt công vô ích."
+        ),
+    )
     return parser
 
 
@@ -61,7 +70,7 @@ def main() -> None:
     if args.payload_only:
         summary = indexer.refresh_video_payloads(args.video_media_id)
     else:
-        summary = indexer.index_video(args.video_media_id)
+        summary = indexer.index_video(args.video_media_id, transcript_only=args.transcript_only)
     print(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2))
 
 
