@@ -4,6 +4,28 @@
 > có test nghiệm thu (DoD) · có phụ thuộc. Bám đúng code base (`api/`) + PRD (`US-xxx`, `TC-xxx`).
 > Team: **3 người** — `DE` (Data Engineer) · `AIE-1` (Retrieval/Search) · `AIE-2` (RAG/App).
 
+> **Cột `File` của bảng này trỏ tới một cây thư mục KHÔNG còn tồn tại**
+> (`domains/`, `providers/`, `tools/`). Cây thật mô tả trong `CLAUDE.md`. Nhiều
+> task đã làm nhưng làm ở chỗ khác — T-41/42/43 nằm trong `ChatBot/` chứ không
+> phải `domains/answer/`. Khi đối chiếu, tin code chứ đừng tin cột `File`.
+>
+> **Đối chiếu ngày 02/08/2026 — 32/39 task xong:**
+>
+> | Epic | Xong | Ghi chú |
+> |---|---|---|
+> | E0 Infra | **2/3** | còn Alembic (T-02); repo đang dùng file `.sql` đánh số trong `migrations/` |
+> | E1 Data foundation | 3/5 | còn ingest media qua API (T-07); T-04 `consent` đã biến mất khỏi cây |
+> | E2 Pipeline offline | **6/6** | đã chạy thật trên 59 video + 1.628 ảnh |
+> | E3 Providers | **4/4** | lệch chủ ý: một model nhúng duy nhất, `cx/gpt-5.x` thay Gemini |
+> | E4 Retrieval | 4/5 | T-33: **đã đo, kết luận không dùng ngưỡng điểm** — `docs/eval-report.md` §4 |
+> | E5 Router & Answer | 3/4 | T-40 không có classifier riêng: định tuyến do supervisor chọn tool |
+> | E6 Chat & App | **2/4** | auth xong; T-52 một phần (tua có, cắt clip chưa); T-50 cố ý không làm; thiếu bảng hội thoại |
+> | E7 Frontend | **2/3** | chat + thẻ kết quả nối dữ liệu thật; màn admin xem được số liệu, chưa nạp/chạy pipeline |
+> | E8 Eval & QA | **5/5** | |
+>
+> **Chuỗi truy vết BR → US → TC → test đã nối một phần**: `test_eval_metrics.py`
+> và `test_auth.py` có nhắc `TC-`; phần lớn file test khác mới nhắc `US-`.
+
 ## 0. Nguyên tắc task
 - **Task ≠ BR.** BR là mục tiêu; task là 1 đơn vị code ~0.5–2 ngày, kéo được sang Done.
 - **DoD = test xanh.** Mỗi task chốt bằng 1 `TC-xxx` (hoặc test viết mới) trong `api/tests/`.
@@ -26,14 +48,14 @@
 |---|---|---|---|---|---|---|---|
 | T-01 | docker-compose: postgres + qdrant + volumes | DE | `docker-compose.yml` | — | `docker compose up` → 2 service healthy, app `/health` OK | Must | 1 |
 | T-02 | Alembic init + tạo bảng từ models | DE | `shared/db/migrations/` | T-05 | `alembic upgrade head` dựng đủ bảng | Must | 2 |
-| T-03 | CI: ruff + pytest (GitHub Actions) | AIE-2 | `.github/workflows/` | — | PR chạy lint + test tự động | Should | 1 |
+| ✅ T-03 | CI: ruff + pytest (GitHub Actions) | AIE-2 | `.github/workflows/ci.yml` | — | **3 job: API (ruff+pytest), ChatBot (pytest), Web (typecheck+build)** | Should | ✔ done |
 
 ### E1 · Data foundation (DE)
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
 | ✅ T-04 | Domain mẫu `consent` + gate | DE | `domains/consent/*` | — | `test_consent.py` (đã xanh) | Must | ✔ done |
 | T-05 | 18 bảng ORM còn lại (PRD §5) | DE | `shared/db/models.py` | — | `create_all` chạy, FK/relationship đúng | Must | 1 |
-| T-06 | Storage layer lưu/đọc media theo id | DE | `domains/media/service.py::get_media` | T-05 | `TC-105`: GET đúng file+metadata, id lạ→404 | Must | 2 |
+| ✅ T-06 | Storage layer lưu/đọc media theo id | DE | `API/src/routers/media_files.py` | T-05 | `TC-105`: **307→presigned MinIO; id lạ→404, bucket lạ→403, traversal→400** | Must | ✔ done |
 | T-07 | Ingest upload + validate metadata + gate consent | DE | `domains/ingest/service.py::save_upload` | T-05 | `TC-102`: batch vào kho, thiếu trường→chặn | Must | 2 |
 | T-08 | Nạp nội quy → tách điều/khoản | DE | `domains/ingest/service.py::load_regulations` | T-05 | `TC-107`: truy "Điều X" đúng nội dung | Must | 2 |
 
@@ -76,25 +98,42 @@
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
 | T-50 | `handle_message` orchestrate + `/chat/message` | AIE-2 | `domains/chat/*` | T-34,T-40,T-41,T-42 | `TC-507` định tuyến đúng + override | Must | 4 |
-| T-51 | Auth: login + JWT + role | AIE-2 | `domains/auth/*` | T-05 | `TC-505`; non-admin→403 endpoint admin | Must | 1 |
-| T-52 | Media serving: clip + stream/seek | AIE-2 | `domains/media/service.py` | T-06,T-10 | `TC-403`/`TC-404` clip ~6s + seek ±1s | Should | 4 |
+| ✅ T-51 | Auth: login + JWT + role | AIE-2 | `API/src/auth/`, `API/src/routers/auth.py` | T-05 | `TC-505` **đã kiểm thật: admin 200 · user 403 · ẩn danh 401 · token rác 401** | Must | ✔ done |
+| ⚠️ T-52 | Media serving: clip + stream/seek | AIE-2 | `API/src/routers/media_files.py` | T-06,T-10 | **seek có (Range 206); CẮT clip ~6s thì không** — xem ghi chú dưới | Should | 4 |
 | T-53 | Lưu conversations/messages | AIE-2 | `domains/chat/*` | T-05 | `TC-501`: gửi/nhận lưu message | Should | 4 |
 
 ### E7 · Frontend (AIE-2 + shared)
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
-| T-60 | Init Next.js + khung chat (text + upload ảnh) | AIE-2 | `web/` | T-50 | `TC-501/502/505` chat gửi/nhận, upload ảnh | Must | 5 |
-| T-61 | Render kết quả đa phương thức inline | shared | `web/` | T-52,T-60 | `TC-503`: ảnh+clip+link render/phát | Must | 5 |
-| T-62 | Màn admin (nạp dữ liệu · pipeline · đánh giá) | DE | `web/` | T-07,T-71 | thao tác nạp/chạy pipeline/xem eval | Should | 5 |
+| ✅ T-60 | Init Next.js + khung chat (text + upload ảnh) | AIE-2 | `web/` | — | chat chạy end-to-end qua LangGraph, **đã kiểm bằng câu hỏi thật** | Must | ✔ done |
+| ✅ T-61 | Render kết quả đa phương thức inline | shared | `web/lib/results.ts` | T-06,T-60 | ảnh + keyframe + video tua + link bài gốc, dữ liệu thật từ `/api/media/search` | Must | ✔ done |
+| ⚠️ T-62 | Màn admin (nạp dữ liệu · pipeline · đánh giá) | DE | `API/src/routers/admin.py` | T-51,T-71 | **xem số liệu + báo cáo eval: xong** (khoá sau quyền admin). **Nạp dữ liệu / chạy pipeline: cố ý chưa làm** — xem ghi chú | Should | 5 |
+
+> **T-52 làm được tới đâu.** `seek` thì xong: presigned URL của MinIO trả
+> `206 Partial Content` (đã đo), nên `<video src="...#t=125">` nhảy đúng giây
+> 125 mà không cần dịch vụ nào. **Cắt clip ~6s thì chưa** — cần ffmpeg chạy lúc
+> có yêu cầu. Đổi lại là trình duyệt tải video đầy đủ thay vì một đoạn ngắn;
+> với video CLB (dài nhất ~13 phút) thì chấp nhận được, còn TC-403 "clip ~6s"
+> vẫn là chưa đạt.
+>
+> **T-50 `/chat/message` cố ý không làm.** Chat đi thẳng web → LangGraph, nên
+> thêm một endpoint FastAPI ở giữa chỉ là dựng lại phần điều phối mà supervisor
+> đã làm. Cái giá: `web/` phụ thuộc `langgraph dev` chạy song song.
 
 ### E8 · Eval & QA (AIE-1)
 | ID | Task | Owner | File | Depends | DoD / Test | Prio | Sprint |
 |---|---|---|---|---|---|---|---|
-| T-70 | Bộ `eval_queries` có nhãn (~30–50 truy vấn) — **làm trước benchmark model** | AIE-1 | `data/eval/` + `models` | T-05 | `TC-601`: ≥N truy vấn có đáp án | Must | 1–2 |
-| T-71 | Recall@k + MRR | AIE-1 | `domains/eval/service.py` | T-30,T-70 | `TC-602` `test_recall_and_mrr_match_by_hand` | Must | 5 |
-| T-72 | Đo latency (avg, p95) | AIE-1 | `domains/eval/service.py` | T-50 | `TC-603`: avg ≤5s có p95 | Should | 5 |
-| T-73 | Eval nội quy (điều khoản/groundedness/routing) | AIE-1 | `domains/eval/service.py` | T-40,T-42 | `TC-606`: 3 chỉ số | Should | 5 |
-| T-74 | Checklist demo end-to-end | all | `docs/` | E4–E7 | `TC-605`: 4 luồng lõi pass | Must | 5 |
+| ✅ T-70 | Bộ `eval_queries` có nhãn (~30–50 truy vấn) | AIE-1 | `data/eval/eval_queries.yaml` | T-05 | `TC-601`: **50 truy vấn, 44 có nhãn** | Must | ✔ done |
+| ✅ T-71 | Recall@k + MRR | AIE-1 | `API/src/eval/metrics.py` | T-30,T-70 | `TC-602`: **14 test khớp tính tay** | Must | ✔ done |
+| ✅ T-72 | Đo latency (avg, p95) | AIE-1 | `API/src/eval/metrics.py` | T-30 | `TC-603`: **avg 0,85s · p95 1,71s** | Should | ✔ done |
+| ✅ T-73 | Eval nội quy (điều khoản/groundedness/routing) | AIE-1 | `scripts/run_eval_noiquy.py` | T-42 | `TC-606`: **routing 1,000 · groundedness 1,000 · disclaimer 1,000** | Should | ✔ done |
+| ✅ T-74 | Checklist demo end-to-end | all | `scripts/demo_checklist.py` | E4–E7 | `TC-605`: **5 PASS · 0 FAIL · 2 chưa hỗ trợ** | Must | ✔ done |
+
+> Kết quả và cảnh báo khi trích số: **`docs/eval-report.md`**.
+> Recall@5 = 0,642 (chưa đạt mục tiêu 0,80) · MRR = 0,776 (đạt) · latency đạt.
+> T-73 còn lại: cần `groundedness` và `routing accuracy`, mà cả hai đo ở tầng
+> trả lời (`ChatBot/`) chứ không phải tầng truy xuất — nên phụ thuộc T-40/T-42
+> đúng như bảng ghi.
 
 ## 3. Phụ thuộc & Kế hoạch Sprint (5 sprint · ~2 tuần)
 
