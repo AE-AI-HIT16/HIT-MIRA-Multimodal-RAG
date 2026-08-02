@@ -128,6 +128,51 @@ export function MessageBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () 
           </div>
         )}
 
+        {/* Thẻ kết quả thật từ /api/media/search + /api/retrieval/search.
+            Hiện độc lập với trạng thái stream: câu trả lời và bằng chứng là hai
+            đường riêng, đường này hỏng thì đường kia vẫn phải xem được. */}
+        {turn.role === "assistant" && turn.hitsStatus && (
+          <div className="mt-4">
+            <div className="mb-2.5 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[.12em] text-zinc-400">
+                Nguồn tham khảo
+              </p>
+              {turn.hitsStatus === "done" && (
+                <span className="text-xs text-zinc-400">{turn.hits?.length ?? 0} kết quả</span>
+              )}
+            </div>
+
+            {turn.hitsStatus === "loading" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {[0, 1].map((i) => (
+                  <div
+                    key={i}
+                    className="h-44 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100"
+                  />
+                ))}
+              </div>
+            )}
+
+            {turn.hitsStatus === "error" && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Không tải được nguồn tham khảo: {turn.hitsError ?? "lỗi không rõ"}
+              </p>
+            )}
+
+            {turn.hitsStatus === "done" && (turn.hits?.length ?? 0) === 0 && (
+              <p className="text-xs text-zinc-400">Không tìm thấy nguồn nào khớp.</p>
+            )}
+
+            {turn.hitsStatus === "done" && (turn.hits?.length ?? 0) > 0 && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {turn.hits!.map((item, i) => (
+                  <ResultCard key={`${turn.id}-hit-${i}`} item={item} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Done — FastAPI legacy (reply.answer + items) */}
         {turn.status === "done" && turn.reply && !turn.finalText && (
           <div className="space-y-4">

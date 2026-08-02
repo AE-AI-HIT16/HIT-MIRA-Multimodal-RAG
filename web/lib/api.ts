@@ -1,5 +1,7 @@
 import type {
   AdminStats,
+  MediaSearchResponse,
+  RegulationSearchResponse,
   ChatReply,
   EvalReport,
   IndexJobStatus,
@@ -78,7 +80,7 @@ export async function sendMessageImage(form: FormData): Promise<ChatReply> {
 }
 
 export async function login(email: string, password: string): Promise<TokenOut> {
-  const res = await fetch(`${API_URL}/auth/login`, {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -92,7 +94,7 @@ export async function register(
   password: string,
   name?: string,
 ): Promise<UserOut> {
-  const res = await fetch(`${API_URL}/auth/register`, {
+  const res = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, name: name || undefined }),
@@ -104,14 +106,14 @@ export async function register(
 export async function me(): Promise<UserOut | null> {
   const t = getToken();
   if (!t) return null;
-  const res = await fetch(`${API_URL}/auth/me`, { headers: authHeaders() });
+  const res = await fetch(`${API_URL}/api/auth/me`, { headers: authHeaders() });
   if (!res.ok) return null;
   return res.json();
 }
 
 // ---- Admin ----
 export async function adminStats(): Promise<AdminStats> {
-  const res = await fetch(`${API_URL}/admin/stats`, { headers: authHeaders() });
+  const res = await fetch(`${API_URL}/api/admin/stats`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
@@ -165,18 +167,73 @@ export async function runEval(): Promise<EvalReport> {
 }
 
 export async function evalReport(): Promise<EvalReport | null> {
-  const res = await fetch(`${API_URL}/eval/report`, { headers: authHeaders() });
+  const res = await fetch(`${API_URL}/api/admin/eval/report`, { headers: authHeaders() });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
-export const mediaUrl = (id: number) => `${API_URL}/media/${id}`;
-export const clipUrl = (id: number, ts: number) =>
-  `${API_URL}/media/${id}/clip?ts=${ts}`;
-export const streamUrl = (id: number) => `${API_URL}/media/${id}/stream`;
-export const frameUrl = (id: number, ts: number) =>
-  `${API_URL}/media/${id}/frame?ts=${ts}`;
+// ── Media files ────────────────────────────────────────────────────────────
+// Backend chuyển hướng 307 sang presigned URL của MinIO. Id là UUID chứ không
+// phải số tự tăng — bản đầu khai `mediaUrl(id: number)` nên không khớp dòng nào.
+
+/** Ảnh / keyframe theo object key — dạng dùng chính, vì kết quả truy xuất trả sẵn key. */
+export const mediaFileUrl = (objectKey: string) =>
+  `${API_URL}/api/media-files/by-key?object_key=${encodeURIComponent(objectKey)}`;
+
+/** Media theo `media_id` (UUID). */
+export const mediaByIdUrl = (mediaId: string) =>
+  `${API_URL}/api/media-files/${encodeURIComponent(mediaId)}`;
+
+/**
+ * Video gốc theo `video_id`, tua bằng fragment `#t=`.
+ *
+ * Không cắt clip bằng ffmpeg: presigned URL của MinIO hỗ trợ HTTP Range (đo
+ * được 206 Partial Content), nên trình duyệt nhảy thẳng tới đúng giây. Đổi lại
+ * là tải video đầy đủ chứ không phải một đoạn ngắn.
+ */
+export const videoUrl = (videoId: string, ts?: number) => {
+  const base = `${API_URL}/api/media-files/video/${encodeURIComponent(videoId)}`;
+  return ts != null ? `${base}#t=${Math.max(0, Math.floor(ts))}` : base;
+};
+
+// ── Tìm kiếm (đường đã chạy thật) ──────────────────────────────────────────
+
+export async function searchMedia(
+  query: string,
+  opts: { topK?: number; source?: "clip" | "transcript" | "both" } = {},
+): Promise<MediaSearchResponse> {
+  const res = await fetch(`${API_URL}/api/media/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      top_k: opts.topK ?? 6,
+      source: opts.source ?? "both",
+    }),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function searchRegulations(
+  query: string,
+  opts: { topK?: number; rewrite?: boolean } = {},
+): Promise<RegulationSearchResponse> {
+  const res = await fetch(`${API_URL}/api/retrieval/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      top_k: opts.topK ?? 4,
+      // Viết lại truy vấn gọi thêm một lượt LLM. Bật mặc định thì mỗi lần gõ
+      // phải chờ thêm vài giây, mà thẻ kết quả chỉ để xem kèm câu trả lời.
+      rewrite: opts.rewrite ?? false,
+    }),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
 
 // ── LangGraph API ──────────────────────────────────────────────────────────
 

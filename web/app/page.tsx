@@ -12,7 +12,10 @@ import {
   extractTextFromLGMessage,
   lgCreateThread,
   lgStream,
+  searchMedia,
+  searchRegulations,
 } from "@/lib/api";
+import { gopKetQua } from "@/lib/results";
 import type { ChatTurn, LGMessage, Override } from "@/lib/types";
 
 type Mode = "auto" | Override;
@@ -22,6 +25,25 @@ type StoredSession = ChatSessionSummary & {
 };
 
 const STORAGE_KEY = "hit_mira_chat_sessions_v2";
+
+/**
+ * Lấy thẻ kết quả từ API truy xuất, chạy SONG SONG với stream của LangGraph.
+ *
+ * Hai đường độc lập có chủ ý: agent viết câu trả lời, còn đây là bằng chứng
+ * nhìn được kèm theo (ảnh, mốc thời gian, link bài gốc). Nếu chờ agent xong mới
+ * gọi thì người dùng phải đợi hai lượt; còn nếu nhánh này hỏng thì câu trả lời
+ * vẫn hiện bình thường.
+ */
+async function napTheKetQua(q: string, mode: Mode) {
+  const canMedia = mode === "auto" || mode === "media" || mode === "both";
+  const canNoiQuy = mode === "auto" || mode === "regulation" || mode === "both";
+  const [media, noiQuy] = await Promise.all([
+    canMedia ? searchMedia(q).catch(() => null) : Promise.resolve(null),
+    canNoiQuy ? searchRegulations(q).catch(() => null) : Promise.resolve(null),
+  ]);
+  if (!media && !noiQuy) throw new Error("Không gọi được API truy xuất");
+  return gopKetQua(media, noiQuy);
+}
 const freshId = () => `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export default function ChatPage() {
@@ -161,12 +183,38 @@ export default function ChatPage() {
         streamText: "",
         status: "loading",
         query: q,
+        hitsStatus: q ? "loading" : undefined,
       },
     ]);
 
     setBusy(true);
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // Nạp thẻ kết quả song song — không await, để không chặn stream.
+    if (q) {
+      napTheKetQua(q, mode)
+        .then((hits) =>
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === asstTurnId ? { ...t, hits, hitsStatus: "done" } : t,
+            ),
+          ),
+        )
+        .catch((e: unknown) =>
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === asstTurnId
+                ? {
+                    ...t,
+                    hitsStatus: "error",
+                    hitsError: e instanceof Error ? e.message : "Lỗi truy xuất",
+                  }
+                : t,
+            ),
+          ),
+        );
+    }
 
     try {
       // 1. Tạo thread nếu chưa có (cuộc trò chuyện mới)
@@ -268,13 +316,46 @@ export default function ChatPage() {
     setTurns((prev) =>
       prev.map((t) =>
         t.id === asstTurnId
-          ? { ...t, status: "loading", text: "", streamText: "" }
+          ? {
+              ...t,
+              status: "loading",
+              text: "",
+              streamText: "",
+              hits: undefined,
+              hitsError: undefined,
+              hitsStatus: query ? "loading" : undefined,
+            }
           : t,
       ),
     );
     setBusy(true);
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // Nạp lại thẻ kết quả song song — gửi lại thì nguồn tham khảo cũng phải mới.
+    if (query) {
+      napTheKetQua(query, mode)
+        .then((hits) =>
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === asstTurnId ? { ...t, hits, hitsStatus: "done" } : t,
+            ),
+          ),
+        )
+        .catch((e: unknown) =>
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === asstTurnId
+                ? {
+                    ...t,
+                    hitsStatus: "error",
+                    hitsError: e instanceof Error ? e.message : "Lỗi truy xuất",
+                  }
+                : t,
+            ),
+          ),
+        );
+    }
 
     try {
       let tid = threadId;
