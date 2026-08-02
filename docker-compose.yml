@@ -71,6 +71,9 @@ services:
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://openrouter.ai/api/v1}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-baai/bge-m3}
+      # jina-clip-v2 không có repo tokenizer trên HF: bật kiểm tra độ dài là
+      # LangChain gửi token id thay cho văn bản, server nhúng trả 422.
+      EMBEDDING_CHECK_CTX_LENGTH: ${EMBEDDING_CHECK_CTX_LENGTH:-false}
       RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-5}
       RETRIEVAL_KEYWORD_THRESHOLD: ${RETRIEVAL_KEYWORD_THRESHOLD:-0.5}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
