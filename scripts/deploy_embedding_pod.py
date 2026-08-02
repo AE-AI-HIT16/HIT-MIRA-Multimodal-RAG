@@ -77,9 +77,19 @@ def _graphql(query: str) -> dict[str, Any]:
     return payload["data"]
 
 
-def _gia_gpu() -> list[tuple[str, float]]:
+def _gia_gpu(community: bool = False) -> list[tuple[str, float]]:
+    """Giá mỗi GPU trong danh sách ưu tiên, **lọc đúng loại cloud sắp thuê**.
+
+    Bản đầu hỏi `lowestPrice` không lọc, mà giá không lọc là giá community — rồi
+    lại deploy với `cloudType: ALL` và rơi vào secure cloud. Kết quả: script in
+    $0,160/giờ nhưng hoá đơn thật là $0,270/giờ, lệch 69% và chỉ lộ ra ở dòng
+    `costPerHr` sau khi pod đã được tạo. In một giá mà mua giá khác là cách
+    nhanh nhất để đốt hết số dư mà không hiểu vì sao.
+    """
+    loc = "secureCloud:false" if community else "secureCloud:true"
     data = _graphql(
-        "query { gpuTypes { id lowestPrice(input:{gpuCount:1}) { uninterruptablePrice } } }"
+        f"query {{ gpuTypes {{ id lowestPrice(input:{{gpuCount:1, {loc}}}) "
+        "{ uninterruptablePrice } } }"
     )
     gia = {
         g["id"]: (g.get("lowestPrice") or {}).get("uninterruptablePrice")
@@ -166,12 +176,15 @@ def _kiem_lenh(lenh: str) -> None:
         raise RuntimeError("Có ký tự '&' ngoài vùng an toàn — shell sẽ hiểu là chạy nền")
 
 
-def _tao_pod(gpu_id: str, lenh: str) -> dict[str, Any]:
+def _tao_pod(gpu_id: str, lenh: str, community: bool = False) -> dict[str, Any]:
     # containerDisk 40GB: 3,5GB trọng số + ~10GB ảnh + chỗ cho pip.
+    # cloudType phải khớp với loại đã hỏi giá ở `_gia_gpu`, nếu không lại rơi
+    # vào cảnh in một giá mua một giá.
+    cloud = "COMMUNITY" if community else "SECURE"
     mutation = f"""
     mutation {{
       podFindAndDeployOnDemand(input: {{
-        cloudType: ALL
+        cloudType: {cloud}
         gpuCount: 1
         volumeInGb: 0
         containerDiskInGb: 40
@@ -186,6 +199,29 @@ def _tao_pod(gpu_id: str, lenh: str) -> dict[str, Any]:
     }}
     """
     return _graphql(mutation)["podFindAndDeployOnDemand"]
+
+
+def _tao_pod_co_du_phong(
+    gia: list[tuple[str, float]], lenh: str, community: bool
+) -> dict[str, Any] | None:
+    """Thử lần lượt từng GPU trong danh sách ưu tiên cho tới khi thuê được.
+
+    `stockStatus` chỉ nói "Low", không nói còn hay hết — cách duy nhất biết chắc
+    là thử thuê. Community cloud hết máy khá thường xuyên: lần chuyển pod sang
+    community đầu tiên, A5000 trả về `SUPPLY_CONSTRAINT` và script bỏ cuộc ngay
+    dù còn bốn GPU nữa trong danh sách, con đắt nhất cũng chỉ hơn $0,06/giờ.
+
+    Chỉ nuốt đúng lỗi hết máy. Lỗi khác (sai khoá, lệnh khởi động hỏng) mà cũng
+    thử tiếp thì thành thuê năm cái máy hỏng liên tiếp, và vẫn tính tiền.
+    """
+    for gpu_id, gia_gio in gia:
+        try:
+            return _tao_pod(gpu_id, lenh, community)
+        except RuntimeError as loi:
+            if "SUPPLY_CONSTRAINT" not in str(loi):
+                raise
+            print(f"    {gpu_id} (${gia_gio:.3f}/giờ) hết máy, thử con tiếp theo...")
+    return None
 
 
 def _cho_san_sang(pod_id: str, khoa: str) -> bool:
@@ -238,6 +274,12 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="thật sự tạo pod (mặc định chỉ in kế hoạch)")
     parser.add_argument("--status", action="store_true", help="xem số dư và pod đang chạy")
     parser.add_argument("--terminate", metavar="POD_ID", help="tắt một pod")
+    parser.add_argument(
+        "--community",
+        action="store_true",
+        help="thuê community cloud (rẻ hơn ~40%%: A5000 $0,16 thay vì $0,27/giờ, "
+        "đổi lại máy của bên thứ ba nên kém ổn định hơn)",
+    )
     args = parser.parse_args()
 
     if args.status:
@@ -245,14 +287,18 @@ def main() -> int:
     if args.terminate:
         return lenh_terminate(args.terminate)
 
-    gia = _gia_gpu()
+    gia = _gia_gpu(args.community)
     if not gia:
         print("Không GPU nào trong danh sách ưu tiên còn chỗ.")
         return 1
     gpu_id, gia_gio = gia[0]
     so_du = _so_du()
 
+    print(f"Cloud   : {'COMMUNITY (rẻ hơn, kém ổn định hơn)' if args.community else 'SECURE'}")
     print(f"GPU     : {gpu_id}  ${gia_gio:.3f}/giờ")
+    if len(gia) > 1:
+        du_phong = ", ".join(f"{g} (${p:.3f})" for g, p in gia[1:])
+        print(f"Dự phòng: {du_phong}")
     print(f"Số dư   : ${so_du:.2f}  → chạy được ~{so_du / gia_gio:.0f} giờ")
     print(f"Ảnh     : {BASE_IMAGE}")
     print(f"Cổng    : https://<pod-id>-{PORT}.proxy.runpod.net/v1/embeddings")
@@ -272,7 +318,11 @@ def main() -> int:
     print("2/4 tạo pod...")
     lenh = _lenh_khoi_dong(url_code, khoa)
     _kiem_lenh(lenh)
-    pod = _tao_pod(gpu_id, lenh)
+    pod = _tao_pod_co_du_phong(gia, lenh, args.community)
+    if pod is None:
+        print("\nKhông GPU nào trong danh sách còn máy. Thử lại sau, hoặc bỏ")
+        print("--community để thuê secure cloud (đắt hơn nhưng thường còn chỗ).")
+        return 1
     pod_id = pod["id"]
     print(f"    pod {pod_id}  ${pod['costPerHr']:.3f}/giờ")
     print("3/4 chờ cài đặt và nạp model (vài phút)...")
