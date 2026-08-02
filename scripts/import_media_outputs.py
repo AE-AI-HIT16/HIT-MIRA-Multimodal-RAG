@@ -75,6 +75,26 @@ def status(value: str | None, default: str = ProcessingStatus.DONE.value) -> str
     return aliases.get(normalized, normalized)
 
 
+def so_dau_tien(*ung_vien: Any) -> float | None:
+    """Giá trị số đầu tiên KHÁC None — `0.0` là số hợp lệ, không phải "thiếu".
+
+    Viết `a or b` cho số là bẫy: `0.0` là falsy nên rơi sang `b`. Segment đầu
+    của mọi transcript bắt đầu đúng ở giây 0, nên `segment.get("start_sec") or
+    segment.get("start_time")` biến mốc 0.0 thành None cho **cả 56 transcript**.
+    Bộ dựng unit loại chúng vì "invalid_timestamp", và 11 video chỉ có một
+    segment thì mất sạch lời thoại khỏi Qdrant — mất 16,8% toàn bộ lời thoại
+    mà không script nào báo lỗi.
+    """
+    for gia_tri in ung_vien:
+        if gia_tri is None:
+            continue
+        try:
+            return float(gia_tri)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def frame_object_key(manifest: dict[str, Any], frame: dict[str, Any]) -> str:
     if frame.get("object_key"):
         return str(frame["object_key"])
@@ -257,8 +277,8 @@ class ArtifactImporter:
         transcription_meta = payload.get("transcription_meta") or {}
         segments = [
             TranscriptSegmentCreate(
-                start_time=segment.get("start_sec") or segment.get("start_time"),
-                end_time=segment.get("end_sec") or segment.get("end_time"),
+                start_time=so_dau_tien(segment.get("start_sec"), segment.get("start_time")),
+                end_time=so_dau_tien(segment.get("end_sec"), segment.get("end_time")),
                 text=segment.get("text"),
             )
             for segment in payload.get("segments", [])
