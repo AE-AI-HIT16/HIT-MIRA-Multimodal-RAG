@@ -1,0 +1,344 @@
+# Tập đánh giá có nhãn — T-70 / US-601.1 / TC-601
+#
+# CÁCH GÁN NHÃN, và vì sao làm vậy
+# --------------------------------
+# Nhãn KHÔNG được lấy từ đầu ra của chính hệ thống truy xuất — làm thế là lấy
+# đáp án của bài thi từ bài làm, và Recall@k sẽ luôn bằng 1.0. Ở đây mỗi câu hỏi
+# mang một `tu_khoa`, và đáp án đúng là **mọi đơn vị chứa đủ các từ khoá đó**
+# trong trường `truong` — một kênh khớp chuỗi, độc lập với không gian vector
+# đang được đo. `scripts/build_eval_labels.py` giải luật này ra `eval_queries.json`.
+#
+# Câu hỏi cố ý viết bằng lời người dùng thật, KHÔNG chép câu chữ trong caption.
+# Chép lại thì phép đo chỉ còn là đo khớp chuỗi, và điểm đẹp một cách vô nghĩa.
+#
+# VÌ SAO TÁCH `media_image` VÀ `media_image_ocr`
+# ---------------------------------------------
+# Đo trên kho thật: tên sự kiện (Open Day, hackathon, seminar, gala, chuyển giao
+# ban chủ nhiệm, online judge) xuất hiện **0 lần trong caption** và chỉ nằm
+# trong OCR — caption chỉ tả cảnh chung ("một nhóm người trong phòng họp"), còn
+# danh tính sự kiện nằm ở chữ trên banner.
+#
+# Mà vector trong `media_clip` là vector của **hình ảnh**, không phải của chuỗi
+# OCR. Nên "cho tôi xem ảnh HIT Open Day" đòi hệ thống đọc chữ trong ảnh —
+# đúng thứ `CLAUDE.md` đã hoãn sang v2 (OCR + hybrid keyword search). Gộp chung
+# vào một con số sẽ vừa dìm chỉ số chính, vừa che mất bản chất: đây là **giới
+# hạn phạm vi v1 đã biết**, không phải lỗi truy xuất.
+#
+# Vậy nên:
+#   - `media_image`     nhãn theo CAPTION — đo đúng thứ v1 hứa: tìm theo nội
+#                       dung nhìn thấy được. Vào chỉ số chính.
+#   - `media_image_ocr` nhãn theo OCR — đo khoảng trống v2. Báo cáo riêng,
+#                       KHÔNG vào chỉ số chính, nhưng phải hiện ra để có số mà
+#                       quyết định làm hybrid search hay không.
+#
+# `ngoai_mien` cũng không vào Recall/MRR — kho không có đáp án đúng nào. Chúng
+# dùng để đo phân bố điểm, tức lấy số liệu đặt ngưỡng "không tìm thấy" (T-33):
+# nếu điểm cao nhất của câu ngoài miền chồng lấn điểm câu trong miền thì không
+# ngưỡng nào cứu được, và phải xử ở tầng trả lời.
+#
+# US-601.1 AC-2: mục không giải ra nhãn nào bị loại khỏi phép tính kèm cảnh báo.
+
+meta:
+  phien_ban: 2
+  ngay_soan: "2026-08-02"
+  muc_tieu:
+    recall_at_k: 0.80        # US-602.1
+    mrr: 0.60                # US-602.1
+    latency_trung_binh: 5.0  # US-603.1, giây
+  k: 5
+
+truy_van:
+
+  # ---------- Ảnh: tìm theo NỘI DUNG NHÌN THẤY (nhãn = caption) ----------
+  - id: IMG-01
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh các bạn đá bóng"
+    tu_khoa: [["bóng đá", "cầu thủ", "sân cỏ"]]
+
+  - id: IMG-02
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh có treo đèn lồng trang trí"
+    tu_khoa: [["đèn lồng", "lồng đèn"]]
+
+  - id: IMG-03
+    loai: media_image
+    truong: caption
+    cau_hoi: "hình minh họa tết trung thu"
+    tu_khoa: [["trung thu", "bánh trung thu", "mid autumn"]]
+
+  - id: IMG-04
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh gói bánh chưng"
+    tu_khoa: [["bánh chưng", "lá dong"]]
+
+  - id: IMG-05
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh ai đó đang đứng thuyết trình"
+    tu_khoa: [["thuyết trình", "diễn giả", "trình bày trước"]]
+
+  - id: IMG-06
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh có bóng bay"
+    tu_khoa: [["bóng bay", "quả bóng bay"]]
+
+  - id: IMG-07
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh chơi cầu lông"
+    tu_khoa: [["cầu lông", "vợt"]]
+
+  - id: IMG-08
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh đi cắm trại dựng lều"
+    tu_khoa: [["cắm trại", "lều"]]
+
+  - id: IMG-09
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh trao cúp và huy chương"
+    tu_khoa: [["huy chương", "cúp", "chiếc cúp"]]
+
+  - id: IMG-10
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh trao giấy khen cho sinh viên"
+    tu_khoa: [["giấy khen", "bằng khen", "chứng nhận"]]
+
+  - id: IMG-11
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh bắn pháo hoa"
+    tu_khoa: [["pháo hoa", "pháo giấy", "kim tuyến"]]
+
+  - id: IMG-12
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh có bánh kem sinh nhật"
+    tu_khoa: [["bánh kem", "bánh sinh nhật", "bánh ngọt"]]
+
+  - id: IMG-13
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh chụp ở bãi biển"
+    tu_khoa: [["bãi biển", "bờ biển", "mép nước", "sóng"]]
+
+  - id: IMG-14
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh phong cảnh núi non"
+    tu_khoa: [["núi", "đồi", "thung lũng"]]
+
+  - id: IMG-15
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh chụp trong công viên"
+    tu_khoa: [["công viên", "bãi cỏ", "thảm cỏ"]]
+
+  - id: IMG-16
+    loai: media_image
+    truong: caption
+    cau_hoi: "hình vẽ phi hành gia và tên lửa"
+    tu_khoa: [["phi hành gia", "tên lửa", "vũ trụ"]]
+
+  - id: IMG-17
+    loai: media_image
+    truong: caption
+    cau_hoi: "hình minh họa robot"
+    tu_khoa: [["robot", "người máy"]]
+
+  - id: IMG-18
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh mọi người ngồi ở hành lang"
+    tu_khoa: [["hành lang", "lối đi trong nhà"]]
+
+  - id: IMG-19
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh có máy tính xách tay trên bàn"
+    tu_khoa: [["laptop", "máy tính xách tay"]]
+
+  - id: IMG-20
+    loai: media_image
+    truong: caption
+    cau_hoi: "ảnh đang chơi trò chơi tập thể"
+    tu_khoa: [["trò chơi", "hoạt động tập thể", "trò chơi tập thể"]]
+
+  # ---------- Ảnh: tìm theo CHỮ TRONG ẢNH (nhãn = OCR) — phạm vi v2 ----------
+  # Báo cáo riêng. Điểm thấp ở đây KHÔNG phải lỗi: v1 cố ý không làm OCR search.
+  - id: OCR-01
+    loai: media_image_ocr
+    truong: ocr
+    cau_hoi: "ảnh chụp sự kiện HIT Open Day"
+    tu_khoa: ["open day"]
+
+  - id: OCR-02
+    loai: media_image_ocr
+    truong: ocr
+    cau_hoi: "ảnh về cuộc thi hackathon"
+    tu_khoa: ["hackathon"]
+
+  - id: OCR-03
+    loai: media_image_ocr
+    truong: ocr
+    cau_hoi: "ảnh buổi seminar chia sẻ kiến thức"
+    tu_khoa: ["seminar"]
+
+  - id: OCR-04
+    loai: media_image_ocr
+    truong: ocr
+    cau_hoi: "ảnh buổi tổng kết chuyển giao ban chủ nhiệm"
+    tu_khoa: ["chuyển giao"]
+
+  - id: OCR-05
+    loai: media_image_ocr
+    truong: ocr
+    cau_hoi: "ảnh màn hình trang chấm bài online judge"
+    tu_khoa: ["online judge"]
+
+  - id: OCR-06
+    loai: media_image_ocr
+    truong: ocr
+    cau_hoi: "poster tuyển thành viên gen mới"
+    tu_khoa: ["tuyển thành viên"]
+
+  # ---------- Lời thoại video (BR-303) ----------
+  - id: TRS-01
+    loai: media_transcript
+    truong: text
+    cau_hoi: "trong video có ai nhắc tới sinh nhật câu lạc bộ không"
+    tu_khoa: ["sinh nhật"]
+
+  - id: TRS-02
+    loai: media_transcript
+    truong: text
+    cau_hoi: "đoạn nào nói về các cuộc thi của câu lạc bộ"
+    tu_khoa: ["cuộc thi"]
+
+  - id: TRS-03
+    loai: media_transcript
+    truong: text
+    cau_hoi: "có video nào nói về HIT Open Day không"
+    tu_khoa: ["open day"]
+
+  - id: TRS-04
+    loai: media_transcript
+    truong: text
+    cau_hoi: "ai nói về việc tuyển cộng tác viên"
+    tu_khoa: ["cộng tác viên"]
+
+  - id: TRS-05
+    loai: media_transcript
+    truong: text
+    cau_hoi: "đoạn video nhắc tới kỷ niệm và chặng đường đã qua"
+    tu_khoa: ["kỷ niệm"]
+
+  - id: TRS-06
+    loai: media_transcript
+    truong: text
+    cau_hoi: "có ai nói về dịp Tết trong video không"
+    tu_khoa: ["tết"]
+
+  - id: TRS-07
+    loai: media_transcript
+    truong: text
+    cau_hoi: "đoạn nào nói về tổng kết hoạt động"
+    tu_khoa: ["tổng kết"]
+
+  - id: TRS-08
+    loai: media_transcript
+    truong: text
+    cau_hoi: "video nào có nhắc tới ảnh hưởng của dịch COVID"
+    tu_khoa: ["covid"]
+
+  - id: TRS-09
+    loai: media_transcript
+    truong: text
+    cau_hoi: "ai giới thiệu câu lạc bộ tin học trường Đại học Công nghiệp Hà Nội"
+    tu_khoa: ["công nghiệp hà nội"]
+
+  - id: TRS-10
+    loai: media_transcript
+    truong: text
+    cau_hoi: "đoạn nói về việc học tập và kiến thức trong câu lạc bộ"
+    tu_khoa: ["kiến thức"]
+
+  # ---------- Nội quy (BR-40x) ----------
+  - id: REG-01
+    loai: regulation
+    truong: text
+    cau_hoi: "muốn mượn phòng câu lạc bộ thì phải báo trước bao lâu"
+    tu_khoa: ["báo trước", "1 ngày"]
+
+  - id: REG-02
+    loai: regulation
+    truong: text
+    cau_hoi: "làm mất chìa khóa phòng câu lạc bộ thì bị phạt bao nhiêu tiền"
+    tu_khoa: ["làm mất khóa"]
+
+  - id: REG-03
+    loai: regulation
+    truong: text
+    cau_hoi: "nhóm học vi phạm nội quy lần thứ hai bị phạt thế nào"
+    tu_khoa: ["nhóm học", "100.000"]
+
+  - id: REG-04
+    loai: regulation
+    truong: text
+    cau_hoi: "người quản lý phòng có trách nhiệm gì"
+    tu_khoa: ["người quản lý phòng"]
+
+  - id: REG-05
+    loai: regulation
+    truong: text
+    cau_hoi: "trong phòng câu lạc bộ có được hút thuốc không"
+    tu_khoa: ["hút thuốc"]
+
+  - id: REG-06
+    loai: regulation
+    truong: text
+    cau_hoi: "địa chỉ và email liên hệ của câu lạc bộ tin học HIT"
+    tu_khoa: ["hit.club188@gmail.com"]
+
+  - id: REG-07
+    loai: regulation
+    truong: text
+    cau_hoi: "ai là người liên hệ khi cần mượn phòng"
+    tu_khoa: ["diệp thị linh"]
+
+  - id: REG-08
+    loai: regulation
+    truong: text
+    cau_hoi: "sau khi dùng xong phòng phải làm gì trước khi ra về"
+    tu_khoa: ["5s"]
+
+  # ---------- Ngoài miền: kho KHÔNG có đáp án đúng (BR-704) ----------
+  - id: OOD-01
+    loai: ngoai_mien
+    cau_hoi: "giá vàng SJC hôm nay bao nhiêu một lượng"
+
+  - id: OOD-02
+    loai: ngoai_mien
+    cau_hoi: "cách nấu phở bò gia truyền Nam Định"
+
+  - id: OOD-03
+    loai: ngoai_mien
+    cau_hoi: "lịch thi đấu vòng loại World Cup khu vực Nam Mỹ"
+
+  - id: OOD-04
+    loai: ngoai_mien
+    cau_hoi: "thủ tục xin visa du học Canada cần giấy tờ gì"
+
+  - id: OOD-05
+    loai: ngoai_mien
+    cau_hoi: "triệu chứng của bệnh sốt xuất huyết ở trẻ nhỏ"
+
+  - id: OOD-06
+    loai: ngoai_mien
+    cau_hoi: "hướng dẫn thay dầu nhớt cho xe máy Honda Wave"
