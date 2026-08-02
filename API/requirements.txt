@@ -23,3 +23,8 @@ huggingface-hub
 httpx
 
 Pillow
+
+# Auth (T-51): mật khẩu băm bằng hashlib.scrypt của thư viện chuẩn nên không cần
+# bcrypt/argon2, nhưng ký JWT thì phải có. Thiếu dòng này thì image dựng xong vẫn
+# chạy, chỉ sập đúng lúc đăng nhập đúng mật khẩu (ModuleNotFoundError: jwt).
+PyJWT>=2.8

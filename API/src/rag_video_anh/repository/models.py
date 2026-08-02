@@ -45,6 +45,27 @@ class Base(DeclarativeBase):
     pass
 
 
+class UserModel(Base):
+    """Tài khoản đăng nhập — T-51 / US-505.1.
+
+    Đặt chung `Base` với các bảng còn lại để `create_all` trong test dựng đủ
+    một lượt. Mật khẩu chỉ lưu dạng đã băm (`src/auth/security.py`); cột cố ý
+    đặt tên `password_hash` chứ không phải `password` để không ai lỡ tay ghi
+    thẳng mật khẩu vào.
+    """
+
+    __tablename__ = "users"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime, server_default=func.current_timestamp()
+    )
+
+
 class PostModel(Base):
     __tablename__ = "posts"
 
