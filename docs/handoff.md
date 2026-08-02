@@ -1,15 +1,15 @@
 # Bàn giao — HIT-MIRA Multimodal RAG
 
-> Chốt ngày **31/07/2026**, nhánh `integration/v1` (chưa đẩy lên remote).
-> Viết cho người/agent tiếp nhận. Đọc hết phần §1 trước khi gõ bất cứ lệnh nào —
-> có một thứ đang chặn toàn bộ hệ thống.
+> Cập nhật **02/08/2026**, nhánh `integration/v1` (đã lên remote).
+> Viết cho người/agent tiếp nhận. Đọc §1 và §1b trước khi gõ bất cứ lệnh nào —
+> hệ thống chạy được, nhưng cần chọn nguồn nhúng cho câu hỏi (§4.1).
 
 **Đọc kèm:** `CLAUDE.md` (ràng buộc kiến trúc, phần quan trọng nhất) →
 `docs/structure.md` (cây code thật) → `docs/prd.md` (US/TC để neo test).
 
 ---
 
-## 1. ĐANG BỊ CHẶN: tài khoản Jina hết số dư
+## 1. Tài khoản Jina hết số dư — KHÔNG còn là ngõ cụt (xem §1b)
 
 ```
 HTTP 403  AUTHZ_INSUFFICIENT_BALANCE
@@ -60,9 +60,10 @@ số điểm thật trong Qdrant.
 
 ## 1b. Đường thoát: tự host chính model đó — `embedding_server/`
 
-**Giữ nguyên `jina-clip-v2`, chỉ đổi chỗ chạy.** Đổi sang model khác là vứt toàn
-bộ 2.409 điểm đang có (hai model là hai không gian vector), mà vẫn phải chạy nốt
-38 video — mất cả chì lẫn chài.
+**Giữ nguyên `jina-clip-v2`, chỉ đổi chỗ chạy.** Lúc quyết định, đổi sang model
+khác nghĩa là vứt toàn bộ 2.409 điểm đang có (hai model là hai không gian
+vector) mà vẫn phải chạy nốt 38 video — mất cả chì lẫn chài. Giữ nguyên model
+nên index cũ sống, và giờ con số đó đã là **4.248 điểm**.
 
 **Đã đo parity, và đạt.** `scripts/check_embedding_parity.py` lấy điểm thật
 trong Qdrant, tải đúng ảnh đó từ MinIO, tiền xử lý bằng chính
@@ -89,6 +90,24 @@ MEDIA_EMBEDDING_TOKENS_PER_MINUTE=0    # tắt giữ nhịp, hạn mức Jina kh
 Chi tiết deploy, ba tham số không được sai, và vì sao phải ghim
 `transformers<5`: đọc `embedding_server/README.md`.
 
+**Cả ba đường đã chạy thật qua pod ngày 02/08/2026**, không chỉ qua test:
+
+| Đường | Kiểm bằng | Kết quả |
+|---|---|---|
+| index 38 video | đếm điểm trong Qdrant | 38/38, 0 lỗi, `media_clip` 2.359 → 4.056 |
+| `/api/media/search` | câu hỏi tiếng Việt thật | `context` có link Facebook thật, ảnh + lời thoại cùng ra |
+| `/api/retrieval/search` | câu hỏi nội quy thật | qua LangChain → pod, có cả bước viết lại truy vấn |
+
+Một endpoint phục vụ được cả ba vì server nhận **hai định dạng `input`**: kiểu
+Jina (`[{"text": …}]`) cho nhánh media, và kiểu OpenAI (`["chuỗi"]`) cho nhánh
+nội quy đi qua LangChain. Bản đầu chỉ nhận dạng object và nhánh nội quy ăn 422 —
+lỗi hiện ra tận trong LangChain nên rất khó lần ngược về server.
+
+**Chi phí thật:** cả đợt index 38 video hết **\$0,07**. Pod RTX A5000 là
+**\$0,27/giờ** (không phải \$0,16 như bảng giá cộng đồng) → **~\$195/tháng** nếu
+để thường trực. Số dư \$8,19 chỉ trụ được ~30 giờ, nên **pod thường trực không
+phải phương án nuôi được bằng số dư hiện tại** — xem §4.
+
 **Hai điều đã đo được, đừng phát hiện lại:**
 
 - **Máy API hiện tại không chạy nổi model.** 7,6GB RAM / 2 nhân: nạp xong chiếm
@@ -107,16 +126,22 @@ Chi tiết deploy, ba tham số không được sai, và vì sao phải ghim
 
 | Thứ | Số thật | Ghi chú |
 |---|---|---|
-| `media_clip` | **2.359** điểm | 1.628 ảnh tĩnh + 731 keyframe video |
-| `video_transcript` | **50** điểm | |
+| `media_clip` | **4.056** điểm | 1.628 ảnh tĩnh + 2.428 keyframe video |
+| `video_transcript` | **192** điểm | |
 | `rag_documents` | **4** điểm | corpus nội quy còn rất nhỏ |
-| Video đã index | **21 / 59** | 38 video còn lại, ~1.700 keyframe |
+| Video đã index | **59 / 59** | xong ngày 02/08/2026 trên GPU RunPod |
 | Caption keyframe | **2.428 / 2.429** | |
-| Test `API/` | **96 passed** | offline hoàn toàn |
+| Test `API/` | **97 passed** | offline hoàn toàn |
 | Test `ChatBot/` | **15 passed** | offline hoàn toàn |
 
-Toàn bộ **2.359 điểm hiện có đã được gắn `source_url`** bằng đường payload-only
-(không nhúng lại, không tốn token — xem §3). Các video index sau này tự có sẵn.
+**`source_url` phủ 100%**: 4.056/4.056 điểm `media_clip` và 192/192 điểm
+`video_transcript`. Các điểm cũ được gắn bằng đường payload-only (không nhúng
+lại, không tốn token — xem §3); các video index sau đó tự mang sẵn.
+
+Đường trích dẫn đã **chạy thật một lần** ngày 02/08/2026, không chỉ qua test:
+một câu hỏi tiếng Việt đi hết `/api/media/search` và trả về `context` có link
+Facebook thật, ảnh và lời thoại cùng ra trong một lượt, ảnh không mang mốc giây
+còn video thì có.
 
 **8 collection rác** `*_test*` trong Qdrant: **đã xoá** (34 điểm). Ba collection
 thật giữ nguyên số điểm.
@@ -131,11 +156,14 @@ FK sẽ CASCADE sang `frames`/`caption_results`/`ocr_results`/`object_results`.
 
 ---
 
-## 3. Việc đầu tiên khi có đường nhúng trở lại: index nốt 38 video
+## 3. Index — ĐÃ XONG, giữ lại để biết đường chạy lại
 
-> Áp dụng cho cả hai đường — pod RunPod (§1b) hay tài khoản Jina đã nạp. Nếu
-> dùng RunPod thì nhớ `MEDIA_EMBEDDING_TOKENS_PER_MINUTE=0`, bộ giữ nhịp sinh
-> ra để né hạn mức của Jina, giờ chỉ làm chậm.
+> **59/59 video đã index xong ngày 02/08/2026** trên pod GPU RunPod, 38 video
+> trong khoảng 70 phút, 0 lỗi, tốn khoảng \$0,30. Phần dưới giữ lại cho lần sau
+> (thêm video mới, hoặc phải nhúng lại vì đổi model).
+>
+> Nhớ `MEDIA_EMBEDDING_TOKENS_PER_MINUTE=0` khi dùng pod tự host: bộ giữ nhịp
+> sinh ra để né hạn mức của Jina, với pod riêng thì chỉ làm chậm.
 
 An toàn để chạy lại từ đầu — point ID sinh bằng uuid5 của khoá nghiệp vụ, nên
 index lại là **ghi đè, không nhân bản**. Video đã xong chỉ tốn công nhúng lại.
@@ -188,10 +216,20 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
 
 ### Cần quyết định của anh Hoàng (không tự làm)
 
-1. **Chọn đường nhúng:** deploy `embedding_server/` lên pod RunPod thường trực
-   (§1b — không tốn Jina, parity đã đo là đạt), hay nạp lại Jina, hay cả hai
-   (RunPod lo index, Jina lo câu hỏi). Cho tới khi chọn thì `/api/media/search`
-   và mọi script index vẫn đứng.
+1. **Chọn nguồn nhúng cho CÂU HỎI.** Phần index đã xong hẳn và vĩnh viễn (vector
+   nằm trong Qdrant), nhưng `/api/media/search` và `/api/retrieval/search` vẫn
+   cần nhúng câu hỏi ngay lúc người dùng gõ, nên vẫn cần một nguồn sống lâu.
+   Hiện **không có pod nào chạy** — bật lại mất khoảng một phút:
+   `python scripts/deploy_embedding_pod.py --apply`.
+
+   | Phương án | Chi phí | Đánh đổi |
+   |---|---|---|
+   | Pod RunPod thường trực | ~\$195/tháng | Số dư \$8,19 chỉ trụ ~30 giờ |
+   | Nạp Jina một khoản nhỏ | vài đô, dùng rất lâu | Lại phụ thuộc nhà cung cấp ngoài |
+   | Chạy CPU ngay trên máy API | \$0 | Máy hiện tại KHÔNG đủ RAM, xem §1b |
+
+   Một câu hỏi tốn ~20 token, một ảnh tốn 4.000 — mà phần ảnh giờ đã xong. Nên
+   nạp Jina một khoản nhỏ là rẻ nhất, dù đánh đổi lại tính tự chủ.
 2. **Xoay khoá API** — file `.env.bak.0640` từng suýt lọt vào commit (đã gỡ khỏi
    index trước khi đẩy, chưa rò ra ngoài, nhưng khoá đã nằm trên đĩa một thời gian).
 
@@ -267,16 +305,22 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
 ```bash
 # Backend (import giả định thư mục làm việc là API/)
 cd API && uvicorn src.server:app --reload      # health: GET /health
-cd API && python -m pytest -q                  # 82 test, offline
+cd API && python -m pytest -q                  # 97 test, offline
 cd API && ruff check .
 
 # MCP server (cổng 8091) — ChatBot cần nó sống thì mới có tool
 cd mcp && PYTHONPATH=src python src/server.py
 
 # ChatBot
-cd ChatBot && python -m pytest -q              # 11 passed, 1 xfailed
+cd ChatBot && python -m pytest -q              # 15 test, offline
 cd ChatBot && langgraph dev
 
 # Hạ tầng
 docker-compose up -d                           # postgres + qdrant + minio
+
+# Nguồn nhúng (§1b) — pod tính tiền theo giờ, nhớ tắt
+python scripts/deploy_embedding_pod.py --apply
+python scripts/deploy_embedding_pod.py --status
+python scripts/deploy_embedding_pod.py --terminate <POD_ID>
+python scripts/check_embedding_parity.py --url <endpoint> --api-key <khoá>
 ```
