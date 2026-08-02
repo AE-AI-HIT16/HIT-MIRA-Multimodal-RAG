@@ -1,0 +1,18 @@
+# transformers 5.x GỠ BỎ `clip_loss` khỏi models.clip.modeling_clip, mà remote
+# code của jina-clip-v2 import nó ở mức module -> ImportError ngay lúc nạp.
+# Trước đó còn vỡ sớm hơn ở configuration_clip.py: `hasattr(torch, torch_dtype)`
+# với torch_dtype đã bị transformers 5 đổi thành đối tượng torch.dtype.
+# Ghim 4.x cho tới khi Jina cập nhật remote code.
+transformers>=4.45,<5
+# `low_cpu_mem_usage=True` cần accelerate; thiếu nó thì lúc nạp ngốn gấp đôi.
+accelerate>=1.0
+# Vision tower (EVA02) nằm trong timm.
+timm>=1.0
+torch>=2.4
+torchvision>=0.19
+pillow>=10.0
+numpy>=1.26
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+einops>=0.8
