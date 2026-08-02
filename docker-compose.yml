@@ -87,6 +87,25 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-hit-mira-media}
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-}
       MINIO_PUBLIC_SECURE: ${MINIO_PUBLIC_SECURE:-false}
+      # Nhánh media đọc bộ biến riêng, KHÔNG dùng chung EMBEDDING_* của nhánh nội
+      # quy (xem configuration.py). Thiếu chúng thì container vẫn healthy và
+      # /api/retrieval/search vẫn chạy, chỉ /api/media/search trả 503 — và tool
+      # search_media của MCP chết theo, nên chatbot từ chối mọi câu hỏi ảnh/video.
+      JINA_API_KEY: ${JINA_API_KEY:-}
+      MEDIA_IMAGE_EMBEDDING_BASE_URL: ${MEDIA_IMAGE_EMBEDDING_BASE_URL:-}
+      # 0 = tắt bộ giữ nhịp. Nó sinh ra để né hạn mức 100k token/phút của Jina;
+      # với embedding server tự host thì chỉ làm chậm.
+      MEDIA_EMBEDDING_TOKENS_PER_MINUTE: ${MEDIA_EMBEDDING_TOKENS_PER_MINUTE:-}
+      MEDIA_IMAGE_EMBEDDING_MAX_SIDE: ${MEDIA_IMAGE_EMBEDDING_MAX_SIDE:-}
+      MEDIA_VISION_MODEL_NAME: ${MEDIA_VISION_MODEL_NAME:-}
+      MEDIA_VISION_API_BASE_URL: ${MEDIA_VISION_API_BASE_URL:-}
+      MEDIA_VISION_API_KEY: ${MEDIA_VISION_API_KEY:-}
+      MEDIA_VISION_PROMPT_VERSION: ${MEDIA_VISION_PROMPT_VERSION:-}
+      # Auth (T-51): thiếu AUTH_SECRET_KEY thì đăng nhập ném AuthConfigurationError
+      # chứ không sinh khoá ngẫu nhiên — cố ý, để lỗi lộ ra ngay.
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
+      AUTH_TOKEN_TTL_HOURS: ${AUTH_TOKEN_TTL_HOURS:-12}
+      MEDIA_FILE_URL_TTL: ${MEDIA_FILE_URL_TTL:-3600}
       LLM_API_KEY: ${LLM_API_KEY:-}
       RUNPOD_API_KEY: ${RUNPOD_API_KEY:-}
       RUNPOD_ENDPOINT_ID: ${RUNPOD_ENDPOINT_ID:-}
