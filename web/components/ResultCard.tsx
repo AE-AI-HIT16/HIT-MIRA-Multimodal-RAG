@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { clipUrl, frameUrl, mediaUrl, streamUrl } from "@/lib/api";
+import { mediaFileUrl, videoUrl } from "@/lib/api";
 import { mmss } from "@/lib/format";
 import type { ChatItem } from "@/lib/types";
 import { BookIcon, ClockIcon, LinkIcon, PlayIcon } from "./icons";
@@ -109,7 +109,7 @@ function TimeChips({
 // Card frame video: thumbnail keyframe (ảnh tĩnh, không tốn ffmpeg) → bấm mới nạp clip.
 // Chip mốc thời gian seek NGAY TRONG CARD (đổi clip), không mở tab mới.
 function VideoFrameCard({ item }: { item: ChatItem }) {
-  const vid = (item.video_id ?? item.id) as number;
+  const vid = item.video_uid ?? null;
   const [activeTs, setActiveTs] = useState(item.timestamp as number);
   const [playing, setPlaying] = useState(false);
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -124,26 +124,29 @@ function VideoFrameCard({ item }: { item: ChatItem }) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      {playing ? (
+      {playing && vid ? (
+        // Không cắt clip: phát video gốc và tua bằng fragment #t=. MinIO trả
+        // 206 Partial Content nên trình duyệt nhảy thẳng tới đúng giây.
         <video
           key={activeTs}
           controls
           autoPlay
           preload="auto"
           className="aspect-video w-full bg-black"
-        >
-          <source src={clipUrl(vid, activeTs)} type="video/mp4" />
-        </video>
+          src={videoUrl(vid, activeTs)}
+        />
       ) : (
         <button
           onClick={() => setPlaying(true)}
           className="group relative block aspect-video w-full bg-zinc-900"
           aria-label={`Phát clip tại ${mmss(activeTs)}`}
         >
-          {!thumbFailed && (
+          {!thumbFailed && item.object_key && (
+            // Thumbnail là chính keyframe đã trích sẵn trong MinIO, không phải
+            // ảnh sinh ra lúc chạy — nên không tốn ffmpeg và luôn khớp mốc giây.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={frameUrl(vid, activeTs)}
+              src={mediaFileUrl(item.object_key)}
               alt={`Khung hình tại ${mmss(activeTs)}`}
               loading="lazy"
               onError={() => setThumbFailed(true)}
@@ -165,16 +168,18 @@ function VideoFrameCard({ item }: { item: ChatItem }) {
         <div className="flex items-start justify-between gap-2">
           <ClampText
             text={item.caption}
-            fallback={`Video #${vid} · khớp tại ${mmss(activeTs)}`}
+            fallback={`Khung hình video · khớp tại ${mmss(activeTs)}`}
           />
-          <a
-            href={`${streamUrl(vid)}#t=${activeTs}`}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 whitespace-nowrap text-xs text-accent transition-colors hover:text-accent-ink"
-          >
-            Toàn video
-          </a>
+          {vid && (
+            <a
+              href={videoUrl(vid, activeTs)}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 whitespace-nowrap text-xs text-accent transition-colors hover:text-accent-ink"
+            >
+              Toàn video
+            </a>
+          )}
         </div>
         {times.length > 1 && (
           <TimeChips
@@ -192,16 +197,19 @@ function VideoFrameCard({ item }: { item: ChatItem }) {
 export function ResultCard({ item }: { item: ChatItem }) {
   // 1) Transcript video (gộp theo video_id, có moments)
   if (item.moments && item.moments.length > 0) {
-    const vid = item.video_id ?? item.id;
+    const vid = item.video_uid ?? null;
     const starts = item.moments
       .map((m) => m.start_sec)
       .filter((s): s is number => s != null);
     return (
       <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-        {vid != null && (
-          <video controls preload="metadata" className="aspect-video w-full bg-black">
-            <source src={streamUrl(vid)} />
-          </video>
+        {vid && (
+          <video
+            controls
+            preload="metadata"
+            className="aspect-video w-full bg-black"
+            src={videoUrl(vid)}
+          />
         )}
         <div className="space-y-2 p-4">
           <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
@@ -211,7 +219,7 @@ export function ResultCard({ item }: { item: ChatItem }) {
             {starts.slice(0, MAX_CHIPS + 1).map((s, i) => (
               <a
                 key={i}
-                href={vid != null ? `${streamUrl(vid)}#t=${s}` : undefined}
+                href={vid ? videoUrl(vid, s) : undefined}
                 target="_blank"
                 rel="noreferrer"
                 className="rounded-full bg-accent-soft px-2.5 py-1 font-mono text-xs text-accent-ink transition-colors hover:bg-accent-ring/40"
@@ -229,13 +237,16 @@ export function ResultCard({ item }: { item: ChatItem }) {
   }
 
   // 2) Nội quy (điều/khoản)
-  if (item.article != null || item.clause != null) {
+  if (item.label || item.article != null || item.clause != null) {
+    // Nội quy thật không đánh số điều/khoản mà chia theo mục có tiêu đề, nên
+    // ưu tiên nhãn chuỗi; nhánh số giữ lại cho dữ liệu kiểu cũ.
     const label =
-      item.article != null && item.clause != null
+      item.label ??
+      (item.article != null && item.clause != null
         ? `Điều ${item.article} · Khoản ${item.clause}`
         : item.article != null
           ? `Điều ${item.article}`
-          : "Nội quy";
+          : "Nội quy");
     return (
       <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
         <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">
@@ -249,17 +260,17 @@ export function ResultCard({ item }: { item: ChatItem }) {
   }
 
   // 3) Frame video khớp (có timestamp) — thumbnail + seek trong card
-  if (item.timestamp != null && (item.video_id != null || item.id != null)) {
+  if (item.timestamp != null && item.video_uid) {
     return <VideoFrameCard item={item} />;
   }
 
   // 4) Ảnh
-  const id = item.media_id ?? item.id;
+  const src = item.object_key ? mediaFileUrl(item.object_key) : null;
   return (
     <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      {id != null && (
-        <a href={mediaUrl(id)} target="_blank" rel="noreferrer">
-          <MediaImage src={mediaUrl(id)} alt={item.caption || "ảnh kết quả"} />
+      {src && (
+        <a href={src} target="_blank" rel="noreferrer">
+          <MediaImage src={src} alt={item.caption || "ảnh kết quả"} />
         </a>
       )}
       <div className="flex items-start justify-between gap-3 p-4">
