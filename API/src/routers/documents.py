@@ -15,7 +15,6 @@ from src.rag_noiquy.pipeline import DocumentCleaner, DocumentParser, RAGPipeline
 from src.rag_noiquy.pipeline.ingest import IngestService
 from src.rag_noiquy.vector_store.vector_store import QdrantVectorStore
 
-
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 

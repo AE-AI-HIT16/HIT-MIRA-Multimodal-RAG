@@ -14,7 +14,6 @@ from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_video_anh.schemas import ASRRequest, StageStatus, TranscriptSegment, TranscriptSet
 
-
 _ASR_BOILERPLATE_HALLUCINATION_PHRASES = (
     "hay subscribe",
     "subscribe cho kenh",

@@ -9,6 +9,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from time import sleep
+
 from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_video_anh.pipeline.asr_service import AsrService
@@ -37,8 +38,8 @@ from src.rag_video_anh.schemas import (
     DetectionRequest,
     DetectionResultSet,
     KeyFrame,
-    KeyFrameSet,
     KeyframeExtractionRequest,
+    KeyFrameSet,
     MediaInput,
     OCRResultSet,
     StageStatus,

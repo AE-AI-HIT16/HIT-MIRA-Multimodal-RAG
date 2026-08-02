@@ -17,14 +17,14 @@ from src.rag_video_anh.pipeline.normalizer import NormalizerService
 from src.rag_video_anh.pipeline.qwen_vision_service import QwenVisionService
 from src.rag_video_anh.pipeline.transcript_mapper import TranscriptMapperService
 from src.rag_video_anh.schemas import (
-    ASRRequest,
     AlignedTranscriptContext,
+    ASRRequest,
     CaptionResultSet,
     DetectionRequest,
     DetectionResultSet,
     KeyFrame,
-    KeyFrameSet,
     KeyframeExtractionRequest,
+    KeyFrameSet,
     MediaInput,
     NormalizationRequest,
     OCRResultSet,

@@ -1,10 +1,10 @@
 import json
 import os
 from pathlib import Path
+from string import Template
 
 import yaml
 from dotenv import load_dotenv
-from string import Template
 
 # Resolve paths: config.py -> config/ -> src/ -> API/ -> project root
 _API_ROOT = Path(__file__).resolve().parents[2]

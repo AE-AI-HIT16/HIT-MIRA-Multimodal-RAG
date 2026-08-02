@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from src.rag_video_anh.repository.models import Base
 
-
 DEFAULT_DATABASE_URL = "postgresql+psycopg://hit:hit@localhost:5432/hit_mira"
 
 
