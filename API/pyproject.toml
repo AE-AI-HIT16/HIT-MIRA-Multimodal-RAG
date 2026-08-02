@@ -22,6 +22,10 @@ dependencies = [
     "langchain-openai>=0.3.0",
     "langchain-qdrant>=0.2.0",
 
+    # ---- Auth (T-51). Băm mật khẩu dùng hashlib.scrypt của thư viện chuẩn
+    # nên không cần bcrypt/argon2; chỉ JWT là phải thêm. ----
+    "pyjwt>=2.8",
+
     # ---- Vector store ----
     "qdrant-client>=1.12.0",
 
