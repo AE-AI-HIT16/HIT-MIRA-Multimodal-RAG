@@ -19,15 +19,21 @@ không làm điều đó khác đi.
 
 `scripts/check_embedding_parity.py` lấy điểm thật trong Qdrant, tải đúng ảnh đó
 từ MinIO, tiền xử lý bằng chính `ImageEmbeddingService._image_as_base64`, nhúng
-lại rồi so cosine. Đo ngày 02/08/2026, fp32 trên CPU:
+lại rồi so cosine. Đo ngày 02/08/2026:
 
-| Collection | n | Thấp nhất | Trung bình |
-|---|---|---|---|
-| `media_clip` | 4 | 0.999841 | 0.999904 |
-| `video_transcript` | 4 | 0.998703 | 0.999558 |
+| Nơi chạy | Collection | n | Thấp nhất | Trung bình |
+|---|---|---|---|---|
+| **GPU RTX A5000, fp16** | `media_clip` | 6 | **0.999801** | 0.999898 |
+| **GPU RTX A5000, fp16** | `video_transcript` | 6 | **0.999225** | 0.999790 |
+| CPU, fp32 | `media_clip` | 4 | 0.999841 | 0.999904 |
+| CPU, fp32 | `video_transcript` | 4 | 0.998703 | 0.999558 |
 
 **Kết luận: cùng không gian vector, index cũ dùng tiếp được.** Hai model khác
 nhau sẽ cho cosine quanh 0 ở không gian 1024 chiều, chứ không phải 0.99.
+
+Đáng chú ý: bản **GPU fp16 sát hơn** bản CPU fp32, dù fp16 kém chính xác hơn.
+Nhiều khả năng vì api.jina.ai cũng chạy fp16 trên GPU, nên giống nhau cả ở chỗ
+làm tròn.
 
 Chạy lại bất cứ lúc nào, kể cả khi Jina đang chết (nó chỉ đọc Qdrant + MinIO):
 
@@ -50,7 +56,33 @@ Sai một trong ba thì vector rơi ra ngoài không gian cũ, mà **không có 
 Ảnh được thu nhỏ về 512px **phía client** trước khi base64, nên server không
 đụng vào kích thước.
 
+## Một endpoint, hai định dạng client
+
+Cùng một pod phục vụ cả ba đường đang chết, nhưng hai nhánh **không gửi cùng
+định dạng** — server nhận cả hai:
+
+| Nhánh | Client | `input` |
+|---|---|---|
+| media (ảnh, keyframe, lời thoại, câu hỏi) | `ImageEmbeddingService` | kiểu Jina: `[{"image": b64}]` / `[{"text": s}]` |
+| nội quy | LangChain `OpenAIEmbeddings` | kiểu OpenAI: `["chuỗi", "chuỗi"]` |
+
+Chỉ nhận một dạng thì nhánh kia ăn 422, mà lỗi hiện ra tận trong LangChain nên
+rất khó lần ngược về đây.
+
 ## Deploy lên RunPod
+
+Cách nhanh — một lệnh, không cần container registry:
+
+```bash
+python scripts/deploy_embedding_pod.py            # xem kế hoạch + giá
+python scripts/deploy_embedding_pod.py --apply    # tạo pod, in sẵn cấu hình cần đặt
+python scripts/deploy_embedding_pod.py --status
+python scripts/deploy_embedding_pod.py --terminate <POD_ID>
+```
+
+Script dùng ảnh PyTorch công khai và đẩy code qua MinIO presigned URL. Cho môi
+trường thật thì `Dockerfile` ở đây sạch hơn (nướng sẵn trọng số, không phụ
+thuộc MinIO lúc khởi động), nhưng cần credential registry:
 
 ```bash
 docker build -t <registry>/hit-mira-embed:1.0 embedding_server/
@@ -63,11 +95,20 @@ giây, mà `/api/media/search` cần nhúng câu hỏi ngay lúc người dùng 
 Rồi trỏ client sang, **không phải sửa code**:
 
 ```bash
+# nhánh media
 MEDIA_IMAGE_EMBEDDING_BASE_URL=https://<pod>-8100.proxy.runpod.net/v1/embeddings
-JINA_API_KEY=local          # ImageEmbeddingService chặn nếu khoá rỗng
+JINA_API_KEY=<đúng EMBED_SERVER_API_KEY của pod>   # đây là Bearer token client gửi
+# nhánh nội quy — LangChain tự nối "/embeddings" vào sau
+EMBEDDING_BASE_URL=https://<pod>-8100.proxy.runpod.net/v1
+EMBEDDING_API_KEY=<đúng EMBED_SERVER_API_KEY của pod>
 ```
 
 (hoặc sửa `MEDIA_MODELS.CLIP_API_BASE_URL` trong `API/Resources/model.yaml`)
+
+**Tiền:** pod tính theo giờ kể cả lúc không dùng. RTX A5000 đo thật là
+**$0,27/giờ** (không phải $0,16 như bảng giá cộng đồng) → **~$195/tháng** nếu
+để thường trực. Index một lần rồi tắt thì chỉ vài xu, và vector nằm lại trong
+Qdrant vĩnh viễn. Nhớ `--terminate`.
 
 Khi đã tự host thì **bỏ luôn bộ giữ nhịp token** — nó sinh ra để né hạn mức của
 Jina, giờ chỉ còn làm chậm:
