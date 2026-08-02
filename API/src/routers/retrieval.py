@@ -9,7 +9,6 @@ from starlette.concurrency import run_in_threadpool
 
 from src.rag_noiquy.retrieval.retrieval_service import RetrievalService, build_retrieval_service
 
-
 router = APIRouter(prefix="/retrieval", tags=["retrieval"])
 
 

@@ -9,6 +9,7 @@ qdrant-client
 langchain
 langchain-openai
 langchain-community
+langchain-qdrant
 langchain-text-splitters
 pypdf
 docx2txt
