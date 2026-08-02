@@ -63,3 +63,22 @@ def test_prompt_khong_lam_vo_buoc_format_map(prompt: str) -> None:
     """
     ket_qua = prompt.format_map(SafeDict({"memories": "", "messages": []}))
     assert DISCLAIMER in ket_qua
+
+
+def test_co_luat_tu_choi_cau_ngoai_pham_vi(prompt: str) -> None:
+    """BR-704 / TC-704: câu ngoài CLB phải bị từ chối, không trả lời từ trí nhớ.
+
+    Đo thật ngày 02/08/2026 phát hiện lỗ này: hỏi "cách nấu phở bò Nam Định" và
+    "thay dầu nhớt Honda Wave", agent **không gọi tool nào** rồi trả lời đầy đủ
+    bằng kiến thức chung của mô hình. Các luật chống bịa cũ đều gắn với "sau khi
+    tool trả về", nên không chạm tới trường hợp này.
+
+    Trả lời bằng kiến thức chung là một dạng bịa khác: người đọc tưởng đó là
+    thông tin của CLB, mà không có nguồn nào để kiểm lại.
+    """
+    assert "PHẠM VI" in prompt
+    # Phải nói rõ là từ chối KỂ CẢ khi model biết câu trả lời — thiếu vế này thì
+    # mô hình vẫn tự cho phép mình "giúp cho nhanh".
+    assert "kể cả khi bạn biết rõ câu trả lời" in prompt
+    # Và phải chặn TRƯỚC khi gọi tool, không phải sau.
+    assert "trước cả việc gọi tool" in prompt
