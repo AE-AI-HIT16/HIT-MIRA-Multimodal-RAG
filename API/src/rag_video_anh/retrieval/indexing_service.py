@@ -82,7 +82,15 @@ class VideoRetrievalIndexingService:
         self.media_clip_collection = media_clip_collection
         self.video_transcript_collection = video_transcript_collection
 
-    def index_video(self, video_media_id: str) -> VideoRetrievalIndexSummary:
+    def index_video(
+        self, video_media_id: str, *, transcript_only: bool = False
+    ) -> VideoRetrievalIndexSummary:
+        """Index một video. `transcript_only` chỉ chạm nhánh lời thoại.
+
+        Hai nhánh vốn đã độc lập, nên khi chỉ lời thoại đổi (vá lại mốc thời
+        gian chẳng hạn) thì nhúng lại keyframe là đốt công vô ích: một video
+        200 giây có hơn trăm keyframe, mà vector của chúng không hề đổi.
+        """
         build_result = self.builder.build(video_media_id)
         builder_summary = build_result.summary.to_dict()
         summary = VideoRetrievalIndexSummary(
@@ -100,23 +108,26 @@ class VideoRetrievalIndexingService:
                 summary.add_skip(reason, int(count))
 
         # Hai nhánh độc lập: keyframe hỏng vẫn phải index được lời thoại, và ngược lại.
-        try:
-            with tempfile.TemporaryDirectory(prefix="hit-mira-video-index-") as temp_dir:
-                self._index_media_clip_units(
-                    [unit.to_dict() for unit in build_result.media_clip_units],
-                    temp_dir=Path(temp_dir),
-                    summary=summary,
+        if transcript_only:
+            summary.add_skip("media_clip_skipped_by_request", summary.media_clip_units_received)
+        else:
+            try:
+                with tempfile.TemporaryDirectory(prefix="hit-mira-video-index-") as temp_dir:
+                    self._index_media_clip_units(
+                        [unit.to_dict() for unit in build_result.media_clip_units],
+                        temp_dir=Path(temp_dir),
+                        summary=summary,
+                    )
+            except ImageEmbeddingProviderFatalError:
+                # Nhà cung cấp chết hẳn thì nuốt lỗi ở đây là tự lừa mình: mọi video
+                # sau cũng hỏng y hệt mà vẫn báo thành công. Để nó nổi lên.
+                raise
+            except Exception as exc:
+                summary.add_skip("media_clip_indexing_failed", summary.media_clip_units_received)
+                logger.warning(
+                    f"Media clip indexing failed for video '{video_media_id}'; "
+                    f"continuing with transcripts: {exc.__class__.__name__}: {exc}"
                 )
-        except ImageEmbeddingProviderFatalError:
-            # Nhà cung cấp chết hẳn thì nuốt lỗi ở đây là tự lừa mình: mọi video
-            # sau cũng hỏng y hệt mà vẫn báo thành công. Để nó nổi lên.
-            raise
-        except Exception as exc:
-            summary.add_skip("media_clip_indexing_failed", summary.media_clip_units_received)
-            logger.warning(
-                f"Media clip indexing failed for video '{video_media_id}'; "
-                f"continuing with transcripts: {exc.__class__.__name__}: {exc}"
-            )
 
         try:
             self._index_video_transcript_units(

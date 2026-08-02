@@ -257,3 +257,107 @@ def test_index_video_skips_empty_transcript_units() -> None:
     assert vector_store.calls == []
     assert summary["video_transcript_indexed"] == 0
     assert summary["skipped_by_reason"] == {"empty_transcript": 1}
+
+
+def test_transcript_only_khong_dung_toi_keyframe() -> None:
+    """Vá lời thoại thì không được nhúng lại keyframe.
+
+    Hai nhánh vốn độc lập. Khi chỉ transcript đổi (ví dụ vá lại mốc giây 0 bị
+    ghi nhầm thành NULL), nhúng lại hàng trăm keyframe chỉ để ra đúng vector cũ
+    là đốt công và đốt tiền GPU. Đợt vá thật: 56 video, 0 keyframe bị đụng tới.
+    """
+    video_media_id = str(uuid4())
+    video_id = str(uuid4())
+    post_id = str(uuid4())
+    build_result = RetrievalUnitBuildResult(
+        media_clip_units=[
+            MediaClipUnit(
+                unit_id=f"media_clip:{uuid4()}",
+                video_id=video_id,
+                video_media_id=video_media_id,
+                post_id=post_id,
+                frame_media_id=str(uuid4()),
+                frame_index=1,
+                timestamp_sec=0.0,
+                bucket_name="mira-data",
+                frame_object_key="frames/good.jpg",
+                caption="",
+                ocr_text="",
+                vision_metadata={},
+                detected_objects=[],
+                object_counts={},
+                transcript_context=TranscriptContext(text="", source_segment_ids=[], segments=[]),
+            )
+        ],
+        video_transcript_units=[
+            VideoTranscriptUnit(
+                unit_id=f"video_transcript:{video_id}:seg-0",
+                video_id=video_id,
+                post_id=post_id,
+                start_sec=0.0,
+                end_sec=60.0,
+                text="chào mừng đến với câu lạc bộ",
+                language="vi",
+                source_segment_ids=["seg-0"],
+            )
+        ],
+        summary=RetrievalUnitBuildSummary(video_id=video_id, video_media_id=video_media_id, post_id=post_id),
+    )
+    image_embedder = FakeImageEmbedder()
+    vector_store = FakeVectorStore()
+    indexer = VideoRetrievalIndexingService(
+        builder=FakeBuilder(build_result),
+        storage=FakeStorage({("mira-data", "frames/good.jpg")}),
+        image_embedder=image_embedder,
+        text_embedder=FakeTextEmbedder(),
+        vector_store=vector_store,
+    )
+
+    summary = indexer.index_video(video_media_id, transcript_only=True).to_dict()
+
+    assert summary["video_transcript_indexed"] == 1
+    assert summary["media_clip_indexed"] == 0
+    assert image_embedder.paths == []
+    assert [call["collection_name"] for call in vector_store.calls] == ["video_transcript"]
+
+
+def test_giay_0_la_moc_hop_le_khong_phai_thieu_moc() -> None:
+    """`start_sec=0.0` phải đi hết đường vào payload Qdrant.
+
+    Đây là điều kiện để đoạn mở đầu mỗi video tìm kiếm được — chỗ nói tên câu
+    lạc bộ và tên sự kiện, tức phần nhận dạng rõ nhất của cả video.
+    """
+    video_media_id = str(uuid4())
+    video_id = str(uuid4())
+    post_id = str(uuid4())
+    build_result = RetrievalUnitBuildResult(
+        media_clip_units=[],
+        video_transcript_units=[
+            VideoTranscriptUnit(
+                unit_id=f"video_transcript:{video_id}:seg-0",
+                video_id=video_id,
+                post_id=post_id,
+                start_sec=0.0,
+                end_sec=60.0,
+                text="chào mừng bạn đến với câu lạc bộ tin học HIT",
+                language="vi",
+                source_segment_ids=["seg-0"],
+            )
+        ],
+        summary=RetrievalUnitBuildSummary(video_id=video_id, video_media_id=video_media_id, post_id=post_id),
+    )
+    vector_store = FakeVectorStore()
+    indexer = VideoRetrievalIndexingService(
+        builder=FakeBuilder(build_result),
+        storage=FakeStorage(set()),
+        image_embedder=FakeImageEmbedder(),
+        text_embedder=FakeTextEmbedder(),
+        vector_store=vector_store,
+    )
+
+    summary = indexer.index_video(video_media_id).to_dict()
+
+    assert summary["video_transcript_indexed"] == 1
+    assert summary["skipped_by_reason"] == {}
+    payload = vector_store.calls[0]["payloads"][0]
+    assert payload["start_sec"] == 0.0
