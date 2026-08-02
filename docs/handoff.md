@@ -25,8 +25,11 @@ Cả hệ thống dùng **một model nhúng duy nhất** (`jina-clip-v2`, xem `
 | `POST /api/retrieval/search` | HTTP 500 |
 | Mọi script index | nhúng 0 điểm |
 
-**Không có cách nào lách.** Phải nạp tiền hoặc thay `JINA_API_KEY` trong `.env`.
-Kiểm tra nhanh xem đã sống lại chưa:
+> **Cập nhật 02/08/2026 — đã có đường thoát, xem §1b.** Trọng số `jina-clip-v2`
+> tự host được trên GPU RunPod, và **đã đo là cho ra đúng vector như API**. Nạp
+> tiền giờ là một lựa chọn, không còn là điều kiện bắt buộc.
+
+Kiểm tra nhanh xem tài khoản đã sống lại chưa:
 
 ```bash
 curl -s https://api.jina.ai/v1/embeddings \
@@ -55,6 +58,51 @@ số điểm thật trong Qdrant.
 
 ---
 
+## 1b. Đường thoát: tự host chính model đó — `embedding_server/`
+
+**Giữ nguyên `jina-clip-v2`, chỉ đổi chỗ chạy.** Đổi sang model khác là vứt toàn
+bộ 2.409 điểm đang có (hai model là hai không gian vector), mà vẫn phải chạy nốt
+38 video — mất cả chì lẫn chài.
+
+**Đã đo parity, và đạt.** `scripts/check_embedding_parity.py` lấy điểm thật
+trong Qdrant, tải đúng ảnh đó từ MinIO, tiền xử lý bằng chính
+`ImageEmbeddingService._image_as_base64`, nhúng lại rồi so cosine:
+
+| Collection | n | Thấp nhất | Trung bình |
+|---|---|---|---|
+| `media_clip` | 4 | 0.999841 | 0.999904 |
+| `video_transcript` | 4 | 0.998703 | 0.999558 |
+
+→ **cùng không gian vector, index cũ dùng tiếp được.** Hai model khác nhau cho
+cosine quanh 0 ở 1024 chiều, chứ không phải 0.99. Script chạy được cả khi Jina
+đang chết vì nó chỉ đọc Qdrant + MinIO.
+
+Client **không phải sửa một dòng nào** — server nói đúng giao thức của Jina, chỉ
+đổi cấu hình:
+
+```bash
+MEDIA_IMAGE_EMBEDDING_BASE_URL=https://<pod>-8100.proxy.runpod.net/v1/embeddings
+JINA_API_KEY=local                     # service chặn nếu khoá rỗng
+MEDIA_EMBEDDING_TOKENS_PER_MINUTE=0    # tắt giữ nhịp, hạn mức Jina không còn
+```
+
+Chi tiết deploy, ba tham số không được sai, và vì sao phải ghim
+`transformers<5`: đọc `embedding_server/README.md`.
+
+**Hai điều đã đo được, đừng phát hiện lại:**
+
+- **Máy API hiện tại không chạy nổi model.** 7,6GB RAM / 2 nhân: nạp xong chiếm
+  3,68GB thường trú, đỉnh 5,05GB, forward pass đầu tiên bị OOM giết (exit 137).
+  `bfloat16` không cứu được (đỉnh vẫn 4,89GB). Phép đo trên chỉ chạy xong nhờ
+  tạm thêm 8GB swap. Nên **nhúng câu hỏi cũng phải đi qua pod RunPod**, và pod
+  phải **thường trực** chứ không serverless — cold start 30–60 giây thì
+  `/api/media/search` còn tệ hơn bây giờ.
+- **`transformers` 5.x làm vỡ remote code của Jina** ở hai nấc (`hasattr(torch,
+  torch_dtype)` rồi `ImportError: clip_loss`). Nấc đầu lách được bằng cách
+  truyền tên kiểu dưới dạng chuỗi; nấc sau thì không. Đã ghim `<5`.
+
+---
+
 ## 2. Trạng thái dữ liệu hôm nay
 
 | Thứ | Số thật | Ghi chú |
@@ -64,7 +112,7 @@ số điểm thật trong Qdrant.
 | `rag_documents` | **4** điểm | corpus nội quy còn rất nhỏ |
 | Video đã index | **21 / 59** | 38 video còn lại, ~1.700 keyframe |
 | Caption keyframe | **2.428 / 2.429** | |
-| Test `API/` | **89 passed** | offline hoàn toàn |
+| Test `API/` | **96 passed** | offline hoàn toàn |
 | Test `ChatBot/` | **15 passed** | offline hoàn toàn |
 
 Toàn bộ **2.359 điểm hiện có đã được gắn `source_url`** bằng đường payload-only
@@ -83,7 +131,11 @@ FK sẽ CASCADE sang `frames`/`caption_results`/`ocr_results`/`object_results`.
 
 ---
 
-## 3. Việc đầu tiên khi Jina sống lại: index nốt 38 video
+## 3. Việc đầu tiên khi có đường nhúng trở lại: index nốt 38 video
+
+> Áp dụng cho cả hai đường — pod RunPod (§1b) hay tài khoản Jina đã nạp. Nếu
+> dùng RunPod thì nhớ `MEDIA_EMBEDDING_TOKENS_PER_MINUTE=0`, bộ giữ nhịp sinh
+> ra để né hạn mức của Jina, giờ chỉ làm chậm.
 
 An toàn để chạy lại từ đầu — point ID sinh bằng uuid5 của khoá nghiệp vụ, nên
 index lại là **ghi đè, không nhân bản**. Video đã xong chỉ tốn công nhúng lại.
@@ -136,10 +188,18 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
 
 ### Cần quyết định của anh Hoàng (không tự làm)
 
-1. **Nạp Jina** — chặn mọi thứ.
-2. **Đẩy nhánh** — `integration/v1` có **79 commit chưa từng lên remote**.
-3. **Xoay khoá API** — file `.env.bak.0640` từng suýt lọt vào commit (đã gỡ khỏi
+1. **Chọn đường nhúng:** deploy `embedding_server/` lên pod RunPod thường trực
+   (§1b — không tốn Jina, parity đã đo là đạt), hay nạp lại Jina, hay cả hai
+   (RunPod lo index, Jina lo câu hỏi). Cho tới khi chọn thì `/api/media/search`
+   và mọi script index vẫn đứng.
+2. **Xoay khoá API** — file `.env.bak.0640` từng suýt lọt vào commit (đã gỡ khỏi
    index trước khi đẩy, chưa rò ra ngoài, nhưng khoá đã nằm trên đĩa một thời gian).
+
+~~3. Đẩy nhánh~~ — `integration/v1` **đã lên remote**, local và
+`origin/integration/v1` trùng nhau ở 81 commit. Nhánh local chưa set upstream nên
+`git status` không in dòng "ahead of origin"; gắn bằng
+`git branch --set-upstream-to=origin/integration/v1`. **Chưa có PR** nào mở về
+`develop`.
 
 ### Lệch PRD — **đã đóng**, giữ lại để biết đường mà kiểm
 
