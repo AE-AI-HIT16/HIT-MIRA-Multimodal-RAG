@@ -37,12 +37,29 @@ class TaskType(str, Enum):
 
 
 @dataclass(frozen=True)
+class DatasetCreate:
+    name: str
+    bucket_name: str
+    object_prefix: str
+    source_type: str = "facebook-crawl"
+    source_url: str | None = None
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DatasetRecord(DatasetCreate):
+    dataset_id: UUID | None = None
+    imported_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class PostCreate:
     facebook_post_id: str
     content: str | None = None
     author: str | None = None
     post_url: str | None = None
     created_time: datetime | None = None
+    dataset_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +75,7 @@ class MediaCreate:
     object_key: str
     bucket_name: str = "mira-data"
     parent_media_id: UUID | None = None
+    content_sha256: str | None = None
 
 
 @dataclass(frozen=True)

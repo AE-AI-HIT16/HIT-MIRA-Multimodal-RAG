@@ -27,6 +27,10 @@ class PostRepository:
             return self.create(post)
 
         for field_name, value in post.__dict__.items():
+            # Các đường ingest cũ chưa biết dataset. Không để một lần upsert
+            # thiếu ngữ cảnh vô tình xoá provenance đã gắn lúc import corpus.
+            if field_name == "dataset_id" and value is None:
+                continue
             setattr(row, field_name, value)
         self.session.flush()
         return self._to_record(row)
@@ -44,6 +48,7 @@ class PostRepository:
         return PostRecord(
             post_id=row.post_id,
             facebook_post_id=row.facebook_post_id,
+            dataset_id=row.dataset_id,
             content=row.content,
             author=row.author,
             post_url=row.post_url,
