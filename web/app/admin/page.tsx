@@ -188,10 +188,11 @@ export default function AdminPage() {
   );
 }
 
+// Không có "Index nội quy": `/api/documents/upload` đã tách chunk và nhúng ngay
+// lúc nạp, nên nút đó sẽ không có việc gì để chạy.
 const JOB_LABELS: Record<string, string> = {
   media: "Index ảnh",
   videos: "Index video",
-  regulations: "Index nội quy",
 };
 
 const JOB_STATE_LABELS: Record<string, string> = {
@@ -217,6 +218,9 @@ function IndexStatus({
     let cancelled = false;
     const load = () =>
       indexStatus()
+        // Endpoint trả cả job `eval`; panel này chỉ nói về index, để lẫn vào thì
+        // một lượt chạy đánh giá sẽ hiện thành "đang index".
+        .then((tatCa) => tatCa.filter((j) => j.target in JOB_LABELS))
         .then((js) => {
           if (cancelled) return;
           setJobs((prev) => {
@@ -236,7 +240,7 @@ function IndexStatus({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
-  async function trigger(target: "media" | "videos" | "regulations") {
+  async function trigger(target: "media" | "videos") {
     setError(null);
     try {
       const st = await startIndex(target);
@@ -279,7 +283,7 @@ function IndexStatus({
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {(["media", "videos", "regulations"] as const).map((target) => {
+        {(["media", "videos"] as const).map((target) => {
           const job = jobs.find((j) => j.target === target);
           const busy = job?.state === "running";
           return (
@@ -502,11 +506,36 @@ function EvalPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Chạy đánh giá rồi hỏi lại tới khi job xong.
+   *
+   * `runEval()` chỉ khởi chạy và trả về trạng thái job — báo cáo đến sau, qua
+   * `evalReport()`. Đánh giá nhúng lại toàn bộ tập truy vấn nên mất hàng chục
+   * giây; giữ nó trong một request HTTP là cầm chắc timeout ở proxy.
+   */
   async function run() {
     setBusy(true);
     setError(null);
+    // Trần chờ để một job treo không giữ nút quay mãi mãi.
+    const hetHan = Date.now() + 10 * 60 * 1000;
     try {
-      onReport(await runEval());
+      await runEval();
+      for (;;) {
+        if (Date.now() > hetHan) {
+          setError("Đánh giá chạy quá 10 phút — xem log phía server.");
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+        const job = (await indexStatus()).find((j) => j.target === "eval");
+        if (!job || job.state === "running") continue;
+        if (job.state === "failed") {
+          setError(job.log_tail || "Đánh giá chạy lỗi");
+          return;
+        }
+        const moi = await evalReport();
+        if (moi) onReport(moi);
+        return;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lỗi chạy đánh giá");
     } finally {

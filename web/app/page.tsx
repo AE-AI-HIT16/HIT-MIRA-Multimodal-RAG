@@ -13,6 +13,7 @@ import {
   lgCreateThread,
   lgStream,
   searchMedia,
+  searchMediaByImage,
   searchRegulations,
 } from "@/lib/api";
 import { gopKetQua } from "@/lib/results";
@@ -34,11 +35,21 @@ const STORAGE_KEY = "hit_mira_chat_sessions_v2";
  * gọi thì người dùng phải đợi hai lượt; còn nếu nhánh này hỏng thì câu trả lời
  * vẫn hiện bình thường.
  */
-async function napTheKetQua(q: string, mode: Mode) {
+async function napTheKetQua(q: string, mode: Mode, img?: File | null) {
   const canMedia = mode === "auto" || mode === "media" || mode === "both";
-  const canNoiQuy = mode === "auto" || mode === "regulation" || mode === "both";
+  // Nội quy là văn bản thuần — không có chữ thì không có gì để tra. Đính kèm
+  // ảnh mà vẫn gõ chữ thì vẫn tra bình thường.
+  const canNoiQuy =
+    !!q && (mode === "auto" || mode === "regulation" || mode === "both");
+  if (!canMedia && !canNoiQuy) return [];
+
   const [media, noiQuy] = await Promise.all([
-    canMedia ? searchMedia(q).catch(() => null) : Promise.resolve(null),
+    canMedia
+      ? // Có ảnh → truy vấn bằng vector ảnh (US-303.1); ảnh không đi qua LLM.
+        (img ? searchMediaByImage(img, { text: q }) : searchMedia(q)).catch(
+          () => null,
+        )
+      : Promise.resolve(null),
     canNoiQuy ? searchRegulations(q).catch(() => null) : Promise.resolve(null),
   ]);
   if (!media && !noiQuy) throw new Error("Không gọi được API truy xuất");
@@ -183,7 +194,7 @@ export default function ChatPage() {
         streamText: "",
         status: "loading",
         query: q,
-        hitsStatus: q ? "loading" : undefined,
+        hitsStatus: q || img ? "loading" : undefined,
       },
     ]);
 
@@ -192,8 +203,8 @@ export default function ChatPage() {
     abortRef.current = controller;
 
     // Nạp thẻ kết quả song song — không await, để không chặn stream.
-    if (q) {
-      napTheKetQua(q, mode)
+    if (q || img) {
+      napTheKetQua(q, mode, img)
         .then((hits) =>
           setTurns((prev) =>
             prev.map((t) =>

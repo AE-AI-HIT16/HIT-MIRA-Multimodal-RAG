@@ -42,6 +42,8 @@ export interface TranscriptVideoHit {
 
 export interface MediaSearchResponse {
   query: string;
+  /** "text" | "image" | "image+text" — API cho biết nó đã tìm bằng gì. */
+  query_kind?: string;
   source: string;
   clips: MediaClipHit[];
   videos: TranscriptVideoHit[];
@@ -49,6 +51,8 @@ export interface MediaSearchResponse {
   total: number;
   found: boolean;
   errors?: string[];
+  /** Nhánh bị bỏ qua do định tuyến (vd: chỉ có ảnh thì không dò lời thoại). */
+  notes?: string[];
 }
 
 export interface RegulationHit {
@@ -139,7 +143,8 @@ export interface AdminStats {
 }
 
 export interface UploadResult {
-  created_ids: number[];
+  /** UUID dạng chuỗi — `media.media_id` không phải khoá tự tăng. */
+  created_ids: string[];
   skipped: { file: string; reason: string }[];
 }
 
@@ -162,9 +167,10 @@ export interface EvalReport {
   notes: string | null;
 }
 
-// Job index pipeline chạy nền (POST /admin/index/{target}).
+// Job chạy nền phía API. `GET /api/admin/index/status` trả về CẢ job `eval`,
+// không chỉ hai job index — mỗi màn lọc theo `target` nó quan tâm.
 export interface IndexJobStatus {
-  target: "media" | "videos" | "regulations" | string;
+  target: "media" | "videos" | "eval" | string;
   state: "idle" | "running" | "done" | "failed" | string;
   returncode: number | null;
   started_at: number | null;
