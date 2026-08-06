@@ -120,7 +120,7 @@ export async function adminStats(): Promise<AdminStats> {
 
 // multipart: KHÔNG set Content-Type để trình duyệt tự thêm boundary.
 export async function uploadMedia(form: FormData): Promise<UploadResult> {
-  const res = await fetch(`${API_URL}/ingest/upload`, {
+  const res = await fetch(`${API_URL}/api/ingest/upload`, {
     method: "POST",
     headers: authHeaders(),
     body: form,
@@ -140,10 +140,12 @@ export async function uploadRegulations(form: FormData): Promise<RegulationResul
 }
 
 // Chạy pipeline index cho asset chưa index — subprocess nền phía API (spec P4-3 ③).
+// Nội quy KHÔNG có ở đây: `/api/documents/upload` đã nhúng và ghi Qdrant ngay
+// lúc nạp, nên không có bước index riêng nào để chạy.
 export async function startIndex(
-  target: "media" | "videos" | "regulations",
+  target: "media" | "videos",
 ): Promise<IndexJobStatus> {
-  const res = await fetch(`${API_URL}/admin/index/${target}`, {
+  const res = await fetch(`${API_URL}/api/admin/index/${target}`, {
     method: "POST",
     headers: authHeaders(),
   });
@@ -151,14 +153,23 @@ export async function startIndex(
   return res.json();
 }
 
+/** Trạng thái mọi job nền — gồm cả job `eval`, không chỉ hai job index. */
 export async function indexStatus(): Promise<IndexJobStatus[]> {
-  const res = await fetch(`${API_URL}/admin/index/status`, { headers: authHeaders() });
+  const res = await fetch(`${API_URL}/api/admin/index/status`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
-export async function runEval(): Promise<EvalReport> {
-  const res = await fetch(`${API_URL}/eval/run`, {
+/**
+ * Khởi chạy đánh giá. Trả về **trạng thái job**, không phải báo cáo.
+ *
+ * Một lượt đánh giá nhúng lại toàn bộ tập truy vấn và mất hàng chục giây tới
+ * vài phút — treo vào một request HTTP là cầm chắc timeout ở proxy, và mất
+ * luôn kết quả của một lượt chạy đã tốn quota. Theo dõi bằng `indexStatus()`
+ * (target `eval`) rồi đọc `evalReport()` khi job xong.
+ */
+export async function runEval(): Promise<IndexJobStatus> {
+  const res = await fetch(`${API_URL}/api/admin/eval/run`, {
     method: "POST",
     headers: authHeaders(),
   });
@@ -211,6 +222,34 @@ export async function searchMedia(
       top_k: opts.topK ?? 6,
       source: opts.source ?? "both",
     }),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/**
+ * Truy vấn bằng ẢNH (US-302.1, US-303.1) — multipart, KHÔNG đi qua LLM.
+ *
+ * Đây là điểm khác cốt lõi so với việc đính ảnh vào khung chat: ảnh gửi cho
+ * LLM chỉ được nó *tả thành chữ* rồi mới đi tìm, còn ở đây ảnh được nhúng
+ * thành vector và so trực tiếp với vector ảnh trong kho.
+ *
+ * Không set `Content-Type` để trình duyệt tự thêm boundary.
+ */
+export async function searchMediaByImage(
+  image: File,
+  opts: { text?: string; topK?: number; source?: "clip" | "transcript" | "both" } = {},
+): Promise<MediaSearchResponse> {
+  const form = new FormData();
+  form.append("image", image);
+  // Có chữ thì gửi kèm: chữ lo nhánh lời thoại, thứ mà vector ảnh không dò được.
+  if (opts.text?.trim()) form.append("query", opts.text.trim());
+  form.append("top_k", String(opts.topK ?? 6));
+  form.append("source", opts.source ?? "both");
+
+  const res = await fetch(`${API_URL}/api/media/search-image`, {
+    method: "POST",
+    body: form,
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
