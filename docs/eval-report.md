@@ -143,6 +143,12 @@ phải thứ đang hỏng.
 - **L6** — `/api/media/search` chỉ nhận truy vấn văn bản; `embed_query(query: str)`
   không có nhánh ảnh. Model thì nhúng ảnh được (`embed_images`), nên đây là việc
   thiếu đường ống chứ không thiếu năng lực.
+
+  > **Đã vá ngày 05/08/2026** — đúng như chẩn đoán: chỉ thiếu đường ống.
+  > `ImageEmbeddingService.embed_image_blobs` + `POST /api/media/search-image`
+  > khép kín đường ảnh→ảnh, và L6 giờ là phép thử thật (lấy một ảnh trong kho
+  > làm truy vấn, đòi nó tự đứng hạng 1). **Bảng trên vẫn là số ngày 02/08 và
+  > không được sửa lại** — L6 chưa chạy lại vì Qdrant/MinIO đang tắt.
 - **L7** — đã làm được sau khi thêm `API/src/routers/media_files.py`: ảnh và
   video tải thật qua presigned MinIO, và **Range trả 206** nên `<video ...#t=125>`
   tua đúng giây 125. **Cắt clip ~6s (TC-403) vẫn chưa** — cần ffmpeg lúc chạy;

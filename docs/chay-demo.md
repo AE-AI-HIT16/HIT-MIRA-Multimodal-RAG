@@ -64,9 +64,32 @@ nhánh thẻ hỏng thì câu trả lời vẫn hiện bình thường (có tr�
 
 ## Còn thiếu gì trên web
 
-- **Màn admin** (`/admin`) vẫn gọi `/admin/*`, `/ingest/*`, `/eval/*` — chưa có
-  endpoint nào. Mở ra sẽ báo lỗi.
-- **Đăng nhập** (`/login`) gọi `/auth/*` — chưa có. Chat không cần đăng nhập nên
-  không chặn demo.
-- **Truy vấn bằng ảnh**: ô đính ảnh gửi được ảnh cho LLM đọc, nhưng **không**
-  tìm ảnh tương tự trong kho — `embed_query` chỉ nhận văn bản (checklist L6).
+- **Màn admin** (`/admin`) — cập nhật 05/08/2026: bốn endpoint đã có, đều đứng
+  sau quyền admin.
+
+  | Chức năng | Endpoint | Ghi chú |
+  |---|---|---|
+  | Nạp ảnh/video | `POST /api/ingest/upload` | file vào MinIO theo key `events/<post>/media/<tên>`, metadata vào `posts`+`media` |
+  | Chạy index | `POST /api/admin/index/{media\|videos}` | job nền, tiến trình con |
+  | Trạng thái job | `GET /api/admin/index/status` | trả **cả** job `eval` |
+  | Chạy đánh giá | `POST /api/admin/eval/run` | job nền, trả trạng thái job chứ không phải báo cáo |
+
+  Còn hai chỗ chưa dùng được:
+
+  - **Nạp nội quy** (`/ingest/regulations`) vẫn 404. Không phải chuyện đổi
+    đường dẫn: form gửi `.md`/`.txt` + `title` + `version`, còn
+    `/api/documents/upload` chỉ nhận `.pdf`/`.docx`, không có chỗ cho tiêu đề
+    lẫn phiên bản, và trả về hình dạng khác. Muốn dùng thì phải mở rộng
+    `DocumentParser` chứ không phải trỏ lại link.
+  - **Video vừa nạp chưa index được ngay.** `POST /api/ingest/upload` chỉ ghi
+    `media`, KHÔNG ghi `videos` — dòng đó là kết quả của pipeline parse
+    (duration, fps, keyframe). Phải chạy pipeline trước, rồi nút "Index video"
+    mới thấy nó.
+- **Đăng nhập** (`/login`) gọi `/api/auth/*` — đã có (`register`/`login`/`me`).
+- **Truy vấn bằng ảnh** (05/08/2026): **thẻ kết quả** đã tìm bằng vector ảnh
+  thật — web gọi `POST /api/media/search-image`, ảnh được nhúng rồi so trực
+  tiếp với vector ảnh trong `media_clip`. Còn **câu trả lời chữ** thì vẫn do
+  supervisor nhìn ảnh rồi tự nghĩ ra từ khoá gọi `search_media`: tool call
+  không mang được ảnh, muốn phần chữ cũng bám vector ảnh thì phải thêm một
+  node LangGraph gọi MCP bằng ảnh trước khi supervisor chạy.
+  Chưa chạy lại `demo_checklist.py` (L6) vì Qdrant/MinIO đang tắt.
