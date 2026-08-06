@@ -117,6 +117,7 @@ class MediaRepository:
             bucket_name=row.bucket_name or "mira-data",
             object_key=row.object_key,
             parent_media_id=row.parent_media_id,
+            content_sha256=row.content_sha256,
             created_at=row.created_at,
         )
 

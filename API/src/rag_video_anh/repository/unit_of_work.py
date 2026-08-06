@@ -7,6 +7,7 @@ from types import TracebackType
 from sqlalchemy.orm import Session
 
 from src.rag_video_anh.repository.database import DatabaseSessionManager, get_session_manager
+from src.rag_video_anh.repository.datasets import DatasetRepository
 from src.rag_video_anh.repository.jobs import ProcessingJobRepository
 from src.rag_video_anh.repository.media import MediaRepository
 from src.rag_video_anh.repository.posts import PostRepository
@@ -27,6 +28,7 @@ class RepositoryUnitOfWork:
         self.manager = manager or get_session_manager()
         self._external_session = session
         self.session: Session | None = session
+        self.datasets: DatasetRepository | None = None
         self.posts: PostRepository | None = None
         self.media: MediaRepository | None = None
         self.jobs: ProcessingJobRepository | None = None
@@ -35,6 +37,7 @@ class RepositoryUnitOfWork:
     def __enter__(self) -> RepositoryUnitOfWork:
         if self.session is None:
             self.session = self.manager.session_factory()
+        self.datasets = DatasetRepository(self.session)
         self.posts = PostRepository(self.session)
         self.media = MediaRepository(self.session)
         self.jobs = ProcessingJobRepository(self.session)
