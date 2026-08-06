@@ -144,7 +144,13 @@ class RecordingPoster:
 
 
 def _service(poster: RecordingPoster, **kwargs) -> ImageEmbeddingService:
-    return ImageEmbeddingService(api_key="jina-test-key", dimensions=1, http_post=poster, **kwargs)
+    return ImageEmbeddingService(
+        api_key="jina-test-key",
+        base_url="https://embedding.invalid/v1/embeddings",
+        dimensions=1,
+        http_post=poster,
+        **kwargs,
+    )
 
 
 def test_embed_images_splits_into_batches_and_keeps_order(tmp_path: Path) -> None:
@@ -227,7 +233,13 @@ def test_rate_limited_retry_waits_for_the_whole_token_window() -> None:
 
 
 def _throttle_service(**kwargs) -> ImageEmbeddingService:
-    return ImageEmbeddingService(api_key="jina-test-key", dimensions=1, http_post=lambda *a, **k: None, **kwargs)
+    return ImageEmbeddingService(
+        api_key="jina-test-key",
+        base_url="https://embedding.invalid/v1/embeddings",
+        dimensions=1,
+        http_post=lambda *a, **k: None,
+        **kwargs,
+    )
 
 
 def test_reserve_tokens_waits_only_until_the_oldest_batch_leaves_the_window(
@@ -281,6 +293,7 @@ def test_embed_images_reserves_the_token_budget_of_every_batch(
 
     ImageEmbeddingService(
         api_key="jina-test-key",
+        base_url="https://embedding.invalid/v1/embeddings",
         dimensions=1,
         http_post=poster,
         image_batch_size=5,

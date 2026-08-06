@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute, APIRouter
 from src.routers.admin import router as admin_router
 from src.routers.auth import router as auth_router
 from src.routers.documents import router as documents_router
+from src.routers.ingest import router as ingest_router
 from src.routers.media_files import router as media_files_router
 from src.routers.media_retrieval import router as media_retrieval_router
 from src.routers.retrieval import router as retrieval_router
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     include_api_router(app, media_files_router, prefix="/api")
     include_api_router(app, admin_router, prefix="/api")
     include_api_router(app, auth_router, prefix="/api")
+    include_api_router(app, ingest_router, prefix="/api")
 
     @app.get("/health")
     def health() -> dict[str, str]:

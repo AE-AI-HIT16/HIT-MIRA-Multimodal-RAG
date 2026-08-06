@@ -65,21 +65,24 @@ services:
       PROMPTS_PATH: ${PROMPTS_PATH:-./API/Resources/prompt.yaml}
       LOG_DIR: ${LOG_DIR:-./logs}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-rag_documents}
+      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-rag_documents_azure_1536}
       QDRANT_DENSE_VECTOR_SIZE: ${QDRANT_DENSE_VECTOR_SIZE:-1536}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
-      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://openrouter.ai/api/v1}
-      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-baai/bge-m3}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
       # jina-clip-v2 không có repo tokenizer trên HF: bật kiểm tra độ dài là
       # LangChain gửi token id thay cho văn bản, server nhúng trả 422.
       EMBEDDING_CHECK_CTX_LENGTH: ${EMBEDDING_CHECK_CTX_LENGTH:-false}
+      # LLM này chỉ dùng cho query rewrite của nhánh nội quy trong API. ChatBot
+      # là tiến trình riêng nhưng đọc cùng bộ biến từ .env.
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-5}
       RETRIEVAL_KEYWORD_THRESHOLD: ${RETRIEVAL_KEYWORD_THRESHOLD:-0.5}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      LLM_MODEL: ${LLM_MODEL:-}
       STORAGE_BACKEND: minio
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
@@ -92,6 +95,7 @@ services:
       # /api/retrieval/search vẫn chạy, chỉ /api/media/search trả 503 — và tool
       # search_media của MCP chết theo, nên chatbot từ chối mọi câu hỏi ảnh/video.
       JINA_API_KEY: ${JINA_API_KEY:-}
+      MEDIA_IMAGE_EMBEDDING_MODEL: ${MEDIA_IMAGE_EMBEDDING_MODEL:-jina-clip-v2}
       MEDIA_IMAGE_EMBEDDING_BASE_URL: ${MEDIA_IMAGE_EMBEDDING_BASE_URL:-}
       # 0 = tắt bộ giữ nhịp. Nó sinh ra để né hạn mức 100k token/phút của Jina;
       # với embedding server tự host thì chỉ làm chậm.
@@ -101,12 +105,17 @@ services:
       MEDIA_VISION_API_BASE_URL: ${MEDIA_VISION_API_BASE_URL:-}
       MEDIA_VISION_API_KEY: ${MEDIA_VISION_API_KEY:-}
       MEDIA_VISION_PROMPT_VERSION: ${MEDIA_VISION_PROMPT_VERSION:-}
+      # Khi MEDIA_VISION_* để trống, configuration.py rơi về nhóm OpenRouter.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_MODEL_NAME: ${OPENROUTER_MODEL_NAME:-qwen/qwen2.5-vl-72b-instruct}
+      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-}
+      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-HIT-MIRA Multimodal RAG}
       # Auth (T-51): thiếu AUTH_SECRET_KEY thì đăng nhập ném AuthConfigurationError
       # chứ không sinh khoá ngẫu nhiên — cố ý, để lỗi lộ ra ngay.
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
       AUTH_TOKEN_TTL_HOURS: ${AUTH_TOKEN_TTL_HOURS:-12}
       MEDIA_FILE_URL_TTL: ${MEDIA_FILE_URL_TTL:-3600}
-      LLM_API_KEY: ${LLM_API_KEY:-}
       RUNPOD_API_KEY: ${RUNPOD_API_KEY:-}
       RUNPOD_ENDPOINT_ID: ${RUNPOD_ENDPOINT_ID:-}
       RUNPOD_API_BASE_URL: ${RUNPOD_API_BASE_URL:-https://api.runpod.ai/v2}

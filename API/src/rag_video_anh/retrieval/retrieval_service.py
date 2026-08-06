@@ -33,20 +33,27 @@ class VideoRetrievalService:
 
     def retrieve(
         self,
-        query: str,
+        query: str | None = None,
         top_k: int | None = None,
         video_ids: list[str] | None = None,
         source: str = SOURCE_BOTH,
+        image: bytes | None = None,
     ) -> dict[str, Any]:
-        normalized_query = VideoRetriever.normalize_query(query)
+        """Truy hồi bằng chữ, bằng ảnh, hoặc cả hai.
+
+        US-502.1 chốt "ảnh + text mâu thuẫn → ưu tiên ảnh", nên khi có ảnh thì
+        nhánh `media_clip` luôn tìm bằng vector ẢNH. Phần chữ không bị vứt đi:
+        nó lo nhánh lời thoại — nơi vector ảnh không dùng được.
+        """
+        normalized_query = self._normalize_optional_query(query, image_present=bool(image))
         normalized_source = self._normalize_source(source)
 
-        # Nhúng MỘT lần, dùng chung cho cả hai collection (không gian vector chung).
-        query_vector = self.retriever.embed_query(normalized_query)
+        clip_vector, text_vector = self._embed_query_vectors(normalized_query, image)
 
         clips: list[MediaClipHit] = []
         videos: list[TranscriptVideoHit] = []
         errors: list[str] = []
+        notes: list[str] = []
 
         if normalized_source in (SOURCE_CLIP, SOURCE_BOTH):
             try:
@@ -54,7 +61,7 @@ class VideoRetrievalService:
                     normalized_query,
                     top_k=top_k,
                     video_ids=video_ids,
-                    query_vector=query_vector,
+                    query_vector=clip_vector,
                 )
             except Exception as exc:
                 # Một nhánh lỗi không được làm chết nhánh còn lại.
@@ -62,23 +69,33 @@ class VideoRetrievalService:
                 logger.warning(f"Media clip retrieval failed: {exc.__class__.__name__}: {exc}")
 
         if normalized_source in (SOURCE_TRANSCRIPT, SOURCE_BOTH):
-            try:
-                videos = self.retriever.retrieve_by_transcript(
-                    normalized_query,
-                    top_k=top_k,
-                    video_ids=video_ids,
-                    query_vector=query_vector,
+            if text_vector is None:
+                # Bỏ qua vì định tuyến, không phải vì lỗi — phải nói ra, nếu
+                # không người dùng đọc "0 video" thành "CLB không nói gì về
+                # chuyện này" thay vì "hệ thống không tìm lời thoại bằng ảnh".
+                notes.append(
+                    "video_transcript: bỏ qua vì truy vấn chỉ có ảnh — "
+                    "lời thoại chỉ tìm được bằng chữ. Gõ thêm mô tả để tìm cả lời thoại."
                 )
-            except Exception as exc:
-                errors.append(f"video_transcript: {exc.__class__.__name__}")
-                logger.warning(f"Transcript retrieval failed: {exc.__class__.__name__}: {exc}")
+            else:
+                try:
+                    videos = self.retriever.retrieve_by_transcript(
+                        normalized_query,
+                        top_k=top_k,
+                        video_ids=video_ids,
+                        query_vector=text_vector,
+                    )
+                except Exception as exc:
+                    errors.append(f"video_transcript: {exc.__class__.__name__}")
+                    logger.warning(f"Transcript retrieval failed: {exc.__class__.__name__}: {exc}")
 
         total = len(clips) + len(videos)
         logger.info(
             f"Media retrieval flow completed: {len(clips)} keyframe(s), {len(videos)} video(s)"
         )
         return {
-            "query": normalized_query,
+            "query": normalized_query or "",
+            "query_kind": self._query_kind(normalized_query, image),
             "source": normalized_source,
             "clips": [clip.as_dict() for clip in clips],
             "videos": [video.as_dict() for video in videos],
@@ -86,7 +103,43 @@ class VideoRetrievalService:
             "total": total,
             "found": total > 0,
             "errors": errors,
+            "notes": notes,
         }
+
+    def _embed_query_vectors(
+        self,
+        normalized_query: str | None,
+        image: bytes | None,
+    ) -> tuple[list[float], list[float] | None]:
+        """Trả về (vector cho nhánh ảnh, vector cho nhánh lời thoại).
+
+        Không có ảnh thì hai vector là MỘT — đúng tính chất một-lần-nhúng của
+        không gian chung Jina-CLIP v2. Chỉ khi có ảnh mới phải nhúng hai lần,
+        và lúc đó lượt thứ hai là thứ đáng tiền: không có nó thì đính kèm ảnh
+        đồng nghĩa với mất hẳn nhánh lời thoại.
+        """
+        text_vector = (
+            self.retriever.embed_query(normalized_query) if normalized_query else None
+        )
+        if not image:
+            # `_normalize_optional_query` đã chặn trường hợp không có cả hai.
+            return text_vector, text_vector  # type: ignore[return-value]
+        return self.retriever.embed_image_query(image), text_vector
+
+    @staticmethod
+    def _normalize_optional_query(query: str | None, *, image_present: bool) -> str | None:
+        if not image_present:
+            # Không ảnh thì chữ là bắt buộc — giữ nguyên lỗi cũ cho đường text.
+            return VideoRetriever.normalize_query(query)
+        if query is None or not str(query).strip():
+            return None
+        return VideoRetriever.normalize_query(query)
+
+    @staticmethod
+    def _query_kind(normalized_query: str | None, image: bytes | None) -> str:
+        if not image:
+            return "text"
+        return "image+text" if normalized_query else "image"
 
     @classmethod
     def _format_context(

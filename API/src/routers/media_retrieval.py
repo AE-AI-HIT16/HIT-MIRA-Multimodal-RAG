@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -17,6 +17,12 @@ from src.rag_video_anh.retrieval.retrieval_service import (
 from src.rag_video_anh.vector_store.vector_store import VideoVectorStoreConfigurationError
 
 router = APIRouter(prefix="/media", tags=["media-retrieval"])
+
+# Giữ đúng bộ định dạng và hạn mức mà web đã chặn phía client (`web/lib/image.ts`).
+# Client chặn để báo lỗi nhanh, server chặn vì client nào cũng có thể bị bỏ qua.
+ALLOWED_IMAGE_CONTENT_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+MAX_QUERY_IMAGE_BYTES = 8 * 1024 * 1024
+IMAGE_READ_CHUNK_BYTES = 64 * 1024
 
 
 class MediaRetrievalRequest(BaseModel):
@@ -33,13 +39,16 @@ def get_media_retrieval_service() -> VideoRetrievalService:
 
 async def _search(
     service: VideoRetrievalService,
-    query: str,
+    query: str | None,
     top_k: int | None,
     video_ids: list[str] | None,
     source: str,
+    image: bytes | None = None,
 ) -> dict[str, Any]:
     try:
-        return await run_in_threadpool(service.retrieve, query, top_k, video_ids, source)
+        return await run_in_threadpool(
+            service.retrieve, query, top_k, video_ids, source, image
+        )
     except (ImageEmbeddingConfigurationError, VideoVectorStoreConfigurationError) as exc:
         # Hai lỗi này kế thừa ValueError nên PHẢI bắt trước, nếu không thiếu
         # JINA_API_KEY/QDRANT_URL phía server sẽ bị báo thành lỗi của client.
@@ -64,6 +73,58 @@ async def search_media(
         request.video_ids,
         request.source,
     )
+
+
+async def _read_query_image(upload: UploadFile) -> bytes:
+    """Đọc ảnh truy vấn với hạn mức, trả lỗi client rõ ràng (US-502.1 AC-2).
+
+    Đọc theo từng khúc chứ không `await upload.read()` một phát: bản đọc một
+    phát nạp trọn file vào RAM trước rồi mới biết nó vượt hạn mức, nên hạn mức
+    hoá ra không bảo vệ được đúng thứ nó sinh ra để bảo vệ.
+    """
+    content_type = (upload.content_type or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail="Chỉ nhận ảnh JPG, PNG hoặc WEBP.",
+        )
+
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(IMAGE_READ_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_QUERY_IMAGE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Ảnh quá lớn (tối đa {MAX_QUERY_IMAGE_BYTES // (1024 * 1024)}MB).",
+            )
+        chunks.append(chunk)
+
+    data = b"".join(chunks)
+    if not data:
+        raise HTTPException(status_code=422, detail="Ảnh rỗng.")
+    return data
+
+
+@router.post("/search-image")
+async def search_media_by_image(
+    image: UploadFile = File(..., description="Ảnh truy vấn: JPG, PNG hoặc WEBP"),
+    query: str | None = Form(default=None),
+    top_k: int | None = Form(default=None, gt=0, le=50),
+    video_ids: list[str] | None = Form(default=None),
+    source: str = Form(default=SOURCE_BOTH),
+    service: VideoRetrievalService = Depends(get_media_retrieval_service),
+) -> dict[str, Any]:
+    """US-302.1 / US-303.1: tìm ảnh và keyframe tương tự từ MỘT ảnh truy vấn.
+
+    Multipart chứ không phải JSON base64: base64 phình 33% và bắt cả hai đầu
+    mã hoá/giải mã một khối vài MB, trong khi trình duyệt gửi `FormData` sẵn.
+    """
+    data = await _read_query_image(image)
+    return await _search(service, query, top_k, video_ids, source, data)
 
 
 @router.get("/search")

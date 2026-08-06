@@ -1,10 +1,13 @@
-"""Số liệu kho và báo cáo đánh giá cho màn admin — T-62.
+"""Số liệu kho, job nền và báo cáo đánh giá cho màn admin — T-62.
 
-**Chỉ đọc, có chủ ý.** `web/` còn gọi `/admin/index/{target}` và `/ingest/*` —
-những thứ đó chạy pipeline hoặc ghi vào kho. Chưa có xác thực (T-51) thì mở một
-endpoint khởi chạy tiến trình con ra Internet là dựng sẵn đường chạy lệnh từ xa
-cho bất kỳ ai. Nên ở đây chỉ có hai endpoint đọc; phần ghi để lại cho sau khi
-có auth, và `docs/chay-demo.md` nói rõ nút nào chưa dùng được.
+Ban đầu file này **cố ý chỉ có endpoint đọc**: chưa có xác thực (T-51) thì mở
+một endpoint khởi chạy tiến trình con ra Internet là dựng sẵn đường chạy lệnh
+từ xa cho bất kỳ ai. Nay `yeu_cau_admin` đã có, nên phần ghi được mở — nhưng
+**mọi endpoint ở đây đều phải đứng sau `yeu_cau_admin`**, kể cả endpoint đọc.
+Bỏ quên một cái là mở lại đúng lỗ hổng vừa nói.
+
+Việc nặng không chạy trong tiến trình API mà đẩy sang `src/jobs/runner.py` —
+lý do và giới hạn của cách đó nằm trong docstring của module ấy.
 
 Số liệu lấy từ **nguồn thật**, không có bảng đếm sẵn: PostgreSQL cho dữ liệu
 gốc, Qdrant cho phần đã index. Hai con số lệch nhau chính là thứ đáng xem —
@@ -14,6 +17,7 @@ gốc, Qdrant cho phần đã index. Hai con số lệch nhau chính là thứ �
 from __future__ import annotations
 
 import json
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -21,6 +25,7 @@ from typing import Any
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.jobs.runner import JobDangChayError, JobRunner
 from src.log.logger import logger
 from src.rag_video_anh.repository.database import get_session_manager
 from src.rag_video_anh.vector_store.vector_store import QdrantVideoVectorStore
@@ -31,6 +36,25 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BAO_CAO_TRUY_XUAT = REPO_ROOT / "data" / "eval" / "report.json"
 BAO_CAO_NOI_QUY = REPO_ROOT / "data" / "eval" / "report_noiquy.json"
+
+JOB_EVAL = "eval"
+# Chỉ hai nhánh media có bước index riêng. Nội quy KHÔNG có mặt ở đây một cách
+# có chủ ý: `/api/documents/upload` đã tách chunk + nhúng + ghi Qdrant ngay lúc
+# nạp, nên một nút "Index nội quy" sẽ không có việc gì để làm.
+TARGET_INDEX = ("media", "videos")
+
+LENH_JOB: dict[str, list[str]] = {
+    # `sys.executable` chứ không phải "python": API hay chạy trong venv/conda mà
+    # "python" trên PATH lại là bản hệ thống, thiếu sạch dependency.
+    "media": [sys.executable, "scripts/index_image_units.py", "--apply"],
+    "videos": [sys.executable, "scripts/index_all_videos.py", "--apply"],
+    JOB_EVAL: [sys.executable, "scripts/run_eval.py"],
+}
+
+
+@lru_cache(maxsize=1)
+def lay_job_runner() -> JobRunner:
+    return JobRunner(LENH_JOB, cwd=REPO_ROOT)
 
 
 @lru_cache(maxsize=1)
@@ -124,6 +148,61 @@ def thong_ke(_admin: Any = Depends(yeu_cau_admin)) -> dict[str, int]:
         "indexed_videos": _dem_video_da_index(),
         "indexed_rule_chunks": chunk_noi_quy,
     }
+
+
+@router.post("/index/{target}")
+def chay_index(
+    target: str,
+    _admin: Any = Depends(yeu_cau_admin),
+    runner: JobRunner = Depends(lay_job_runner),
+) -> dict[str, Any]:
+    """P4-3 ③: chạy pipeline index cho asset chưa index, dưới dạng job nền."""
+    if target == "regulations":
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Nội quy được tách chunk và nhúng ngay lúc nạp qua "
+                "/api/documents/upload — không có bước index riêng để chạy."
+            ),
+        )
+    if target not in TARGET_INDEX:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Không có job index '{target}'. Hợp lệ: {', '.join(TARGET_INDEX)}.",
+        )
+    try:
+        return runner.start(target).to_dict()
+    except JobDangChayError as exc:
+        # 409 chứ không 500: đây là người dùng bấm hai lần, không phải server hỏng.
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/index/status")
+def trang_thai_index(
+    _admin: Any = Depends(yeu_cau_admin),
+    runner: JobRunner = Depends(lay_job_runner),
+) -> list[dict[str, Any]]:
+    """Trạng thái MỌI job nền, gồm cả `eval` — web lọc theo `target` nó quan tâm."""
+    return [trang_thai.to_dict() for trang_thai in runner.status_all()]
+
+
+@router.post("/eval/run")
+def chay_danh_gia(
+    _admin: Any = Depends(yeu_cau_admin),
+    runner: JobRunner = Depends(lay_job_runner),
+) -> dict[str, Any]:
+    """US-602.1: khởi chạy đánh giá. Trả về **trạng thái job**, không phải báo cáo.
+
+    Một lượt đánh giá nhúng lại toàn bộ tập truy vấn và mất hàng chục giây tới
+    vài phút. Treo nó vào một request HTTP là cầm chắc timeout ở proxy, và
+    người dùng mất luôn kết quả của một lượt chạy đã tốn quota. Nên: chạy nền,
+    theo dõi bằng `GET /admin/index/status` (target `eval`), rồi đọc kết quả ở
+    `GET /admin/eval/report` khi job xong.
+    """
+    try:
+        return runner.start(JOB_EVAL).to_dict()
+    except JobDangChayError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 def _bao_cao_truy_xuat() -> dict[str, Any] | None:
