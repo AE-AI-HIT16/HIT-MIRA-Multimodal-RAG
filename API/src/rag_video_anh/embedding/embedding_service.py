@@ -87,7 +87,7 @@ class ImageEmbeddingService:
             base_url
             or os.getenv("MEDIA_IMAGE_EMBEDDING_BASE_URL")
             or getattr(model_config, "clip_api_base_url", None)
-            or "https://api.jina.ai/v1/embeddings"
+            or ""
         )
         self.dimensions = dimensions if dimensions is not None else getattr(model_config, "clip_embedding_dimensions", 1024)
         self.timeout = timeout if timeout is not None else getattr(model_config, "clip_api_timeout", 60.0)
@@ -168,6 +168,32 @@ class ImageEmbeddingService:
         paths = self._validate_image_paths(image_paths)
         logger.info(f"Embedding {len(paths)} keyframe image(s) with Jina model '{self.model_name}'")
         encoded = [self._image_as_base64(path) for path in paths]
+        return self._embed_encoded_images(encoded)
+
+    def embed_image_blobs(self, images: list[bytes]) -> list[list[float]]:
+        """Nhúng ảnh đã nằm sẵn trong bộ nhớ, không cần ghi ra đĩa.
+
+        Dùng cho **ảnh truy vấn** (US-302.1, US-303.1): người dùng đính kèm ảnh
+        trong khung chat, ảnh chỉ đi qua RAM rồi thành một vector. Không ghi
+        tạm ra đĩa vì BR-703 cấm lưu nguyên bản ảnh truy vấn — và cũng vì một
+        file tạm là một file phải dọn.
+
+        Khác `embed_images` ở chỗ ảnh hỏng phải báo lỗi ngay (`strict=True`):
+        keyframe hỏng thì bỏ qua được, còn ảnh người dùng vừa gửi mà im lặng
+        đẩy sang Jina thì họ nhận về một lỗi 422 khó hiểu thay vì "ảnh không
+        đọc được".
+        """
+        blobs = self._validate_image_blobs(images)
+        logger.info(f"Embedding {len(blobs)} query image(s) with Jina model '{self.model_name}'")
+        encoded = [
+            base64.b64encode(
+                self._downscale_image_bytes(raw, f"query-image-{index}", strict=True)
+            ).decode("ascii")
+            for index, raw in enumerate(blobs)
+        ]
+        return self._embed_encoded_images(encoded)
+
+    def _embed_encoded_images(self, encoded: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
         # Gửi theo lô: một video có thể có hơn trăm keyframe, gộp hết vào một
         # request thì Jina trả 413 Payload Too Large.
@@ -181,7 +207,7 @@ class ImageEmbeddingService:
                 "normalized": True,
             }
             vectors.extend(self._embed_payload(payload, expected_count=len(batch), label="Image"))
-        self._validate_embeddings(vectors, expected_count=len(paths))
+        self._validate_embeddings(vectors, expected_count=len(encoded))
         return vectors
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
@@ -335,27 +361,36 @@ class ImageEmbeddingService:
         return base64.b64encode(self._downscaled_image_bytes(path)).decode("ascii")
 
     def _downscaled_image_bytes(self, path: Path) -> bytes:
-        """Thu nhỏ keyframe trước khi gửi đi nhúng.
+        return self._downscale_image_bytes(path.read_bytes(), path.name)
+
+    def _downscale_image_bytes(self, raw: bytes, label: str, *, strict: bool = False) -> bytes:
+        """Thu nhỏ ảnh trước khi gửi đi nhúng.
 
         Jina-CLIP v2 vốn xử lý ảnh ở 512px; gửi keyframe 1280x720 nguyên bản
         tốn 24.000 token/ảnh (hạn mức chỉ 100.000 token/phút) trong khi bản
         512px chỉ tốn 4.000 token mà vector gần như không đổi (cosine ~0.994).
+
+        `strict=True` dành cho ảnh người dùng vừa gửi: ảnh không giải mã được
+        thì báo lỗi ngay thay vì đẩy nguyên bản sang nhà cung cấp.
         """
-        raw = path.read_bytes()
-        if self.max_image_side <= 0:
+        if self.max_image_side <= 0 and not strict:
             return raw
         try:
             import io
 
             from PIL import Image
         except ImportError:
-            # Thiếu Pillow thì vẫn nhúng được, chỉ tốn token hơn.
-            logger.warning("Pillow is unavailable; embedding keyframes at full resolution")
+            # Thiếu Pillow thì vẫn nhúng được, chỉ tốn token hơn. Kể cả ở chế độ
+            # nghiêm ngặt cũng không chặn: không có Pillow thì không có cách nào
+            # biết ảnh hỏng hay không, chặn hết là chặn cả ảnh lành.
+            logger.warning("Pillow is unavailable; embedding images at full resolution")
             return raw
 
         try:
             with Image.open(io.BytesIO(raw)) as image:
-                if max(image.size) <= self.max_image_side:
+                # `image.size` buộc Pillow đọc header — đủ để phát hiện file
+                # không phải ảnh, việc mà `Image.open` lười biếng chưa làm.
+                if self.max_image_side <= 0 or max(image.size) <= self.max_image_side:
                     return raw
                 resized = image.convert("RGB")
                 resized.thumbnail((self.max_image_side, self.max_image_side), Image.LANCZOS)
@@ -363,9 +398,13 @@ class ImageEmbeddingService:
                 resized.save(buffer, format="JPEG", quality=self.image_jpeg_quality)
                 return buffer.getvalue()
         except Exception as exc:
+            if strict:
+                raise ValueError(
+                    f"Không đọc được ảnh truy vấn ({label}): file hỏng hoặc không phải ảnh."
+                ) from exc
             # Ảnh hỏng/định dạng lạ: gửi nguyên bản, để nhà cung cấp quyết định.
             logger.warning(
-                f"Could not downscale keyframe '{path.name}' ({exc.__class__.__name__}); "
+                f"Could not downscale image '{label}' ({exc.__class__.__name__}); "
                 "sending it at full resolution"
             )
             return raw
@@ -392,6 +431,21 @@ class ImageEmbeddingService:
         if missing:
             raise FileNotFoundError(f"image file does not exist: {missing[0]}")
         return paths
+
+    @staticmethod
+    def _validate_image_blobs(images: list[bytes]) -> list[bytes]:
+        if not isinstance(images, list):
+            raise TypeError("images must be a list")
+        if not images:
+            raise ValueError("images must not be empty")
+        blobs: list[bytes] = []
+        for index, item in enumerate(images):
+            if not isinstance(item, (bytes, bytearray)):
+                raise TypeError(f"images[{index}] must be bytes")
+            if not item:
+                raise ValueError("Ảnh truy vấn rỗng.")
+            blobs.append(bytes(item))
+        return blobs
 
     @staticmethod
     def _validate_texts(texts: list[str]) -> list[str]:

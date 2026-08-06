@@ -42,7 +42,9 @@ MEDIA_MODELS:
   SHOT_BOUNDARY_THRESHOLD: 0.3
   DUPLICATE_THRESHOLD: 0.90
   CLIP_MODEL_NAME: jina-clip-v2
-  CLIP_API_BASE_URL: https://api.jina.ai/v1/embeddings
+  # Không fallback sang Jina API trả phí. Thiếu URL pod tự host thì nhánh media
+  # phải báo lỗi cấu hình rõ ràng thay vì âm thầm gọi provider bên ngoài.
+  CLIP_API_BASE_URL: ${MEDIA_IMAGE_EMBEDDING_BASE_URL}
   CLIP_API_KEY: ${JINA_API_KEY}
   CLIP_EMBEDDING_DIMENSIONS: 1024
   CLIP_API_TIMEOUT: 60.0

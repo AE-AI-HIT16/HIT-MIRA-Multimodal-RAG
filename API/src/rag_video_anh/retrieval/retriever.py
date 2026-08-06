@@ -143,9 +143,21 @@ class VideoRetriever:
             raise ValueError("embedding service returned no query vector")
         return list(vectors[0])
 
+    def embed_image_query(self, image: bytes) -> list[float]:
+        """Nhúng ảnh truy vấn vào ĐÚNG không gian vector của `media_clip`.
+
+        Điểm mấu chốt của US-303.1: `media_clip` chứa vector ẢNH, nên so ảnh
+        với ảnh là so cùng loại vector — không còn phải đi vòng qua việc tả ảnh
+        bằng lời rồi tìm bằng text.
+        """
+        vectors = self.embedding_service.embed_image_blobs([image])
+        if not vectors or not vectors[0]:
+            raise ValueError("embedding service returned no query vector")
+        return list(vectors[0])
+
     def retrieve_clips(
         self,
-        query: str,
+        query: str | None,
         top_k: int | None = None,
         video_ids: list[str] | None = None,
         query_vector: list[float] | None = None,
@@ -163,7 +175,7 @@ class VideoRetriever:
 
     def retrieve_by_transcript(
         self,
-        query: str,
+        query: str | None,
         top_k: int | None = None,
         video_ids: list[str] | None = None,
         query_vector: list[float] | None = None,

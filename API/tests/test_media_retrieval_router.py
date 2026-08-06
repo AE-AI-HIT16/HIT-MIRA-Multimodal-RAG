@@ -15,8 +15,8 @@ class FakeMediaRetrievalService:
         self.error = error
         self.calls: list[tuple] = []
 
-    def retrieve(self, query, top_k=None, video_ids=None, source="both"):
-        self.calls.append((query, top_k, video_ids, source))
+    def retrieve(self, query, top_k=None, video_ids=None, source="both", image=None):
+        self.calls.append((query, top_k, video_ids, source, image))
         if self.error is not None:
             raise self.error
         return self.result
@@ -61,7 +61,7 @@ def test_post_media_search_returns_service_payload(client):
     body = response.json()
     assert body["total"] == 1
     assert body["clips"][0]["video_id"] == "video-1"
-    assert service.calls == [("sinh hoạt CLB", 3, ["video-1"], "both")]
+    assert service.calls == [("sinh hoạt CLB", 3, ["video-1"], "both", None)]
 
 
 def test_get_media_search_passes_query_params(client):
@@ -71,7 +71,7 @@ def test_get_media_search_passes_query_params(client):
     response = client.get("/api/media/search", params={"query": "cắm hoa", "source": "clip"})
 
     assert response.status_code == 200
-    assert service.calls == [("cắm hoa", None, None, "clip")]
+    assert service.calls == [("cắm hoa", None, None, "clip", None)]
 
 
 def test_media_search_returns_not_found_payload_without_fabricating(client):
@@ -114,6 +114,88 @@ def test_config_errors_map_to_503_not_422(client, error):
 
     assert response.status_code == 503
     assert "chưa được cấu hình" in response.json()["detail"]
+
+
+# ── Truy vấn bằng ảnh (US-302.1, US-303.1, US-502.1) ─────────────────────────
+
+JPEG_BYTES = b"\xff\xd8\xff\xe0-anh-gia-cho-test"
+
+
+def post_image(client, *, content_type="image/jpeg", data=None, blob=JPEG_BYTES):
+    return client.post(
+        "/api/media/search-image",
+        files={"image": ("anh.jpg", blob, content_type)},
+        data=data or {},
+    )
+
+
+def test_search_image_route_is_registered():
+    assert "/api/media/search-image" in {route.path for route in app.routes}
+
+
+def test_post_search_image_forwards_raw_bytes_and_optional_text(client):
+    service = FakeMediaRetrievalService(
+        {"query": "", "source": "clip", "clips": [], "videos": [], "context": "", "total": 0, "found": False, "errors": [], "notes": []}
+    )
+    override(service)
+
+    response = post_image(
+        client, data={"query": "ảnh này ở sự kiện nào", "source": "clip", "top_k": "3"}
+    )
+
+    assert response.status_code == 200
+    query, top_k, video_ids, source, image = service.calls[0]
+    # Ảnh phải tới service nguyên vẹn: sai một byte là sai cả vector.
+    assert image == JPEG_BYTES
+    assert (query, top_k, video_ids, source) == ("ảnh này ở sự kiện nào", 3, None, "clip")
+
+
+def test_post_search_image_allows_image_without_any_text(client):
+    """US-502.1: gửi ảnh không kèm chữ vẫn phải chạy được."""
+    override(service := FakeMediaRetrievalService())
+
+    assert post_image(client).status_code == 200
+    assert service.calls[0][0] is None
+
+
+def test_search_image_rejects_non_image_content_type(client):
+    override(FakeMediaRetrievalService())
+
+    response = post_image(client, content_type="application/pdf")
+
+    assert response.status_code == 422
+    assert "JPG, PNG hoặc WEBP" in response.json()["detail"]
+
+
+def test_search_image_rejects_oversized_image(client):
+    """US-502.1 AC-2: quá hạn mức thì chặn ở server, không chỉ ở trình duyệt."""
+    override(service := FakeMediaRetrievalService())
+
+    response = post_image(client, blob=b"\xff\xd8\xff" + b"0" * (9 * 1024 * 1024))
+
+    assert response.status_code == 413
+    assert service.calls == []
+
+
+def test_search_image_rejects_empty_file(client):
+    override(FakeMediaRetrievalService())
+
+    assert post_image(client, blob=b"").status_code == 422
+
+
+def test_search_image_maps_unreadable_image_to_422_not_500(client):
+    override(FakeMediaRetrievalService(error=ValueError("Không đọc được ảnh truy vấn (query-image-0).")))
+
+    response = post_image(client)
+
+    assert response.status_code == 422
+    assert "Không đọc được ảnh truy vấn" in response.json()["detail"]
+
+
+def test_search_image_maps_config_errors_to_503(client):
+    override(FakeMediaRetrievalService(error=ImageEmbeddingConfigurationError("Set JINA_API_KEY.")))
+
+    assert post_image(client).status_code == 503
 
 
 def test_media_search_maps_invalid_source_to_422(client):
