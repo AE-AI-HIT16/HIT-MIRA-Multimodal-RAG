@@ -53,8 +53,13 @@ class FakeVideoVectorStore:
             raise RuntimeError(f"qdrant down for {collection_name}")
         return list(self.results.get(collection_name, []))
 
-    def video_id_filter(self, video_ids):
-        return {"video_ids": list(video_ids)} if video_ids else None
+    def search_filter(self, video_ids=None, years=None):
+        loc = {}
+        if video_ids:
+            loc["video_ids"] = list(video_ids)
+        if years:
+            loc["years"] = list(years)
+        return loc or None
 
 
 def point(score: float, payload: dict) -> dict:
@@ -305,14 +310,23 @@ def test_search_points_rejects_invalid_inputs():
         store.search_points(collection_name=MEDIA_CLIP, vector=[0.1], limit=0)
 
 
-def test_video_id_filter_builds_qdrant_filter():
+def test_search_filter_builds_qdrant_filter():
     store = build_store(FakeQdrantClient([]))
 
-    assert store.video_id_filter(None) is None
-    assert store.video_id_filter(["  "]) is None
-    built = store.video_id_filter(["video-1", "video-2"])
+    assert store.search_filter(None) is None
+    assert store.search_filter(["  "]) is None
+    built = store.search_filter(["video-1", "video-2"])
     assert isinstance(built, store.models.Filter)
     assert len(built.should) == 2
+
+
+def test_retriever_passes_video_id_and_year_filter_to_store():
+    store = FakeVideoVectorStore()
+    retriever = build_retriever(store, FakeEmbedder())
+
+    retriever.retrieve_clips("query", video_ids=["video-9"], years=[2024])
+
+    assert store.calls[0]["query_filter"] == {"video_ids": ["video-9"], "years": [2024]}
 
 
 # ---------- VideoRetrievalService ----------

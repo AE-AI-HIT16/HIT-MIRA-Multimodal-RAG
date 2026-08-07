@@ -75,8 +75,13 @@ class FakeVideoVectorStore:
         self.calls.append({"collection_name": collection_name, "vector": list(vector)})
         return []
 
-    def video_id_filter(self, video_ids):
-        return {"video_ids": list(video_ids)} if video_ids else None
+    def search_filter(self, video_ids=None, years=None):
+        loc = {}
+        if video_ids:
+            loc["video_ids"] = list(video_ids)
+        if years:
+            loc["years"] = list(years)
+        return loc or None
 
 
 def build_service() -> tuple[VideoRetrievalService, FakeEmbedder, FakeVideoVectorStore]:
