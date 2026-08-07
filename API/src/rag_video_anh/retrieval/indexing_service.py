@@ -12,8 +12,8 @@ from minio.error import S3Error
 from src.log.logger import logger
 from src.rag_video_anh.embedding.embedding_service import (
     ImageEmbeddingProviderFatalError,
-    ImageEmbeddingService,
 )
+from src.rag_video_anh.embedding.provider import build_media_embedder
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
 from src.rag_video_anh.retrieval.retrieval_units import (
     ImageRetrievalUnitBuilder,
@@ -76,7 +76,7 @@ class VideoRetrievalIndexingService:
             self.storage = self.storage or MinioStorage()
             image_builder = ImageRetrievalUnitBuilder(storage=self.storage)
         self.image_builder = image_builder
-        self.image_embedder = image_embedder or ImageEmbeddingService()
+        self.image_embedder = image_embedder or build_media_embedder()
         self.text_embedder = text_embedder or self.image_embedder
         self.vector_store = vector_store or QdrantVideoVectorStore()
         self.media_clip_collection = media_clip_collection
@@ -456,6 +456,11 @@ class VideoRetrievalIndexingService:
             "image_media_id": unit.get("image_media_id"),
             "post_id": unit.get("post_id"),
             "source_url": unit.get("source_url"),
+            # Thời điểm của BÀI, không phải của ảnh: `media.created_at` chỉ là
+            # lúc chạy script đăng ký, còn `posts.created_time` mới là lúc sự
+            # việc xảy ra — đó là thứ câu hỏi "ảnh năm 2024" đang hỏi.
+            "post_created_at": unit.get("post_created_at"),
+            "event_key": unit.get("event_key"),
             "bucket_name": unit.get("bucket_name"),
             "frame_object_key": unit.get("object_key"),
             "caption": unit.get("caption") or "",
@@ -475,6 +480,8 @@ class VideoRetrievalIndexingService:
             "video_id": unit.get("video_id"),
             "post_id": unit.get("post_id"),
             "source_url": unit.get("source_url"),
+            "post_created_at": unit.get("post_created_at"),
+            "event_key": unit.get("event_key"),
             "frame_media_id": unit.get("frame_media_id"),
             "frame_index": unit.get("frame_index"),
             "timestamp_sec": unit.get("timestamp_sec"),
@@ -497,6 +504,8 @@ class VideoRetrievalIndexingService:
             "video_id": unit.get("video_id"),
             "post_id": unit.get("post_id"),
             "source_url": unit.get("source_url"),
+            "post_created_at": unit.get("post_created_at"),
+            "event_key": unit.get("event_key"),
             "start_sec": unit.get("start_sec"),
             "end_sec": unit.get("end_sec"),
             "text": unit.get("text"),

@@ -207,6 +207,11 @@ def test_index_video_uses_builder_embeds_and_upserts_clean_units() -> None:
         "video_id": video_id,
         "post_id": post_id,
         "source_url": POST_URL,
+        # None ở đây vì `MediaClipUnit` trong test này không khai hai trường đó,
+        # nhưng khoá vẫn phải có mặt: ba nguồn dùng chung một bộ khoá thì bộ lọc
+        # theo năm mới không âm thầm bỏ sót transcript.
+        "post_created_at": None,
+        "event_key": None,
         "start_sec": 1.0,
         "end_sec": 2.0,
         "text": "mở đầu",

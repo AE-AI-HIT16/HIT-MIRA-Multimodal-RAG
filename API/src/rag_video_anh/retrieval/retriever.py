@@ -13,7 +13,7 @@ from typing import Any
 
 from src.configuration import AppConfig
 from src.log.logger import logger
-from src.rag_video_anh.embedding.embedding_service import ImageEmbeddingService
+from src.rag_video_anh.embedding.provider import build_media_embedder
 from src.rag_video_anh.retrieval.indexing_service import (
     DEFAULT_MEDIA_CLIP_COLLECTION,
     DEFAULT_VIDEO_TRANSCRIPT_COLLECTION,
@@ -68,6 +68,11 @@ class MediaClipHit:
             # US-405.1: None khi bài không có link — tầng trả lời hiển thị
             # "nguồn nội bộ" thay vì dựng một link gãy.
             "source_url": self.payload.get("source_url"),
+            # Thời điểm của bài gốc, để tầng trả lời nói được "ảnh từ HIT Open
+            # Day 2025" thay vì chỉ đưa ra một tấm ảnh không mốc thời gian.
+            # None với các điểm index trước khi hai khoá này tồn tại.
+            "post_created_at": self.payload.get("post_created_at"),
+            "event_key": self.payload.get("event_key"),
             "image_media_id": self.payload.get("image_media_id"),
             "frame_index": self.payload.get("frame_index"),
             "detected_objects": self.payload.get("detected_objects") or [],
@@ -130,7 +135,9 @@ class VideoRetriever:
     ) -> None:
         app_config = config or AppConfig()
         retrieval_config = getattr(app_config, "retrieval", None)
-        self.embedding_service = embedding_service or ImageEmbeddingService(config=app_config)
+        self.embedding_service = embedding_service or build_media_embedder(
+            app_config, for_online_queries=True
+        )
         self.vector_store = vector_store or QdrantVideoVectorStore(config=app_config)
         self.top_k = int(top_k or getattr(retrieval_config, "top_k", None) or DEFAULT_TOP_K)
         self.media_clip_collection = media_clip_collection
@@ -161,13 +168,14 @@ class VideoRetriever:
         top_k: int | None = None,
         video_ids: list[str] | None = None,
         query_vector: list[float] | None = None,
+        years: list[int] | None = None,
     ) -> list[MediaClipHit]:
         vector = query_vector if query_vector is not None else self.embed_query(query)
         points = self.vector_store.search_points(
             collection_name=self.media_clip_collection,
             vector=vector,
             limit=self._resolve_top_k(top_k),
-            query_filter=self._video_filter(video_ids),
+            query_filter=self._search_filter(video_ids, years),
         )
         hits = [self._as_clip_hit(point) for point in points]
         logger.info(f"Media clip retrieval returned {len(hits)} keyframe(s)")
@@ -179,6 +187,7 @@ class VideoRetriever:
         top_k: int | None = None,
         video_ids: list[str] | None = None,
         query_vector: list[float] | None = None,
+        years: list[int] | None = None,
     ) -> list[TranscriptVideoHit]:
         """Tìm transcript rồi GỘP theo video_id để một video không bị đếm hai lần.
 
@@ -194,7 +203,7 @@ class VideoRetriever:
             collection_name=self.video_transcript_collection,
             vector=vector,
             limit=candidate_k,
-            query_filter=self._video_filter(video_ids),
+            query_filter=self._search_filter(video_ids, years),
         )
         merged = self._merge_transcript_points(points)
         logger.info(
@@ -283,13 +292,19 @@ class VideoRetriever:
             return raw.strip()
         return MEDIA_KIND_VIDEO_FRAME if payload.get("video_id") else MEDIA_KIND_IMAGE
 
-    def _video_filter(self, video_ids: list[str] | None) -> Any | None:
-        if not video_ids:
+    def _search_filter(
+        self,
+        video_ids: list[str] | None,
+        years: list[int] | None = None,
+    ) -> Any | None:
+        if not video_ids and not years:
             return None
-        if not hasattr(self.vector_store, "video_id_filter"):
-            logger.warning("vector store does not support video_id filtering; ignoring video_ids")
+        if not hasattr(self.vector_store, "search_filter"):
+            # Không im lặng bỏ qua: người dùng lọc "năm 2024" mà nhận về mọi năm
+            # thì kết quả trông vẫn hợp lý — sai kiểu này không ai báo lỗi.
+            logger.warning("vector store does not support filtering; ignoring video_ids/years")
             return None
-        return self.vector_store.video_id_filter(video_ids)
+        return self.vector_store.search_filter(video_ids=video_ids, years=years)
 
     def _resolve_top_k(self, top_k: int | None) -> int:
         resolved = int(top_k or self.top_k)
