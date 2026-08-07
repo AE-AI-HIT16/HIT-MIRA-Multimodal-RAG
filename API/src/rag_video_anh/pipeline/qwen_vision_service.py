@@ -17,7 +17,7 @@ from src.rag_video_anh.schemas import CaptionResult, CaptionResultSet, KeyFrameS
 class QwenVisionService:
     """Generate OCR text and a caption for each keyframe with one API call."""
 
-    backend = "openrouter-openai-sdk"
+    backend = "openai-sdk-chat-completions"
 
     def __init__(self, config: AppConfig | None = None, client: Any | None = None) -> None:
         self.config = config or AppConfig()
@@ -127,13 +127,21 @@ class QwenVisionService:
             return self.client
         api_key = self._clean_optional_config(getattr(self.model_config, "vision_api_key", None))
         base_url = self._clean_optional_config(getattr(self.model_config, "vision_api_base_url", None))
+        model_name = self._clean_optional_config(getattr(self.model_config, "vision_model_name", None))
         if not api_key:
             self._runtime_loaded = True
-            self._load_error = "missing Qwen vision API key. Set MEDIA_VISION_API_KEY or OPENROUTER_API_KEY"
+            self._load_error = "missing vision API key. Set MEDIA_VISION_API_KEY"
             return None
         if not base_url:
             self._runtime_loaded = True
-            self._load_error = "missing Qwen vision API base URL. Set MEDIA_VISION_API_BASE_URL or OPENROUTER_BASE_URL"
+            self._load_error = "missing vision API base URL. Set MEDIA_VISION_API_BASE_URL"
+            return None
+        # Không còn tên model mặc định để rơi về, nên thiếu là phải báo thiếu ở
+        # đây; để nó đi tiếp thì endpoint trả 404 model không tồn tại, khó lần
+        # hơn hẳn so với một câu nói thẳng biến nào chưa khai.
+        if not model_name:
+            self._runtime_loaded = True
+            self._load_error = "missing vision model name. Set MEDIA_VISION_MODEL_NAME"
             return None
         try:
             from openai import OpenAI
@@ -145,8 +153,11 @@ class QwenVisionService:
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url.rstrip("/"),
-            timeout=float(getattr(self.model_config, "vision_api_timeout", 120.0) or 120.0),
-            default_headers=self._openrouter_headers(),
+            timeout=float(getattr(self.model_config, "vision_api_timeout", 180.0) or 180.0),
+            # Không để mặc định 2 của SDK: một ảnh hết giờ sẽ nhân ba cả thời
+            # gian lẫn token rồi vẫn hỏng, trong khi mẻ caption đã tự chạy lại
+            # được ở lượt sau.
+            max_retries=self._so_lan_thu_lai(),
         )
         self._runtime_loaded = True
         return self.client
@@ -154,13 +165,31 @@ class QwenVisionService:
     def _analyze_frame(self, image: Any, ocr_policy: dict[str, Any], caption_policy: dict[str, Any]) -> dict[str, Any]:
         if image is None:
             raise ValueError("keyframe image is not available")
+        tham_so_mo_rong = self._tham_so_mo_rong()
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=self._messages(image, ocr_policy, caption_policy),
             temperature=float(getattr(self.model_config, "vision_api_temperature", 0.0) or 0.0),
             max_tokens=self.max_tokens,
+            **({"extra_body": tham_so_mo_rong} if tham_so_mo_rong else {}),
         )
         return self._parse_response(self._completion_text(response))
+
+    def _tham_so_mo_rong(self) -> dict[str, Any]:
+        """Tham số ngoài chuẩn OpenAI — chỉ gửi khi người vận hành khai rõ.
+
+        `repetition_penalty` là phần mở rộng của vLLM. Thiếu nó thì ảnh nhiều
+        chữ làm model lặp tới cụt token và JSON hỏng; nhưng gửi nó tới endpoint
+        không hiểu thì ăn 400 và mất cả tầng caption. Nên trả dict rỗng khi
+        chưa khai, và người bật phải biết backend của mình là vLLM.
+        """
+
+        penalty = getattr(self.model_config, "vision_repetition_penalty", None)
+        try:
+            gia_tri = float(penalty)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return {}
+        return {"repetition_penalty": gia_tri} if gia_tri > 0 else {}
 
     def _messages(self, image: Any, ocr_policy: dict[str, Any], caption_policy: dict[str, Any]) -> list[dict[str, Any]]:
         return [
@@ -173,16 +202,6 @@ class QwenVisionService:
                 ],
             },
         ]
-
-    def _openrouter_headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {}
-        referer = self._clean_optional_config(getattr(self.model_config, "vision_http_referer", None))
-        title = self._clean_optional_config(getattr(self.model_config, "vision_app_title", None))
-        if referer:
-            headers["HTTP-Referer"] = referer
-        if title:
-            headers["X-Title"] = title
-        return headers
 
     def _system_prompt(self) -> str:
         prompt = self._clean_optional_config(getattr(self.prompt_config, "vision_system_prompt", None))
@@ -234,6 +253,15 @@ class QwenVisionService:
         except json.JSONDecodeError:
             parsed = self._loads_json_fragment(content)
         if not isinstance(parsed, dict):
+            # Model định trả JSON nhưng hỏng giữa chừng — thường là lặp tới cụt
+            # token. Nuốt nó thành caption thì hàng caption_results ghi DONE với
+            # một khối JSON 9.000 ký tự: payload Qdrant nhiễm rác, mà lượt chạy
+            # sau lại bỏ qua vì "đã có caption". Ném lên để thành FAILED, rồi lượt
+            # sau tự thử lại — lỗi này ngẫu nhiên nên thử lại gần như luôn được.
+            if content.startswith("{"):
+                raise ValueError(f"JSON hỏng hoặc bị cắt ({len(content)} ký tự), có thể do model lặp tới hết token")
+            # Không giống JSON thì là văn xuôi: có model trả thẳng câu mô tả,
+            # nhánh này giữ nguyên cho chúng.
             return {"ocr_text": "", "ocr_blocks": [], "caption_text": self._clean_text(content)}
 
         ocr_payload = parsed.get("ocr") if isinstance(parsed.get("ocr"), dict) else {}
@@ -315,7 +343,15 @@ class QwenVisionService:
 
     @property
     def model_name(self) -> str:
-        return str(getattr(self.model_config, "vision_model_name", "qwen/qwen2.5-vl-3b-instruct") or "qwen/qwen2.5-vl-3b-instruct")
+        return str(getattr(self.model_config, "vision_model_name", "") or "")
+
+    def _so_lan_thu_lai(self) -> int:
+        """Số lần thử lại của SDK; 0 là hợp lệ nên không dùng `or`."""
+        value = getattr(self.model_config, "vision_max_retries", 1)
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return 1
 
     @property
     def max_tokens(self) -> int:

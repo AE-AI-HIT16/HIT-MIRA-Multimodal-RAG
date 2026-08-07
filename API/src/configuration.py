@@ -16,6 +16,21 @@ def _config_value(root: Any, dotted_path: str, default: Any = None) -> Any:
     return current
 
 
+def _so_tu_env(ten_bien: str, mac_dinh: Any, kieu: Any) -> Any:
+    """Cho phép biến môi trường ghi đè một số YAML, giống nhóm MEDIA_VISION_* khác.
+
+    `${...}` chưa thay và giá trị không parse được đều rơi về mặc định thay vì
+    ném lỗi lúc import: một `.env` gõ nhầm không nên làm cả app không khởi động.
+    """
+    raw = (os.getenv(ten_bien) or "").strip()
+    if not raw or raw.startswith("${"):
+        return mac_dinh
+    try:
+        return kieu(raw)
+    except (TypeError, ValueError):
+        return mac_dinh
+
+
 def _config_bool(root: Any, dotted_path: str, default: bool = False) -> bool:
     """Read optional boolean config values from YAML-backed objects."""
     value = _config_value(root, dotted_path, default)
@@ -94,6 +109,10 @@ class MediaPipelineConfig(BaseModel):
     keyframe_base_positions: list[float] = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_BASE_POSITIONS", [0.15, 0.5, 0.85])
     keyframe_long_scene_interval_sec: float = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_LONG_SCENE_INTERVAL_SEC", 2.5)
     keyframe_max_candidates_per_scene: int = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_MAX_CANDIDATES_PER_SCENE", 8)
+    # Trần khoảng cách thời gian giữa hai keyframe liền nhau: quá xa nhau thì
+    # không bao giờ bị coi là trùng. Xem `_deduplicate` để biết vì sao cần —
+    # phép đo trùng bằng pixel 32×32 mù với video nền sáng. 0 = tắt cửa sổ.
+    keyframe_max_gap_sec: float = _config_value(config_object, "MEDIA_PIPELINE.KEYFRAME_MAX_GAP_SEC", 10.0)
     fps_fallback: float = _config_value(config_object, "MEDIA_PIPELINE.FPS_FALLBACK", 25.0)
     min_blur_score: float = _config_value(config_object, "MEDIA_PIPELINE.MIN_BLUR_SCORE", 80.0)
     min_brightness: float = _config_value(config_object, "MEDIA_PIPELINE.MIN_BRIGHTNESS", 30.0)
@@ -150,26 +169,48 @@ class MediaModelConfig(BaseModel):
     clip_embedding_dimensions: int = _config_value(config_models, "MEDIA_MODELS.CLIP_EMBEDDING_DIMENSIONS", 1024)
     clip_api_timeout: float = _config_value(config_models, "MEDIA_MODELS.CLIP_API_TIMEOUT", 60.0)
     similarity_metric: str = _config_value(config_models, "MEDIA_MODELS.SIMILARITY_METRIC", "cosine")
-    vision_model_name: str = (
-        os.getenv("MEDIA_VISION_MODEL_NAME")
-        or os.getenv("OPENROUTER_MODEL_NAME")
-        or _config_value(config_models, "MEDIA_MODELS.VISION_MODEL_NAME", "qwen/qwen2.5-vl-3b-instruct")
+    # Caption/OCR nói chuyện với bất kỳ endpoint nào tương thích OpenAI và nhận
+    # ảnh. Không còn mặc định trỏ về một nhà cung cấp cụ thể: thiếu cấu hình thì
+    # phải báo thiếu, chứ không âm thầm gọi sang một endpoint mà không ai chọn.
+    vision_model_name: str = os.getenv("MEDIA_VISION_MODEL_NAME") or _config_value(
+        config_models, "MEDIA_MODELS.VISION_MODEL_NAME", ""
     )
-    vision_api_base_url: Optional[str] = (
-        os.getenv("MEDIA_VISION_API_BASE_URL")
-        or os.getenv("OPENROUTER_BASE_URL")
-        or _config_value(config_models, "MEDIA_MODELS.VISION_API_BASE_URL", "https://openrouter.ai/api/v1")
+    vision_api_base_url: Optional[str] = os.getenv("MEDIA_VISION_API_BASE_URL") or _config_value(
+        config_models, "MEDIA_MODELS.VISION_API_BASE_URL", None
     )
-    vision_api_key: Optional[str] = (
-        os.getenv("MEDIA_VISION_API_KEY")
-        or os.getenv("OPENROUTER_API_KEY")
-        or _config_value(config_models, "MEDIA_MODELS.VISION_API_KEY", None)
+    vision_api_key: Optional[str] = os.getenv("MEDIA_VISION_API_KEY") or _config_value(
+        config_models, "MEDIA_MODELS.VISION_API_KEY", None
     )
-    vision_api_timeout: float = _config_value(config_models, "MEDIA_MODELS.VISION_API_TIMEOUT", 120.0)
+    vision_api_timeout: float = _so_tu_env(
+        "MEDIA_VISION_API_TIMEOUT", _config_value(config_models, "MEDIA_MODELS.VISION_API_TIMEOUT", 180.0), float
+    )
     vision_api_temperature: float = _config_value(config_models, "MEDIA_MODELS.VISION_API_TEMPERATURE", 0.0)
-    vision_max_tokens: int = _config_value(config_models, "MEDIA_MODELS.VISION_MAX_TOKENS", 1024)
-    vision_http_referer: Optional[str] = os.getenv("OPENROUTER_HTTP_REFERER") or _config_value(config_models, "MEDIA_MODELS.VISION_HTTP_REFERER", None)
-    vision_app_title: Optional[str] = os.getenv("OPENROUTER_APP_TITLE") or _config_value(config_models, "MEDIA_MODELS.VISION_APP_TITLE", "HIT-MIRA Multimodal RAG")
+    # 1024 là quá thấp cho model suy luận: đo được gpt-5.4 tiêu 1.523 token và
+    # gpt-5.4-mini tiêu 10.900 cho cùng một tấm ảnh. Cụt token thì JSON hỏng, và
+    # triệu chứng hiện ra là "caption rỗng" — không hề trỏ về nguyên nhân thật.
+    vision_max_tokens: int = _so_tu_env(
+        "MEDIA_VISION_MAX_TOKENS", _config_value(config_models, "MEDIA_MODELS.VISION_MAX_TOKENS", 2048), int
+    )
+    # OpenAI SDK mặc định thử lại 2 lần. Với timeout 180s, một ảnh hỏng ngốn 9
+    # phút và gấp ba token rồi vẫn hỏng. Batch caption vốn đã chạy lại được ở
+    # lượt sau, nên hỏng nhanh tốt hơn hỏng chậm gấp ba.
+    vision_max_retries: int = _so_tu_env(
+        "MEDIA_VISION_MAX_RETRIES", _config_value(config_models, "MEDIA_MODELS.VISION_MAX_RETRIES", 1), int
+    )
+    # Đo 07/08/2026 trên Qwen3-VL-8B (RunPod, vLLM 0.26): một poster nhiều chữ
+    # làm model lặp vô hạn tới trần 2.048 token — 61,7s rồi trả JSON cụt. Cùng
+    # tấm ảnh đó với `repetition_penalty=1.05` xong trong 6,6s, 194 token, JSON
+    # đủ 7 khoá. Tái hiện được, không phải nhiễu.
+    #
+    # Nhưng đây là phần mở rộng của vLLM, không có trong chuẩn OpenAI, nên mặc
+    # định là None (không gửi): bật sẵn cho mọi endpoint thì backend nào không
+    # hiểu tham số lạ sẽ trả 400 và giết cả tầng caption — đúng kiểu hỏng mà
+    # nhánh vision provider-agnostic này được dựng ra để tránh.
+    vision_repetition_penalty: Optional[float] = _so_tu_env(
+        "MEDIA_VISION_REPETITION_PENALTY",
+        _config_value(config_models, "MEDIA_MODELS.VISION_REPETITION_PENALTY", None),
+        float,
+    )
     detection_model_name: str = _config_value(config_models, "MEDIA_MODELS.DETECTION_MODEL_NAME", "yolo11n")
     detection_weight_file: str = _config_value(config_models, "MEDIA_MODELS.DETECTION_WEIGHT_FILE", "yolo11n.pt")
     detection_confidence_threshold: float = _config_value(config_models, "MEDIA_MODELS.DETECTION_CONFIDENCE_THRESHOLD", 0.5)
