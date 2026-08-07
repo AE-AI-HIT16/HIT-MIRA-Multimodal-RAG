@@ -39,7 +39,7 @@ def _log_startup() -> None:
     env_keys = sorted(
         key
         for key in os.environ
-        if key.startswith(("RUNPOD", "RP_", "OPENROUTER", "CONFIG_", "MODELS_", "PROMPTS_"))
+        if key.startswith(("RUNPOD", "RP_", "CONFIG_", "MODELS_", "PROMPTS_"))
     )
     print(
         "[runpod-worker] startup "
