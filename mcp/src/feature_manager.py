@@ -39,6 +39,7 @@ class FeatureManager:
         top_k: int | None = None,
         video_ids: list[str] | None = None,
         source: str = "both",
+        years: list[int] | None = None,
     ) -> dict:
         normalized_query = " ".join(query.split())
         if not normalized_query:
@@ -54,5 +55,6 @@ class FeatureManager:
             top_k=top_k,
             video_ids=video_ids,
             source=normalized_source,
+            years=years,
         )
         return {"success": True, **result}
