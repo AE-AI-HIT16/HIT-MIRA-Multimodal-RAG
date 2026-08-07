@@ -69,7 +69,64 @@ Cùng một pod phục vụ cả ba đường đang chết, nhưng hai nhánh **
 Chỉ nhận một dạng thì nhánh kia ăn 422, mà lỗi hiện ra tận trong LangChain nên
 rất khó lần ngược về đây.
 
-## Deploy lên RunPod
+## RunPod Serverless — đường hiện tại cho benchmark/index ngoại tuyến
+
+`runpod_handler.py` nhận `job["input"]`, gọi đúng `JinaClipEncoder` mà FastAPI
+dùng, rồi trả phần thân Jina embeddings. RunPod chỉ bọc thêm lớp `output` ở
+response `/run` hoặc `/runsync`; không có schema vector thứ hai.
+
+Build từ thư mục này:
+
+```bash
+cd embedding_server
+docker build -f Dockerfile.serverless \
+  -t <registry>/hit-mira-embed-serverless:v0.1.0 .
+docker push <registry>/hit-mira-embed-serverless:v0.1.0
+```
+
+Cấu hình endpoint:
+
+| Mục | Giá trị v1 |
+|---|---|
+| Compute | GPU 24 GB |
+| Active workers | `0` |
+| Max workers | `1` |
+| GPU/worker | `1` |
+| Execution timeout | `600` giây |
+| Cached model | `jinaai/jina-clip-v2` |
+| Environment | không cần API key model |
+
+Cached model được RunPod gắn dưới
+`/runpod-volume/huggingface-cache/hub/`. Container đặt
+`EMBED_REQUIRE_CACHED_MODEL=1`: cache thiếu thì worker fail rõ ngay lúc khởi
+động, không âm thầm tải 3,5 GB trong giờ GPU tính phí.
+
+Payload thử bằng `/runsync`:
+
+```json
+{
+  "input": {
+    "model": "jina-clip-v2",
+    "input": [{"text": "sự kiện HIT Open Day"}],
+    "task": "retrieval.query",
+    "dimensions": 1024,
+    "normalized": true
+  }
+}
+```
+
+Một job nhận tối đa 64 phần tử. Client hiện chia 8 ảnh hoặc 64 text nên không
+cần đổi batch. Lỗi schema, sai số chiều, trả thiếu vector và lỗi model đều nổi
+thành job `FAILED`; không trả `{"error": ...}` rồi làm RunPod hiểu nhầm là
+job đã hoàn tất.
+
+Không dùng endpoint active=0 trực tiếp cho query online: sau idle, cold start
+phải nạp lại model. Quyết định đường online chỉ chốt sau benchmark Azure/Jina.
+
+Xem hướng dẫn build và kiểm tra chi tiết ở
+[`docs/runpod-serverless-embedding.md`](../docs/runpod-serverless-embedding.md).
+
+## GPU Pod thường trực — phương án chỉ dùng nếu query online cần Jina
 
 Cách nhanh — một lệnh, không cần container registry:
 
@@ -105,8 +162,9 @@ docker build -t <registry>/hit-mira-embed:1.0 embedding_server/
 docker push  <registry>/hit-mira-embed:1.0
 ```
 
-Dựng **pod thường trực**, không phải serverless: serverless cold start 30–60
-giây, mà `/api/media/search` cần nhúng câu hỏi ngay lúc người dùng gõ.
+Dựng **pod thường trực** chỉ khi kết quả benchmark chốt rằng đường query online
+phải dùng Jina. Serverless active=0 phù hợp index ngoại tuyến nhưng cold start
+không phù hợp `/api/media/search`.
 
 Rồi trỏ client sang, **không phải sửa code**:
 
@@ -180,3 +238,5 @@ Gỡ ghim được khi Jina cập nhật remote code cho transformers 5.
 | `encoder.py` | Nạp model, sinh vector. Dùng chung cho CPU và GPU để hai nơi không thể lệch tiền xử lý. |
 | `server.py` | FastAPI, `POST /v1/embeddings` đúng giao thức Jina + `GET /health`. |
 | `Dockerfile` | Ảnh GPU, nướng sẵn trọng số vào trong. |
+| `runpod_handler.py` | Adapter queue `job["input"]` → Jina response; dùng cho offline Serverless. |
+| `Dockerfile.serverless` | Ảnh Serverless CUDA 12.9, dùng Cached model của RunPod. |
