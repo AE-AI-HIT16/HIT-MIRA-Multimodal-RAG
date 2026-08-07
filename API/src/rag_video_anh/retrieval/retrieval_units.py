@@ -770,9 +770,10 @@ def _post_index_metadata(uow: Any, post_id: Any) -> PostIndexMetadata:
             source_url = clean_text(getattr(post, "post_url", None)) or None
             post_created_at = _rfc3339(getattr(post, "created_time", None))
 
-    # `uow.events` chưa tồn tại: bốn bảng sự kiện đang rỗng và job trích xuất
-    # chưa được viết. Trả None chứ KHÔNG ghi "unknown" — một khoá sự kiện bịa
-    # ra sẽ gom nhầm mọi bài chưa nhận diện được vào cùng một nhóm.
+    # Bài chưa gán sự kiện, hoặc gán nhiều sự kiện mà không cái nào là chính,
+    # đều trả None chứ KHÔNG ghi "unknown" — một khoá sự kiện bịa ra sẽ gom nhầm
+    # mọi bài chưa nhận diện được vào cùng một nhóm. Vẫn dùng `getattr` vì các
+    # Unit of Work giả trong test chỉ dựng `media`/`results`.
     event_key = None
     events_repo = getattr(uow, "events", None)
     if events_repo is not None:

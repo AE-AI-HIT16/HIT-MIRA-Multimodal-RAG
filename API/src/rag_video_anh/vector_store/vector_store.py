@@ -6,11 +6,16 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from src.common_utils.text_keys import slugify
 from src.configuration import AppConfig
 from src.log.logger import logger
 
 # Khoá payload mang mốc thời gian của BÀI ĐĂNG (không phải của file media).
 POST_CREATED_AT_KEY = "post_created_at"
+
+# Slug chuỗi sự kiện, do `scripts/extract_post_events.py` ghi vào DB rồi
+# `backfill_media_text_post_metadata.py` đẩy ra payload.
+EVENT_KEY = "event_key"
 
 # Người hỏi "ảnh năm 2024" đang nghĩ theo lịch Việt Nam, còn `post_created_at`
 # lưu theo UTC ('2024-07-06T12:59:02Z'). Cắt mốc năm theo UTC sẽ đẩy bài đăng
@@ -299,16 +304,21 @@ class QdrantVideoVectorStore:
         self,
         video_ids: list[str] | None = None,
         years: list[int] | None = None,
+        events: list[str] | None = None,
     ) -> Any | None:
         """Build filter thu hẹp phạm vi tìm kiếm (None nếu không lọc gì).
 
-        Hai tiêu chí ghép bằng `must`, còn nhiều giá trị của CÙNG một tiêu chí
+        Các tiêu chí ghép bằng `must`, còn nhiều giá trị của CÙNG một tiêu chí
         ghép bằng `should`: "video-1 và năm 2024" phải là giao, còn "2024, 2025"
         phải là hợp. Ghép phẳng hết vào một `should` thì lọc năm 2024 sẽ kéo về
         cả video khác năm — sai theo kiểu vẫn có kết quả nên khó thấy.
         """
         nhom: list[Any] = []
-        for dieu_kien in (self._video_id_conditions(video_ids), self._year_conditions(years)):
+        for dieu_kien in (
+            self._video_id_conditions(video_ids),
+            self._year_conditions(years),
+            self._event_conditions(events),
+        ):
             if dieu_kien:
                 nhom.append(self.models.Filter(should=dieu_kien))
         if not nhom:
@@ -341,6 +351,32 @@ class QdrantVideoVectorStore:
             )
             for nam in self.normalize_years(years)
         ]
+
+    def _event_conditions(self, events: list[str] | None) -> list[Any]:
+        return [
+            self.models.FieldCondition(key=EVENT_KEY, match=self.models.MatchValue(value=slug))
+            for slug in self.normalize_event_keys(events)
+        ]
+
+    @staticmethod
+    def normalize_event_keys(events: list[str] | None) -> list[str]:
+        """Nhận cả tên người gõ lẫn slug, trả về slug.
+
+        Người hỏi gõ "HIT Contest Series", còn payload chứa "hit-contest-series".
+        Bắt người gọi tự slug hoá là giao cho họ một luật ngầm mà sai thì không
+        báo lỗi, chỉ trả về rỗng. `slugify` là idempotent nên đưa sẵn slug vào
+        cũng không hỏng.
+
+        Tên rỗng hoặc toàn emoji bị BỎ QUA chứ không ném lỗi: khác với năm gõ
+        nhầm, ở đây không có khoảng hợp lệ để kiểm tra, và một tên vô nghĩa chỉ
+        đơn giản là không khớp gì cả.
+        """
+        ket_qua: list[str] = []
+        for gia_tri in events or []:
+            slug = slugify(gia_tri if isinstance(gia_tri, str) else str(gia_tri or ""))
+            if slug and slug not in ket_qua:
+                ket_qua.append(slug)
+        return ket_qua
 
     @staticmethod
     def normalize_years(years: list[int] | None) -> list[int]:
@@ -423,7 +459,7 @@ class QdrantVideoVectorStore:
                 collection_name=collection_name,
                 vectors_config=self.models.VectorParams(size=vector_size, distance=distance),
             )
-            self._ensure_post_created_at_index(collection_name)
+            self._ensure_filter_indexes(collection_name)
             return
 
         existing_size = self._collection_vector_size(collection_name)
@@ -433,25 +469,27 @@ class QdrantVideoVectorStore:
                 f"collection '{collection_name}' has {existing_size}, requested {vector_size}."
             )
 
-    def _ensure_post_created_at_index(self, collection_name: str) -> None:
-        """Đánh index datetime cho khoá lọc năm, ngay khi tạo collection.
+    def _ensure_filter_indexes(self, collection_name: str) -> None:
+        """Đánh index cho hai khoá lọc cấp bài, ngay khi tạo collection.
 
         Không có index thì Qdrant vẫn lọc đúng — chỉ là quét tuần tự. Tạo ở đây
         để collection sinh sau (video_transcript) không phải nhớ chạy tay như
         `media_clip` đã phải làm. Lỗi ở bước này không được chặn việc index dữ
         liệu: mất index chỉ làm truy vấn chậm, còn ném lên thì mất cả lô.
         """
-        try:
-            self.client.create_payload_index(
-                collection_name=collection_name,
-                field_name=POST_CREATED_AT_KEY,
-                field_schema=self.models.PayloadSchemaType.DATETIME,
-            )
-        except Exception as exc:
-            logger.warning(
-                f"Không tạo được payload index '{POST_CREATED_AT_KEY}' cho "
-                f"'{collection_name}': {exc.__class__.__name__}: {exc}"
-            )
+        for ten, kieu in (
+            (POST_CREATED_AT_KEY, self.models.PayloadSchemaType.DATETIME),
+            (EVENT_KEY, self.models.PayloadSchemaType.KEYWORD),
+        ):
+            try:
+                self.client.create_payload_index(
+                    collection_name=collection_name, field_name=ten, field_schema=kieu
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"Không tạo được payload index '{ten}' cho "
+                    f"'{collection_name}': {exc.__class__.__name__}: {exc}"
+                )
 
     def _create_client(self) -> Any:
         if self._is_missing(self.url):

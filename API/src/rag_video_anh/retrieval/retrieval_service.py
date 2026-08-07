@@ -39,6 +39,7 @@ class VideoRetrievalService:
         source: str = SOURCE_BOTH,
         image: bytes | None = None,
         years: list[int] | None = None,
+        events: list[str] | None = None,
     ) -> dict[str, Any]:
         """Truy hồi bằng chữ, bằng ảnh, hoặc cả hai.
 
@@ -46,11 +47,15 @@ class VideoRetrievalService:
         nhánh `media_clip` luôn tìm bằng vector ẢNH. Phần chữ không bị vứt đi:
         nó lo nhánh lời thoại — nơi vector ảnh không dùng được.
 
-        `years` lọc theo mốc thời gian của BÀI ĐĂNG, áp cho cả hai nhánh.
+        `years` lọc theo mốc thời gian của BÀI ĐĂNG, `events` lọc theo chuỗi sự
+        kiện của bài; cả hai áp cho cả hai nhánh và ghép với nhau bằng AND.
         """
         normalized_query = self._normalize_optional_query(query, image_present=bool(image))
         normalized_source = self._normalize_source(source)
         normalized_years = QdrantVideoVectorStore.normalize_years(years)
+        # Nhận cả "HIT Contest Series" lẫn "hit-contest-series": payload chỉ có
+        # slug, nên tên người gõ phải được quy về đúng dạng đó trước khi lọc.
+        normalized_events = QdrantVideoVectorStore.normalize_event_keys(events)
 
         clip_vector, text_vector = self._embed_query_vectors(normalized_query, image)
 
@@ -67,6 +72,7 @@ class VideoRetrievalService:
                     video_ids=video_ids,
                     query_vector=clip_vector,
                     years=normalized_years,
+                    events=normalized_events,
                 )
             except Exception as exc:
                 # Một nhánh lỗi không được làm chết nhánh còn lại.
@@ -90,19 +96,26 @@ class VideoRetrievalService:
                         video_ids=video_ids,
                         query_vector=text_vector,
                         years=normalized_years,
+                        events=normalized_events,
                     )
                 except Exception as exc:
                     errors.append(f"video_transcript: {exc.__class__.__name__}")
                     logger.warning(f"Transcript retrieval failed: {exc.__class__.__name__}: {exc}")
 
         total = len(clips) + len(videos)
-        if normalized_years and total == 0 and not errors:
+        if total == 0 and not errors:
             # Rỗng vì bộ lọc chứ không phải vì kho không có gì: nói ra để người
-            # dùng biết nên bỏ lọc năm, thay vì kết luận "CLB không có ảnh này".
-            notes.append(
-                f"Không có kết quả nào thuộc năm {', '.join(str(nam) for nam in normalized_years)}. "
-                "Bỏ bộ lọc năm để tìm trong toàn bộ kho."
-            )
+            # dùng biết nên bỏ lọc, thay vì kết luận "CLB không có ảnh này".
+            if normalized_years:
+                notes.append(
+                    f"Không có kết quả nào thuộc năm {', '.join(str(nam) for nam in normalized_years)}. "
+                    "Bỏ bộ lọc năm để tìm trong toàn bộ kho."
+                )
+            if normalized_events:
+                notes.append(
+                    f"Không có kết quả nào thuộc sự kiện {', '.join(normalized_events)}. "
+                    "Tên sự kiện có thể chưa được gán cho bài nào — bỏ bộ lọc để tìm toàn kho."
+                )
         logger.info(
             f"Media retrieval flow completed: {len(clips)} keyframe(s), {len(videos)} video(s)"
         )
@@ -111,6 +124,7 @@ class VideoRetrievalService:
             "query_kind": self._query_kind(normalized_query, image),
             "source": normalized_source,
             "years": normalized_years,
+            "events": normalized_events,
             "clips": [clip.as_dict() for clip in clips],
             "videos": [video.as_dict() for video in videos],
             "context": self._format_context(clips, videos),
