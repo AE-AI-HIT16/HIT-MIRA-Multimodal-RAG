@@ -69,6 +69,45 @@ class PostRecord(PostCreate):
 
 
 @dataclass(frozen=True)
+class EventSeriesRecord:
+    """Một loại sự kiện lặp qua nhiều kỳ. `slug` là thứ đi vào payload Qdrant."""
+
+    slug: str
+    canonical_name: str
+    series_id: UUID | None = None
+    description: str | None = None
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class EventOccurrenceRecord:
+    """Một kỳ cụ thể. Định danh là `(series_id, label)`; `event_year` chỉ để lọc."""
+
+    series_id: UUID
+    label: str
+    occurrence_id: UUID | None = None
+    display_name: str | None = None
+    event_year: int | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    occurrence_metadata: dict = field(default_factory=dict)
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class PostEventLinkRecord:
+    """Gán sự kiện cho bài. `evidence` giữ đoạn chữ đã dẫn tới kết luận."""
+
+    post_id: UUID
+    occurrence_id: UUID
+    confidence: float | None = None
+    assigned_by: str = "rule"
+    evidence: dict = field(default_factory=dict)
+    is_primary: bool = False
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class MediaCreate:
     post_id: UUID
     media_type: str
