@@ -20,7 +20,7 @@ và tin code.
 | Stage | Đề xuất ban đầu | **Thực tế v1** | Vì sao đổi |
 |---|---|---|---|
 | Nhúng text (transcript + nội quy) | AITeamVN/Vietnamese_Embedding (nền bge-m3) | **jina-clip-v2** — dùng chung với ảnh | Chỉ model đa phương thức mới nhúng được ảnh. Chọn model text mạnh nhất nghĩa là phải nuôi *hai* không gian vector và nhúng câu hỏi *hai* lần mỗi request. v1 chọn một model: một khoá, một trần rate limit, một số chiều. Đánh đổi và mốc phải xem lại: **CLAUDE.md § "One embedding model"** |
-| Caption ảnh/frame | Gemini 2.5 Flash Vision | **`MEDIA_VISION_MODEL_NAME`** (rơi về `OPENROUTER_MODEL_NAME`) — một lời gọi trả **cả caption lẫn OCR** | Gộp 2 việc vào 1 lời gọi giảm nửa số request và nửa quota; đổi provider được bằng biến môi trường, không phải sửa code |
+| Caption ảnh/frame | Gemini 2.5 Flash Vision | **`MEDIA_VISION_MODEL_NAME`** — một lời gọi trả **cả caption lẫn OCR** | Gộp 2 việc vào 1 lời gọi giảm nửa số request và nửa quota; đổi provider được bằng biến môi trường, không phải sửa code |
 | Làm sạch transcript bằng LLM | Gemini 2.5 Flash clean + summarize | **chưa làm** | Chưa đo được là nó có đáng không. Transcript thô của Zipformer đang được nhúng thẳng — viết hoa toàn bộ, không dấu câu. Prompt của ChatBot chịu trách nhiệm viết lại cho dễ đọc lúc trích dẫn |
 | Sinh câu trả lời | Gemini 2.5 Flash | **`LLM_PROVIDER:LLM_MODEL`**, gọi từ `ChatBot/` (LangGraph) qua MCP | Tầng trả lời tách hẳn khỏi `API/`, xem `docs/structure.md` |
 
