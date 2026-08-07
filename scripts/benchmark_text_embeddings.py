@@ -18,7 +18,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CORPUS = REPO_ROOT / "data/staging/google-drive/extracted/data"
@@ -83,6 +83,38 @@ class JinaCpuProvider:
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         return self._encoder.encode_texts(texts)
+
+
+class JinaRunPodProvider:
+    """Cùng model với `jina-cpu`, nhưng trọng số nằm trên GPU của RunPod.
+
+    Đây là cách duy nhất đo được Jina trên máy này: bản CPU đạt đỉnh 5,05 GiB
+    trong khi máy chỉ còn khoảng 5,3 GiB và không có swap. Phía máy chỉ giữ vài
+    chục KB JSON.
+
+    Đổi lại, `first_query_seconds` của provider này KHÔNG so sánh được với
+    Azure: nó gánh cold start (đo được ~190 giây) nên là số của hạ tầng, không
+    phải của model. Chỉ `warm_query_p50_seconds` mới so được, và cũng chỉ trong
+    giới hạn "một job hàng đợi" chứ không phải "một lời gọi HTTP".
+    """
+
+    name = "jina-runpod"
+
+    def __init__(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "API"))
+        from src.rag_video_anh.embedding.runpod_transport import build_runpod_embedding_service
+
+        self._service = build_runpod_embedding_service()
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return self._service.embed_texts(texts)
+
+
+PROVIDERS: dict[str, Callable[[], TextProvider]] = {
+    "azure": AzureProvider,
+    "jina-cpu": JinaCpuProvider,
+    "jina-runpod": JinaRunPodProvider,
+}
 
 
 def load_numpy() -> None:
@@ -194,15 +226,20 @@ def memory_info() -> dict[str, int]:
     }
 
 
+def require_env(provider: str, keys: tuple[str, ...]) -> None:
+    missing = [key for key in keys if not os.getenv(key, "").strip()]
+    if missing:
+        raise BenchmarkError(f"Thiếu cấu hình {provider}: {', '.join(missing)}")
+
+
 def validate_provider_preflight(provider: str, *, allow_oom_risk: bool) -> None:
     if provider == "azure":
-        missing = [
-            key
-            for key in ("EMBEDDING_API_KEY", "EMBEDDING_BASE_URL", "EMBEDDING_MODEL")
-            if not os.getenv(key, "").strip()
-        ]
-        if missing:
-            raise BenchmarkError(f"Thiếu cấu hình Azure: {', '.join(missing)}")
+        require_env(provider, ("EMBEDDING_API_KEY", "EMBEDDING_BASE_URL", "EMBEDDING_MODEL"))
+        return
+    if provider == "jina-runpod":
+        # RUNPOD_ENDPOINT_ID là worker video; nhầm hai biến này thì job vào đúng
+        # hàng đợi sai và trả về lỗi rất khó lần.
+        require_env(provider, ("RUNPOD_API_KEY", "JINA_RUNPOD_ENDPOINT_ID"))
         return
     if provider != "jina-cpu":
         raise BenchmarkError(f"Provider không hỗ trợ: {provider}")
@@ -215,6 +252,33 @@ def validate_provider_preflight(provider: str, *, allow_oom_risk: bool) -> None:
             "chạy trên máy RAM lớn hơn hoặc chỉ dùng --allow-oom-risk trong "
             "maintenance window và dưới cgroup đủ lớn."
         )
+
+
+def provider_signature(provider: str) -> str:
+    """Nhận dạng đầy đủ của một provider: tên chưa đủ.
+
+    Cache cũ chỉ khoá theo tên provider và văn bản đầu vào, nên chạy `azure` ở
+    512 chiều sau khi đã chạy ở 1.536 sẽ nạp lại đúng file cũ và báo ra số của
+    lần trước — sai mà không có triệu chứng nào. Model và số chiều phải nằm
+    trong khoá.
+
+    Nạp `.env` ngay tại đây: script khác gọi hàm này mà quên nạp thì tên cache
+    ra `unknown-default`, và cùng một cache lại mang hai tên khác nhau tuỳ chỗ gọi.
+    """
+    load_dotenv_file(REPO_ROOT / ".env")
+    if provider == "azure":
+        model = os.getenv("EMBEDDING_MODEL", "").strip() or "unknown"
+        dims = os.getenv("EMBEDDING_DIMENSIONS", "").strip() or "default"
+        return f"{provider}-{model}-{dims}"
+    if provider in {"jina-cpu", "jina-runpod"}:
+        model = os.getenv("MEDIA_IMAGE_EMBEDDING_MODEL", "").strip() or "jina-clip-v2"
+        return f"{provider}-{model}-1024"
+    return provider
+
+
+def cache_path_for(cache_dir: Path, provider: str, vector_signature: str) -> Path:
+    """Một chỗ duy nhất đặt tên cache, để script khác không tự ghép sai."""
+    return cache_dir / f"text-{provider_signature(provider)}-{vector_signature}.npz"
 
 
 def vector_fingerprint(corpus: list[CorpusRow], queries: list[QueryRow]) -> str:
@@ -442,7 +506,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus-root", type=Path, default=DEFAULT_CORPUS)
     parser.add_argument("--benchmark", type=Path, default=DEFAULT_BENCHMARK)
-    parser.add_argument("--providers", nargs="+", choices=("azure", "jina-cpu"), default=["azure", "jina-cpu"])
+    parser.add_argument(
+        "--providers", nargs="+", choices=tuple(PROVIDERS), default=["azure", "jina-cpu"]
+    )
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--results-dir", type=Path, default=DEFAULT_RESULTS_DIR)
@@ -505,8 +571,8 @@ def main() -> int:
     benchmark_signature = plan["benchmark_fingerprint"]
     results = []
     for provider_name in args.providers:
-        provider: TextProvider = AzureProvider() if provider_name == "azure" else JinaCpuProvider()
-        cache_path = args.cache_dir / f"text-{provider_name}-{vector_signature}.npz"
+        provider: TextProvider = PROVIDERS[provider_name]()
+        cache_path = cache_path_for(args.cache_dir, provider_name, vector_signature)
         results.append(
             embed_provider(
                 provider,
