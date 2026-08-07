@@ -36,6 +36,14 @@ data/**
 !data/eval/text_embedding_benchmark_v1.json
 # report.json thì sinh lại mỗi lần chạy — không commit, tránh diff nhiễu.
 data/eval/report.json
+# Lịch sự kiện thường niên do CLB cung cấp: cũng là mã nguồn của phép trích
+# sự kiện, không phải kết quả sinh ra. Mất nó thì tên chuỗi lại về chỗ LLM tự
+# đặt, và không ai biết `event_key` đúng ra phải là gì.
+!data/events/
+!data/events/su_kien_chuan.yaml
+# Cache của lượt gọi LLM thì sinh lại được — không commit.
+data/events/pass1_extractions.json
+data/events/pass2_clusters.json
 
 # ---- Models / caches ----
 *.pt

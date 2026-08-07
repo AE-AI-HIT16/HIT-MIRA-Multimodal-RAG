@@ -200,12 +200,18 @@ class EventRepository:
         *,
         series_id: Any | None = None,
         occurrence_id: Any | None = None,
+        ghi_de: bool = False,
     ) -> bool:
         """Gắn một cách gọi vào đúng một series hoặc một occurrence.
 
-        Trả về False khi alias đã trỏ vào chỗ khác — KHÔNG cướp alias, vì như vậy
-        lần chạy sau sẽ lặng lẽ đổi ý nghĩa của một cách gọi mà không ai thấy.
-        Người gọi tự quyết định coi đó là xung đột cần in ra hay chuyện bình thường.
+        Mặc định trả về False khi alias đã trỏ vào chỗ khác — KHÔNG cướp alias,
+        vì như vậy lần chạy sau sẽ lặng lẽ đổi ý nghĩa của một cách gọi mà không
+        ai thấy. Người gọi tự quyết định coi đó là xung đột cần in ra hay không.
+
+        `ghi_de=True` dành riêng cho lịch sự kiện do CLB cung cấp: ở đó việc
+        cướp alias là ĐÚNG, vì file lịch là nguồn sự thật còn alias cũ do máy tự
+        đặt. Không có đường này thì một lần trích sai (đã xảy ra: "Tuyển CTV"
+        bị trỏ vào "Tuyển thành viên HIT") sẽ đóng đinh vĩnh viễn.
         """
         if (series_id is None) == (occurrence_id is None):
             raise ValueError("alias phải trỏ vào đúng một trong hai: series_id hoặc occurrence_id")
@@ -216,7 +222,15 @@ class EventRepository:
             select(EventAliasModel).where(EventAliasModel.normalized_alias == chuan)
         )
         if dang_co is not None:
-            return dang_co.series_id == series_id and dang_co.occurrence_id == occurrence_id
+            if dang_co.series_id == series_id and dang_co.occurrence_id == occurrence_id:
+                return True
+            if not ghi_de:
+                return False
+            dang_co.alias = alias.strip()
+            dang_co.series_id = series_id
+            dang_co.occurrence_id = occurrence_id
+            self.session.flush()
+            return True
         self.session.add(
             EventAliasModel(
                 alias=alias.strip(),
@@ -285,6 +299,40 @@ class EventRepository:
         )
         self.session.flush()
         return int(ket_qua.rowcount or 0)
+
+    def xoa_series_mo_coi(self) -> list[str]:
+        """Xoá các chuỗi không còn bài nào, trả về slug đã xoá.
+
+        Trích lại lần hai với cách phân loại khác sẽ bỏ rơi những chuỗi của lần
+        đầu. Để nguyên thì chúng vẫn hiện ra như lựa chọn lọc hợp lệ, và chọn
+        vào là rỗng — người dùng không có cách nào biết đó là rác chứ không phải
+        sự kiện chưa có ảnh.
+        """
+        dang_dung = select(EventOccurrenceModel.series_id).join(
+            PostEventOccurrenceModel,
+            PostEventOccurrenceModel.occurrence_id == EventOccurrenceModel.occurrence_id,
+        )
+        mo_coi = self.session.execute(
+            select(EventSeriesModel.series_id, EventSeriesModel.slug).where(
+                ~EventSeriesModel.series_id.in_(dang_dung)
+            )
+        ).all()
+        if not mo_coi:
+            return []
+
+        # DELETE thẳng chứ KHÔNG `session.delete(row)`: quan hệ `aliases` không
+        # khai cascade, nên ORM sẽ *set NULL* `event_aliases.series_id` trước khi
+        # xoá — mà cột đó có CHECK "trỏ vào đúng một đích", nên cả mẻ chết bằng
+        # CheckViolation. Đo được 07/08/2026 trên 34 alias. Câu lệnh Core để
+        # `ON DELETE CASCADE` của DB tự dọn occurrence và alias.
+        self.session.execute(
+            delete(EventSeriesModel).where(
+                EventSeriesModel.series_id.in_([sid for sid, _ in mo_coi])
+            )
+        )
+        self.session.expire_all()
+        self.session.flush()
+        return [slug for _, slug in mo_coi]
 
     def linked_post_ids(self) -> set[UUID]:
         """Các bài đã gán sự kiện — để chạy lại chỉ làm phần còn thiếu."""
