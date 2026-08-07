@@ -9,9 +9,9 @@ Script này chỉ gọi `set_payload`: vector giữ nguyên, không một lời 
 nhà cung cấp nhúng, không tốn tiền. Một request Qdrant cho mỗi bài, không phải
 cho mỗi point.
 
-`event_key` hiện sẽ là `None` với mọi bài: bốn bảng sự kiện đang rỗng và job
-trích xuất sự kiện chưa được viết. Script vẫn ghi `post_created_at`, và khi nào
-có event thì chạy lại là đủ.
+`event_key` lấy từ `scripts/extract_post_events.py` — bài nào chưa được gán sự
+kiện thì khoá đó bị XOÁ khỏi payload chứ không ghi rỗng (xem `tach_payload`).
+Chạy lại script này sau mỗi lần trích xuất sự kiện là đủ để payload theo kịp.
 """
 
 from __future__ import annotations
@@ -138,8 +138,8 @@ def main() -> int:
         print("\nDry-run: chưa ghi payload và chưa tạo index. Thêm --apply để thực hiện.")
     if co_su_kien == 0:
         print(
-            "\nLƯU Ý: không bài nào có event_key. Bốn bảng sự kiện đang rỗng và job "
-            "trích xuất chưa tồn tại — filter theo event sẽ chưa dùng được."
+            "\nLƯU Ý: không bài nào có event_key — filter theo sự kiện sẽ trả rỗng. "
+            "Chạy `scripts/extract_post_events.py --apply` trước."
         )
     return 0
 
