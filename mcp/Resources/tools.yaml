@@ -70,5 +70,16 @@ tools:
             Lọc theo NĂM của bài đăng, nhiều năm là HOẶC. Chỉ truyền khi câu hỏi
             nêu rõ mốc thời gian ("ảnh Open Day 2024", "hoạt động năm ngoái") —
             lọc bừa sẽ loại mất kết quả đúng của năm khác. Kho hiện có 2021-2026.
+        events:
+          type: array
+          items:
+            type: string
+          description: >
+            Lọc theo CHUỖI SỰ KIỆN của bài đăng, nhiều sự kiện là HOẶC. Nhận cả
+            tên đầy đủ lẫn slug ("HIT Contest Series" hay "hit-contest-series").
+            Chỉ truyền khi câu hỏi gọi TÊN một sự kiện; hỏi chung chung
+            ("ảnh sinh hoạt CLB") mà lọc thì mất hết bài chưa gán sự kiện. Không
+            phải bài nào cũng thuộc một sự kiện, nên lọc sai tên sẽ trả về rỗng
+            chứ không phải trả về kết quả gần đúng.
       required:
         - query

@@ -77,6 +77,7 @@ class RAGApiClient:
         video_ids: list[str] | None = None,
         source: str = "both",
         years: list[int] | None = None,
+        events: list[str] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "query": query,
@@ -88,6 +89,8 @@ class RAGApiClient:
             payload["video_ids"] = video_ids
         if years:
             payload["years"] = years
+        if events:
+            payload["events"] = events
         return await self._request("POST", "/api/media/search", json=payload)
 
 
