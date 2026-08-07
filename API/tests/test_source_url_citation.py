@@ -21,7 +21,15 @@ from src.rag_video_anh.repository.schemas import (
     MediaType,
 )
 from src.rag_video_anh.retrieval.retrieval_service import VideoRetrievalService
-from src.rag_video_anh.retrieval.retrieval_units import ImageRetrievalUnitBuilder, _post_source_url
+from src.rag_video_anh.retrieval.retrieval_units import (
+    ImageRetrievalUnitBuilder,
+    _post_index_metadata,
+)
+
+
+def _post_source_url(uow, post_id):
+    """`_post_source_url` cũ giờ là một trường của `_post_index_metadata`."""
+    return _post_index_metadata(uow, post_id).source_url
 
 POST_URL = "https://www.facebook.com/1679787570636388/posts/1001928175089001"
 
