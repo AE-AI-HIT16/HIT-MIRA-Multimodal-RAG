@@ -29,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import select
+from sqlalchemy import extract, select
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 API_ROOT = PROJECT_ROOT / "API"
@@ -39,7 +39,11 @@ load_dotenv(PROJECT_ROOT / ".env")
 from src.configuration import AppConfig  # noqa: E402
 from src.rag_video_anh.pipeline.image_processing_worker import ImageProcessingWorker  # noqa: E402
 from src.rag_video_anh.repository import MediaType, RepositoryUnitOfWork  # noqa: E402
-from src.rag_video_anh.repository.models import CaptionResultModel, MediaModel  # noqa: E402
+from src.rag_video_anh.repository.models import (  # noqa: E402
+    CaptionResultModel,
+    MediaModel,
+    PostModel,
+)
 
 DEFAULT_WORKERS = 4
 PROGRESS_EVERY = 25
@@ -53,6 +57,7 @@ def pending_media_ids(
     redo: bool,
     stale: bool = False,
     media_type: str = MediaType.IMAGE.value,
+    years: list[int] | None = None,
 ) -> tuple[list[str], int]:
     """Trả về ảnh cần chạy và số ảnh đã có caption thành công từ trước.
 
@@ -61,6 +66,10 @@ def pending_media_ids(
 
     `stale=True` coi cả caption do model KHÁC model đang cấu hình sinh ra là
     chưa xong, để sau mỗi lần đổi model có cách làm đồng nhất lại dữ liệu cũ.
+
+    `years` lọc theo năm đăng bài. Kho trải gần 5 năm và chạy hết một lượt mất
+    hàng chục giờ, nên chia theo năm là cách chia mẻ tự nhiên nhất: mỗi mẻ vẫn
+    phủ trọn một khoảng thời gian thay vì cắt ngang giữa các bài.
     """
     current_model = str(AppConfig().media_models.vision_model_name)
 
@@ -71,6 +80,10 @@ def pending_media_ids(
         query = select(MediaModel.media_id).where(MediaModel.media_type == media_type)
         if post_id:
             query = query.where(MediaModel.post_id == post_id)
+        if years:
+            query = query.join(PostModel, PostModel.post_id == MediaModel.post_id).where(
+                extract("year", PostModel.created_time).in_(sorted(years))
+            )
         media_ids = [str(row) for row in uow.session.scalars(query)]
 
         if redo:
@@ -157,6 +170,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Chạy OCR + caption cho ảnh tĩnh đã đăng ký.")
     parser.add_argument("--post-id", default=None, help="Chỉ xử lý ảnh của một bài.")
     parser.add_argument(
+        "--year", type=int, action="append", dest="years",
+        help="Chỉ xử lý media của bài đăng trong năm này. Lặp lại được: --year 2024 --year 2025.",
+    )
+    parser.add_argument(
         "--media-type",
         default=MediaType.IMAGE.value,
         choices=[MediaType.IMAGE.value, MediaType.FRAME.value],
@@ -192,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     media_ids, already_done = pending_media_ids(
-        args.post_id, args.redo, stale=args.stale, media_type=args.media_type
+        args.post_id, args.redo, stale=args.stale, media_type=args.media_type, years=args.years
     )
     if args.limit is not None:
         media_ids = media_ids[: args.limit]
