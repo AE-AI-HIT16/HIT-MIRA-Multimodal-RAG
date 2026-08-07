@@ -53,12 +53,14 @@ class FakeVideoVectorStore:
             raise RuntimeError(f"qdrant down for {collection_name}")
         return list(self.results.get(collection_name, []))
 
-    def search_filter(self, video_ids=None, years=None):
+    def search_filter(self, video_ids=None, years=None, events=None):
         loc = {}
         if video_ids:
             loc["video_ids"] = list(video_ids)
         if years:
             loc["years"] = list(years)
+        if events:
+            loc["events"] = list(events)
         return loc or None
 
 

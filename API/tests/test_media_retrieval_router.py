@@ -15,8 +15,8 @@ class FakeMediaRetrievalService:
         self.error = error
         self.calls: list[tuple] = []
 
-    def retrieve(self, query, top_k=None, video_ids=None, source="both", image=None, years=None):
-        self.calls.append((query, top_k, video_ids, source, image, years))
+    def retrieve(self, query, top_k=None, video_ids=None, source="both", image=None, years=None, events=None):
+        self.calls.append((query, top_k, video_ids, source, image, years, events))
         if self.error is not None:
             raise self.error
         return self.result
@@ -61,7 +61,7 @@ def test_post_media_search_returns_service_payload(client):
     body = response.json()
     assert body["total"] == 1
     assert body["clips"][0]["video_id"] == "video-1"
-    assert service.calls == [("sinh hoạt CLB", 3, ["video-1"], "both", None, None)]
+    assert service.calls == [("sinh hoạt CLB", 3, ["video-1"], "both", None, None, None)]
 
 
 def test_get_media_search_passes_query_params(client):
@@ -71,7 +71,7 @@ def test_get_media_search_passes_query_params(client):
     response = client.get("/api/media/search", params={"query": "cắm hoa", "source": "clip"})
 
     assert response.status_code == 200
-    assert service.calls == [("cắm hoa", None, None, "clip", None, None)]
+    assert service.calls == [("cắm hoa", None, None, "clip", None, None, None)]
 
 
 def test_post_media_search_forwards_years(client):
@@ -169,7 +169,7 @@ def test_post_search_image_forwards_raw_bytes_and_optional_text(client):
     )
 
     assert response.status_code == 200
-    query, top_k, video_ids, source, image, _years = service.calls[0]
+    query, top_k, video_ids, source, image, _years, _events = service.calls[0]
     # Ảnh phải tới service nguyên vẹn: sai một byte là sai cả vector.
     assert image == JPEG_BYTES
     assert (query, top_k, video_ids, source) == ("ảnh này ở sự kiện nào", 3, None, "clip")

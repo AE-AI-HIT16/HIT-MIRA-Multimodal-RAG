@@ -37,6 +37,13 @@ class MediaRetrievalRequest(BaseModel):
             "Ví dụ [2024, 2025]."
         ),
     )
+    events: list[str] | None = Field(
+        default=None,
+        description=(
+            "Lọc theo chuỗi sự kiện của BÀI ĐĂNG (nhiều sự kiện = HOẶC). Nhận cả "
+            "tên đầy đủ lẫn slug: 'HIT Contest Series' hay 'hit-contest-series'."
+        ),
+    )
 
 
 @lru_cache(maxsize=1)
@@ -52,10 +59,11 @@ async def _search(
     source: str,
     image: bytes | None = None,
     years: list[int] | None = None,
+    events: list[str] | None = None,
 ) -> dict[str, Any]:
     try:
         return await run_in_threadpool(
-            service.retrieve, query, top_k, video_ids, source, image, years
+            service.retrieve, query, top_k, video_ids, source, image, years, events
         )
     except (ImageEmbeddingConfigurationError, VideoVectorStoreConfigurationError) as exc:
         # Hai lỗi này kế thừa ValueError nên PHẢI bắt trước, nếu không thiếu
@@ -81,6 +89,7 @@ async def search_media(
         request.video_ids,
         request.source,
         years=request.years,
+        events=request.events,
     )
 
 
@@ -126,6 +135,7 @@ async def search_media_by_image(
     video_ids: list[str] | None = Form(default=None),
     source: str = Form(default=SOURCE_BOTH),
     years: list[int] | None = Form(default=None),
+    events: list[str] | None = Form(default=None),
     service: VideoRetrievalService = Depends(get_media_retrieval_service),
 ) -> dict[str, Any]:
     """US-302.1 / US-303.1: tìm ảnh và keyframe tương tự từ MỘT ảnh truy vấn.
@@ -134,7 +144,7 @@ async def search_media_by_image(
     mã hoá/giải mã một khối vài MB, trong khi trình duyệt gửi `FormData` sẵn.
     """
     data = await _read_query_image(image)
-    return await _search(service, query, top_k, video_ids, source, data, years)
+    return await _search(service, query, top_k, video_ids, source, data, years, events)
 
 
 @router.get("/search")
@@ -144,6 +154,7 @@ async def search_media_get(
     video_ids: list[str] | None = Query(default=None),
     source: str = Query(default=SOURCE_BOTH),
     years: list[int] | None = Query(default=None, description="Lọc theo năm bài đăng, ví dụ ?years=2024&years=2025"),
+    events: list[str] | None = Query(default=None, description="Lọc theo sự kiện, ví dụ ?events=hit-contest-series"),
     service: VideoRetrievalService = Depends(get_media_retrieval_service),
 ) -> dict[str, Any]:
-    return await _search(service, query, top_k, video_ids, source, None, years)
+    return await _search(service, query, top_k, video_ids, source, None, years, events)
