@@ -62,6 +62,9 @@ MEDIA_PIPELINE:
     - 0.85
   KEYFRAME_LONG_SCENE_INTERVAL_SEC: 2.5
   KEYFRAME_MAX_CANDIDATES_PER_SCENE: 8
+  # Hai keyframe cách nhau quá ngần này giây thì không so trùng với nhau nữa.
+  # Giữ độ phủ thời gian cho video nền sáng, nơi phép đo trùng bằng pixel bị mù.
+  KEYFRAME_MAX_GAP_SEC: 10.0
   FPS_FALLBACK: 25.0
   MIN_BLUR_SCORE: 80.0
   MIN_BRIGHTNESS: 30.0
