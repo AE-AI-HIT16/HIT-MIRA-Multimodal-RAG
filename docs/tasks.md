@@ -168,5 +168,13 @@ Sprint 5  Frontend + Đánh giá + Demo
 
 ## 5. Backlog v2 (chưa tạo issue)
 Crawl tự động (BR-103) · Khử trùng lặp (BR-106) · OCR (BR-204) · Index tăng tiến (BR-206) ·
-Face search (BR-304) · Lọc thời gian/sự kiện (BR-305) · Ngữ cảnh hội thoại (BR-504) ·
+Face search (BR-304) · Ngữ cảnh hội thoại (BR-504) ·
 Privacy opt-out/removal/log (BR-702/703/705) · **Nâng Router → Agentic RAG** (phân rã/multi-hop).
+
+**Đã làm sớm hơn kế hoạch — BR-305 (Lọc thời gian/sự kiện).** BRD xếp mục này
+vào v2/Could, nhưng cả hai nửa đã xong trong v1 vì chi phí thấp hơn dự kiến:
+`post_created_at` và `event_key` vốn phải nằm trong payload để trích dẫn, nên
+thêm bộ lọc chỉ là dựng `Filter` chứ không phải index lại. Tham số `years` và
+`events` có trên `/api/media/search`, `/api/media/search-image` và MCP
+`search_media`. Bảng BR trong `brd.md` vẫn ghi v2 — giữ nguyên để dấu vết kế
+hoạch gốc còn đọc được.

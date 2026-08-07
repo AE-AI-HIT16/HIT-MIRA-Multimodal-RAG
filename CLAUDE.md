@@ -103,6 +103,21 @@ Whichever model is chosen, **changing it means re-embedding the whole collection
 
 Points indexed before these keys existed carry no `post_created_at` and are therefore invisible to any year filter. All 1,628 `media_clip` points were backfilled via `index_image_units.py --apply --payload-only`; new collections get the datetime payload index automatically from `ensure_collection`.
 
+**Filtering by event** — `events: ["HIT Open Day"]` on the same three entry points, matching `event_key`, the **series** slug. It composes with `years` through the same `must`/`should` nesting, so "Open Day 2024" is an intersection.
+
+- **The filter key is not what the user types.** The payload holds `hit-open-day`; the question says "HIT Open Day". Both sides go through `common_utils/text_keys.slugify` — that module exists precisely so the writer (`repository/events.py`) and the reader (`vector_store.py`) cannot drift, because drift here returns *zero results for a real event* with no error anywhere.
+- **`đ` again.** `slugify` maps `đ→d` before stripping accents, for the same reason the ASR boilerplate gate had to; NFKD deletes `đ` outright, so "Đại hội" would key as `ai-hoi`.
+- **Unknown event names are ignored, not rejected** — unlike years, which have a valid range and raise. There is nothing to validate a name against, so a wrong one simply matches nothing; the service says so in `notes`.
+- **`event_key` is the series, never the occurrence.** `event_occurrences` are fine-grained (`offline-hang-thang` has 38 occurrences across 38 posts); keying payloads on them would make almost every filter return one or two points. The occurrence table earns its keep as data, not as a filter key.
+
+**How events got there** (`scripts/extract_post_events.py`, run 07/08/2026 over 496 posts, ≈$1 of LLM):
+
+- **Two LLM passes, and the second is the one that matters.** Pass 1 extracts a name per post; pass 2 clusters the distinct names. Without pass 2 the corpus yielded 142 names where "Team Building", "Teambuilding" and "Team Building with HIT" are three separate `event_key`s — a filter that silently returns a third of the right answer. Pass 2 collapsed 142 → 78.
+- **Pass 2 is batched because one call timed out.** 142 names in a single prompt exceeded the `cx/gpt-5.5` proxy's patience. Batches of 40, **sorted by normalized name** so variants land together, then one final merge call over the canonical names. The merge round is deliberately *not* recursive — a model that groups nothing would otherwise loop forever on the same list.
+- **A fabricated event is worse than a missing one**, so every extraction must carry a quote copied verbatim from the post; if the quote isn't in the post (whitespace/emoji/accents normalized away), the result is dropped. 425 of 496 posts ended up with a primary event; the other 71 carry no `event_key` at all rather than a guess.
+- Assignment is stored with `assigned_by="llm"`, the confidence, and the quote in `evidence` — so a wrong one is traceable to what the model read.
+- **Writing the DB does not change payloads.** Run `backfill_media_text_post_metadata.py --collection <name> --apply` afterwards, once per collection. Posts that lost their event get the key *deleted*, not blanked — otherwise a stale `event_key` keeps matching a filter forever.
+
 ## Constraints worth knowing
 
 - **Jina rate limit is 100,000 tokens/minute (sliding window); one 512px image costs exactly 4,000 tokens.** `ImageEmbeddingService._reserve_tokens` paces requests *proactively*; do not replace it with react-to-429 backoff, which measured ~10 images/min versus ~20–25. Images are downscaled to 512px before embedding (`MEDIA_IMAGE_EMBEDDING_MAX_SIDE`) — a 2048px image costs 6× the tokens for a cosine-0.994 identical vector.
