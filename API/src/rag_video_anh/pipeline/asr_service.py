@@ -85,7 +85,21 @@ class AsrService:
         duration = 0.0
         with tempfile.TemporaryDirectory(prefix="hit-mira-sherpa-asr-") as tmp_dir:
             wav_path = Path(tmp_dir) / f"{media_input.media_id}.wav"
-            self._extract_wav(media_path, wav_path)
+            try:
+                self._extract_wav(media_path, wav_path)
+            except subprocess.CalledProcessError as exc:
+                if not self._la_video_khong_co_tieng(exc):
+                    raise
+                # Video không hề có luồng âm thanh là chuyện thường của kho này
+                # (1/59), không phải hỏng. Để nguyên thành ERROR thì mọi lượt
+                # chạy đều báo thất bại, và lỗi thật sẽ lẫn vào đám báo động giả.
+                logger.info(f"ASR skipped: media_id '{media_input.media_id}' has no audio track")
+                return TranscriptSet(
+                    media_id=media_input.media_id,
+                    language=language,
+                    status=StageStatus.NOT_FOUND,
+                    reason="media has no audio track",
+                )
             for index, samples, sample_rate, start_sec, end_sec in self._read_wave_chunks(wav_path):
                 duration = max(duration, end_sec)
                 stream = recognizer.create_stream()
@@ -161,11 +175,37 @@ class AsrService:
         normalized = AsrService._normalize_transcript_text(text)
         if not normalized:
             return True
+        if not AsrService._co_noi_dung_doc_duoc(normalized):
+            return True
         return any(phrase in normalized for phrase in _ASR_BOILERPLATE_HALLUCINATION_PHRASES)
 
     @staticmethod
+    def _co_noi_dung_doc_duoc(normalized: str) -> bool:
+        """Đoạn phải có ít nhất một chữ hoặc số thì mới là lời nói.
+
+        Đo 07/08/2026 trên `314b4c71…` — video 28,8 giây có track audio nhưng
+        im lặng tuyệt đối (mean_volume = max_volume = -91 dB): Zipformer nhả ra
+        đúng một ký tự `"<"`, và cổng lọc cũ cho qua vì `"<"` không rỗng và
+        không khớp câu boilerplate nào.
+
+        Hậu quả không dừng ở một dòng rác: transcript được ghi status DONE,
+        rồi thành một đơn vị `video_transcript` có thể trích dẫn — tức hệ thống
+        khẳng định trong video có người nói, ở khoảng 0–28,67 giây. Đó đúng là
+        thứ nguyên tắc "không bịa" cấm. 7/59 video của kho là video câm.
+        """
+        return any(ky_tu.isalnum() for ky_tu in normalized)
+
+    @staticmethod
     def _normalize_transcript_text(text: str) -> str:
-        ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+        # `đ`/`Đ` (U+0111/U+0110) là chữ cái riêng, NFKD KHÔNG tách nó thành
+        # `d` + dấu, nên `encode("ascii", "ignore")` xoá thẳng: "đăng ký kênh"
+        # ra "ang ky kenh". Bốn trong mười ba câu boilerplate của danh sách dưới
+        # đây được viết theo dạng có `d` ("dang ky kenh", "dung quen like",
+        # "dung quen dang ky", "cam on cac ban da xem") nên chưa từng khớp lần
+        # nào. Đổi tay trước khi bỏ dấu là chỗ sửa đúng — sửa danh sách thì
+        # người viết sau lại vấp lại đúng cái bẫy này.
+        de_stroke = text.replace("đ", "d").replace("Đ", "D")
+        ascii_text = unicodedata.normalize("NFKD", de_stroke).encode("ascii", "ignore").decode("ascii")
         return re.sub(r"\s+", " ", ascii_text.lower()).strip()
 
     def _load_model(self) -> Any | None:
@@ -250,6 +290,17 @@ class AsrService:
             str(target_path),
         ]
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    @staticmethod
+    def _la_video_khong_co_tieng(exc: subprocess.CalledProcessError) -> bool:
+        """Phân biệt 'không có tiếng' với 'file hỏng' — cả hai đều làm ffmpeg thoát khác 0.
+
+        Chỉ nhận đúng câu ffmpeg nói khi không có luồng nào để ghi ra. Bắt rộng
+        hơn thì một file thật sự hỏng cũng lọt thành 'không có tiếng' và im
+        lặng biến mất, đúng kiểu hỏng mà quy tắc "fail loudly" của dự án cấm.
+        """
+        stderr = str(exc.stderr or "").lower()
+        return "does not contain any stream" in stderr
 
     def _read_wave_chunks(self, wav_path: Path) -> list[tuple[int, Any, int, float, float]]:
         import numpy as np
