@@ -15,8 +15,8 @@ class FakeMediaRetrievalService:
         self.error = error
         self.calls: list[tuple] = []
 
-    def retrieve(self, query, top_k=None, video_ids=None, source="both", image=None):
-        self.calls.append((query, top_k, video_ids, source, image))
+    def retrieve(self, query, top_k=None, video_ids=None, source="both", image=None, years=None):
+        self.calls.append((query, top_k, video_ids, source, image, years))
         if self.error is not None:
             raise self.error
         return self.result
@@ -61,7 +61,7 @@ def test_post_media_search_returns_service_payload(client):
     body = response.json()
     assert body["total"] == 1
     assert body["clips"][0]["video_id"] == "video-1"
-    assert service.calls == [("sinh hoạt CLB", 3, ["video-1"], "both", None)]
+    assert service.calls == [("sinh hoạt CLB", 3, ["video-1"], "both", None, None)]
 
 
 def test_get_media_search_passes_query_params(client):
@@ -71,7 +71,32 @@ def test_get_media_search_passes_query_params(client):
     response = client.get("/api/media/search", params={"query": "cắm hoa", "source": "clip"})
 
     assert response.status_code == 200
-    assert service.calls == [("cắm hoa", None, None, "clip", None)]
+    assert service.calls == [("cắm hoa", None, None, "clip", None, None)]
+
+
+def test_post_media_search_forwards_years(client):
+    """Bộ lọc năm phải đi tới service — sai chỗ này thì API vẫn 200 mà không lọc."""
+    override(service := FakeMediaRetrievalService())
+
+    response = client.post("/api/media/search", json={"query": "open day", "years": [2024, 2025]})
+
+    assert response.status_code == 200
+    assert service.calls[0][5] == [2024, 2025]
+
+
+def test_get_media_search_forwards_years(client):
+    override(service := FakeMediaRetrievalService())
+
+    client.get("/api/media/search", params={"query": "open day", "years": [2024, 2025]})
+
+    assert service.calls[0][5] == [2024, 2025]
+
+
+def test_media_search_maps_invalid_year_to_422(client):
+    """Năm rác là lỗi của client, không được thành 500."""
+    override(FakeMediaRetrievalService())
+
+    assert client.post("/api/media/search", json={"query": "a", "years": ["hai nghìn"]}).status_code == 422
 
 
 def test_media_search_returns_not_found_payload_without_fabricating(client):
@@ -144,7 +169,7 @@ def test_post_search_image_forwards_raw_bytes_and_optional_text(client):
     )
 
     assert response.status_code == 200
-    query, top_k, video_ids, source, image = service.calls[0]
+    query, top_k, video_ids, source, image, _years = service.calls[0]
     # Ảnh phải tới service nguyên vẹn: sai một byte là sai cả vector.
     assert image == JPEG_BYTES
     assert (query, top_k, video_ids, source) == ("ảnh này ở sự kiện nào", 3, None, "clip")
