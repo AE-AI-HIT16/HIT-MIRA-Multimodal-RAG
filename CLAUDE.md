@@ -54,7 +54,7 @@ Providers are injected as optional constructor parameters (`image_embedder=`, `t
 | Concern | Model | Wired in |
 | --- | --- | --- |
 | Images, video keyframes, transcript text, **and user queries** | **Jina-CLIP v2** (`jina-clip-v2`, 1024-d, cosine) | `rag_video_anh/embedding/embedding_service.py`, transport chosen by `embedding/provider.py` |
-| Regulation/document text | `EMBEDDING_MODEL` = `jina-clip-v2` (same model — see below) | `rag_noiquy/embedding/embedding_service.py` |
+| Regulation/document text | `EMBEDDING_MODEL` = **Azure `text-embedding-3-small`, 1536-d** — a *different* model and a *different* vector space | `rag_noiquy/embedding/embedding_service.py` |
 | ASR | `hynt/Zipformer-30M-RNNT-6000h` via `sherpa_onnx` | `pipeline/asr_service.py` |
 | Caption + OCR (one call returns both) | `MEDIA_VISION_MODEL_NAME` — any OpenAI-compatible endpoint that accepts `image_url`; no provider default | `pipeline/qwen_vision_service.py` |
 | Query rewriting (regulation path) | `LLM_PROVIDER:LLM_MODEL` | `rag_noiquy/retrieval/query_rewriter.py` |
@@ -68,9 +68,13 @@ Three things that surprise people:
 1. **Transcripts are embedded with Jina-CLIP v2, not a dedicated Vietnamese text model.** `indexing_service.py` does `self.text_embedder = text_embedder or self.image_embedder`. That is what makes one query vector rank images *and* speech together — the joint space is the feature, not an oversight. `tech-pipeline.md` still names `AITeamVN/Vietnamese_Embedding`; changing to it would improve transcript retrieval but break the single-vector property.
 2. **`jina-clip-v2` only accepts `task="retrieval.query"`.** Sending `retrieval.passage` returns HTTP 422. Asymmetric query/passage embedding belongs to `jina-embeddings-v3`, a different model.
 3. **On this corpus the CLIP model also *wins* at text-to-text.** Measured 06/08/2026 on 505 post messages against 76 qrels, Jina-CLIP v2 beat Azure `text-embedding-3-small` on every metric — Recall@5 0.688 vs 0.565, MRR@10 0.728 vs 0.626, nDCG@10 0.693 vs 0.594 — with a rejection gap ~3× wider (+0.042 vs +0.015). See `docs/text-embedding-jina-vs-azure.md`. Both numbers are floors (qrels are not exhaustive); the *ordering* is what the measurement settles.
-### One embedding model — a deliberate decision
+### Two vector spaces — media on Jina, regulations on Azure
 
-**Every collection in this system is embedded by `jina-clip-v2` at 1024 dimensions**: `media_clip` (images + video keyframes), `video_transcript` (speech), and `rag_documents` (regulations). One key, one rate limit, one dimension. Keep it that way unless the trigger below fires.
+**Media is `jina-clip-v2` at 1024 dimensions** — `media_clip` (images + video keyframes) and `video_transcript` (speech) share one space, and that sharing is load-bearing. **Regulations are on Azure `text-embedding-3-small` at 1536** in `rag_documents_azure_1536`, which is a separate space entirely.
+
+This section used to claim one model everywhere. **It was wrong about regulations**: `.env` has pointed `EMBEDDING_MODEL` at Azure for a while, and the live collection is 1536-d — verified 07/08/2026 against Qdrant. The split the "trigger" below anticipated has therefore already happened, and it cost exactly what was predicted: nothing architecturally. Regulations have their own collection, their own MCP tool (`search_regulations`), and their own router, and never share a query vector with images.
+
+What must NOT be split is `video_transcript` — that is what would break the single-query property below.
 
 The constraint that forces the choice: **only a multimodal model can embed images at all.** So "one model everywhere" necessarily means a CLIP-family model. Picking the strongest Vietnamese text model (`baai/bge-m3`, `AITeamVN/Vietnamese_Embedding`) instead means it cannot embed images, forcing a second model.
 
@@ -81,7 +85,7 @@ What that buys, and what it costs:
 - **Buys:** `VideoRetrievalService.retrieve()` embeds the query **once** and searches `media_clip` and `video_transcript` in the same space. A separate text model would force two query embeddings per request. Fewer providers also means fewer outages — an expired vision-provider balance once took out captioning and the whole regulation path in one go, which is why the vision config is now provider-agnostic.
 - **Costs:** measured on the real regulation chunks, Jina-CLIP v2 answered 6/7 queries top-1, but absolute scores sat at 0.3–0.6 and the rank-1-to-rank-2 gap was as thin as 0.01. That gets fragile as the corpus grows, and it makes a "not found" threshold hard to place — which matters because this system must never fabricate.
 
-**Trigger to revisit:** when `rag_documents` exceeds roughly 50 chunks, re-measure top-1 on real questions. If it falls below ~80%, give **regulations only** a dedicated text model. That split costs nothing architecturally — regulations have their own collection, their own MCP tool (`search_regulations`), and their own router, and never share a query vector with images. Do **not** split transcripts out; that is what would break the single-query property.
+**The regulation corpus is one document, 4 chunks** (`Nội Quy CLB 2022`, room-usage rules, ingested 07/08/2026). At that size ranking is easy but a "not found" threshold is impossible to calibrate, so nothing filters on score. Re-measure top-1 on real questions once it passes ~50 chunks — and note the measured miss already present: *"làm mất chìa khóa thì sao"* ranks the penalties section **below** two others, so `top_k=2` drops the correct answer. The chatbot still answers it because it asks for more chunks than that.
 
 Whichever model is chosen, **changing it means re-embedding the whole collection.** Two models are two vector spaces; mixing them in one collection makes ranking meaningless. Also note `EMBEDDING_CHECK_CTX_LENGTH=false`: LangChain otherwise fetches a HuggingFace tokenizer named after the model and dies with `OSError` for providers that have no HF repo, `jina-clip-v2` included.
 
@@ -135,6 +139,7 @@ Points indexed before these keys existed carry no `post_created_at` and are ther
   - video keyframe: same, plus `{video_id, frame_media_id, frame_index, timestamp_sec, transcript_context, transcript_context_start_sec, transcript_context_end_sec}`
   - transcript: `{video_id, unit_id, post_id, start_sec, end_sec, text, language, source_segment_ids}`
   - **Images deliberately carry no `timestamp_sec` and no `video_id`** so a citation can never invent a moment in a still photo.
+- **A "heading" longer than `StructureAwareChunker.MAX_HEADING_CHARS` (120) is not a heading.** `HEADING_RE` matches only the *start* of a line, and the section name it captures is prefixed onto every chunk of that section — so a whole section body that happens to begin with "Nội quy…" becomes its own section name and the text multiplies. Measured 07/08/2026: `Docx2txtLoader` drops the blank lines between bullet items, yielding one 1,461-char "paragraph", and a 1,697-char document expanded to **73 chunks / 107,220 characters** — 63× the embedding bill and a collection full of duplicated text, with no error raised. The same document as PDF gives 4 chunks / 2,076 characters. **Prefer the PDF for regulations**: `PyPDFLoader` keeps the numbered headings, so chunks carry real `section` values that citations can point at; the DOCX path produces `section: None`.
 - **Captions arrive after indexing.** Analysis and indexing are separate steps, so re-embedding to attach a caption is wasted quota — use `index_image_units.py --apply --payload-only`, which rewrites payloads and leaves vectors alone (1,628 points in ~16s versus ~78 minutes).
 - **Point IDs are deterministic** (`QdrantVideoVectorStore.point_id`, uuid5 of the business key), so re-indexing overwrites instead of duplicating, and "is this already indexed?" is answerable without a marker table.
 - **One shared SQLAlchemy engine per process** (`repository/database.py:get_session_manager`). Constructing a `DatabaseSessionManager` per Unit of Work leaks a connection pool and exhausts PostgreSQL (`sorry, too many clients already`) within a few hundred calls.
