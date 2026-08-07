@@ -1,0 +1,2 @@
+-r requirements.txt
+runpod==1.11.0

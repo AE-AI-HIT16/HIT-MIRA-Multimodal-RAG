@@ -24,10 +24,9 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
+from encoder import EMBED_DIM, MODEL_NAME, TEXT_TASK, EncoderError, JinaClipEncoder
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
-
-from encoder import EMBED_DIM, MODEL_NAME, EncoderError, JinaClipEncoder
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -37,6 +36,10 @@ logger = logging.getLogger(__name__)
 API_KEY = os.getenv("EMBED_SERVER_API_KEY", "").strip()
 
 encoder = JinaClipEncoder()
+
+
+class EmbeddingRequestError(ValueError):
+    """Request sai hợp đồng; HTTP và RunPod cùng ánh xạ lỗi này ở biên."""
 
 
 class InputItem(BaseModel):
@@ -63,14 +66,81 @@ class EmbeddingRequest(BaseModel):
     def tach_text_va_anh(self) -> tuple[list[str], list[str]]:
         texts: list[str] = []
         images: list[str] = []
-        for item in self.input:
+        for index, item in enumerate(self.input):
             if isinstance(item, str):
-                texts.append(item)
-            elif item.text is not None:
-                texts.append(item.text)
-            elif item.image is not None:
-                images.append(item.image)
+                value = item.strip()
+                if not value:
+                    raise EmbeddingRequestError(f"input[{index}] chứa text rỗng")
+                texts.append(value)
+                continue
+            has_text = item.text is not None
+            has_image = item.image is not None
+            if has_text == has_image:
+                raise EmbeddingRequestError(
+                    f"input[{index}] phải có đúng một trường 'text' hoặc 'image'"
+                )
+            value = (item.text if has_text else item.image) or ""
+            value = value.strip()
+            if not value:
+                field = "text" if has_text else "image"
+                raise EmbeddingRequestError(f"input[{index}].{field} rỗng")
+            (texts if has_text else images).append(value)
         return texts, images
+
+
+def encode_request(
+    request: EmbeddingRequest,
+    encoder_instance: JinaClipEncoder,
+    *,
+    max_batch_size: int | None = None,
+) -> dict[str, Any]:
+    """Xử lý một request độc lập với FastAPI hay RunPod.
+
+    Chỉ giữ một bản logic contract để hai cách deploy không thể lệch thứ tự
+    vector, số chiều hoặc quy tắc không trộn text/ảnh.
+    """
+    if request.dimensions is not None and request.dimensions != EMBED_DIM:
+        raise EmbeddingRequestError(
+            f"Server chỉ phục vụ {EMBED_DIM} chiều, client xin {request.dimensions}"
+        )
+    if request.task is not None and request.task != TEXT_TASK:
+        raise EmbeddingRequestError(
+            f"Server chỉ phục vụ task='{TEXT_TASK}', client xin '{request.task}'"
+        )
+    if request.normalized is False:
+        raise EmbeddingRequestError("Server chỉ trả vector đã chuẩn hoá; normalized phải là true")
+    if max_batch_size is not None and len(request.input) > max_batch_size:
+        raise EmbeddingRequestError(
+            f"Một job nhận tối đa {max_batch_size} phần tử, client gửi {len(request.input)}"
+        )
+
+    texts, images = request.tach_text_va_anh()
+    if texts and images:
+        raise EmbeddingRequestError("Một request chỉ được chứa toàn text hoặc toàn image")
+    if not texts and not images:
+        raise EmbeddingRequestError("input phải có ít nhất một 'text' hoặc 'image'")
+
+    vectors = (
+        encoder_instance.encode_texts(texts)
+        if texts
+        else encoder_instance.encode_images(images)
+    )
+    expected = len(request.input)
+    if len(vectors) != expected:
+        raise RuntimeError(f"Model trả {len(vectors)} vector cho {expected} input")
+    if any(len(vector) != EMBED_DIM for vector in vectors):
+        observed = sorted({len(vector) for vector in vectors})
+        raise RuntimeError(f"Model trả sai số chiều: mong đợi {EMBED_DIM}, nhận {observed}")
+
+    return {
+        "model": request.model or MODEL_NAME,
+        "object": "list",
+        "data": [
+            {"object": "embedding", "index": i, "embedding": vector}
+            for i, vector in enumerate(vectors)
+        ],
+        "usage": {"total_tokens": 0, "prompt_tokens": 0, "items": expected},
+    }
 
 
 @asynccontextmanager
@@ -99,37 +169,10 @@ def embeddings(request: EmbeddingRequest, authorization: str = Header(default=""
     if API_KEY and authorization.removeprefix("Bearer ").strip() != API_KEY:
         raise HTTPException(status_code=401, detail="Sai hoặc thiếu API key")
 
-    # Số chiều sai thì Qdrant sẽ từ chối tận lúc upsert, sau khi đã tốn cả mẻ
-    # nhúng. Chặn ngay ở đây và nói rõ lý do.
-    if request.dimensions is not None and request.dimensions != EMBED_DIM:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Server chỉ phục vụ {EMBED_DIM} chiều, client xin {request.dimensions}",
-        )
-
-    texts, images = request.tach_text_va_anh()
-    if texts and images:
-        # Trộn hai loại trong một request thì thứ tự trả về không còn khớp
-        # `index` của client. Client thật không bao giờ trộn, nên từ chối thẳng
-        # còn hơn trả về vector xếp sai chỗ mà không ai biết.
-        raise HTTPException(status_code=422, detail="Một request chỉ được chứa toàn text hoặc toàn image")
-    if not texts and not images:
-        raise HTTPException(status_code=422, detail="input phải có ít nhất một 'text' hoặc 'image'")
-
     try:
-        vectors = encoder.encode_texts(texts) if texts else encoder.encode_images(images)
-    except EncoderError as exc:
+        return encode_request(request, encoder)
+    except (EmbeddingRequestError, EncoderError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Nhúng thất bại")
         raise HTTPException(status_code=500, detail=f"{exc.__class__.__name__}: {exc}") from exc
-
-    so_luong = len(texts) if texts else len(images)
-    return {
-        "model": request.model or MODEL_NAME,
-        "object": "list",
-        "data": [{"object": "embedding", "index": i, "embedding": v} for i, v in enumerate(vectors)],
-        # Client không đọc `usage`, nhưng giữ cho giống hợp đồng gốc để ai đó
-        # cắm curl vào so sánh không thấy thiếu trường.
-        "usage": {"total_tokens": 0, "prompt_tokens": 0, "items": so_luong},
-    }
