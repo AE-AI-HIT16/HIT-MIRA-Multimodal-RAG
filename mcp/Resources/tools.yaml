@@ -62,5 +62,13 @@ tools:
           description: >
             Nguồn cần tìm: 'clip' chỉ tìm keyframe/hình ảnh, 'transcript' chỉ
             tìm lời thoại, 'both' tìm cả hai (mặc định).
+        years:
+          type: array
+          items:
+            type: integer
+          description: >
+            Lọc theo NĂM của bài đăng, nhiều năm là HOẶC. Chỉ truyền khi câu hỏi
+            nêu rõ mốc thời gian ("ảnh Open Day 2024", "hoạt động năm ngoái") —
+            lọc bừa sẽ loại mất kết quả đúng của năm khác. Kho hiện có 2021-2026.
       required:
         - query
