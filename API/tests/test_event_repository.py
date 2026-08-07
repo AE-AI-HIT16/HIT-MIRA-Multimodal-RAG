@@ -179,6 +179,18 @@ def test_alias_da_tro_cho_khac_thi_khong_bi_cuop(repo):
     assert repo.series_by_alias("Ngày hội").series_id == a.series_id
 
 
+def test_lich_chuan_duoc_quyen_cuop_alias(repo):
+    """Alias do máy đặt sai phải sửa được, nếu không một lần trích sai sẽ đóng
+    đinh vĩnh viễn — đúng cái đã xảy ra với "Tuyển CTV"."""
+    a = repo.upsert_series("tuyen-thanh-vien-hit", "Tuyển thành viên HIT")
+    b = repo.upsert_series("tuyen-ctv", "Tuyển CTV")
+    repo.add_alias("Tuyển CTV", series_id=a.series_id)
+
+    assert repo.add_alias("Tuyển CTV", series_id=b.series_id, ghi_de=True) is True
+    assert repo.series_by_alias("tuyen ctv").slug == "tuyen-ctv"
+    assert repo.counts()["event_aliases"] == 1, "ghi đè chứ không tạo hàng thứ hai"
+
+
 def test_gan_lai_dung_alias_cu_van_bao_thanh_cong(repo):
     a = repo.upsert_series("hit-open-day", "HIT Open Day")
     repo.add_alias("Ngày hội", series_id=a.series_id)
@@ -246,6 +258,39 @@ def test_go_lien_ket_de_chay_lai_sach(session, repo):
 
     assert repo.unlink_post(bai.post_id) == 2
     assert repo.primary_series_slug(bai.post_id) is None
+
+
+def test_xoa_chuoi_khong_con_bai_nao(session, repo):
+    """Chuỗi rác của lượt trích cũ vẫn hiện ra như lựa chọn lọc hợp lệ, và chọn
+    vào là rỗng — không có cách nào phân biệt với sự kiện chưa có ảnh.
+
+    Chuỗi bị xoá ở đây CÓ alias và CÓ occurrence, vì phiên bản đầu chỉ xoá được
+    chuỗi trơ: `session.delete()` set NULL `event_aliases.series_id` trước khi
+    xoá, và cột đó có CHECK "trỏ vào đúng một đích" nên cả mẻ chết bằng
+    CheckViolation — trên PostgreSQL thật, không phải trong test.
+    """
+    bai = make_post(session)
+    _, con_dung = make_occurrence(repo, "hit-open-day", "HIT Open Day", "2024")
+    cu, _ = make_occurrence(repo, "chuoi-cu", "Chuỗi cũ", "2023")
+    repo.add_alias("Cách gọi cũ", series_id=cu.series_id)
+    repo.link_post(bai.post_id, con_dung.occurrence_id, is_primary=True)
+
+    assert repo.xoa_series_mo_coi() == ["chuoi-cu"]
+    assert repo.counts() == {
+        "event_series": 1,
+        "event_occurrences": 1,
+        "event_aliases": 0,
+        "post_event_occurrences": 1,
+    }
+    assert repo.primary_series_slug(bai.post_id) == "hit-open-day"
+
+
+def test_khong_xoa_nham_chuoi_dang_dung(session, repo):
+    bai = make_post(session)
+    _, ky = make_occurrence(repo, "hit-open-day", "HIT Open Day", "2024")
+    repo.link_post(bai.post_id, ky.occurrence_id)
+
+    assert repo.xoa_series_mo_coi() == []
 
 
 def test_liet_ke_bai_da_gan_de_chay_tiep(session, repo):

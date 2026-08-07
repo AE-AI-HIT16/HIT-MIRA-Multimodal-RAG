@@ -190,6 +190,80 @@ def test_llm_tra_ve_khong_phai_mang_thi_bao_loi():
         extract_events.gom_ten(LlmGia('{"ten_chuan": "A"}'), dem("Lớp hè"))
 
 
+# ── Neo vào lịch sự kiện thường niên do CLB cung cấp ─────────────────────────
+
+
+def lich(tmp_path, noi_dung: str):
+    duong = tmp_path / "su_kien_chuan.yaml"
+    duong.write_text(noi_dung, encoding="utf-8")
+    return extract_events.doc_su_kien_chuan(duong)
+
+
+def test_moi_cach_viet_deu_tra_ve_ten_chuan(tmp_path):
+    """Đây là thứ chữa lỗi đã đo được: "Team Building" và "Teambuilding" phải về
+    cùng một chuỗi mà KHÔNG cần tốn một lời gọi gom."""
+    chuan = lich(tmp_path, """
+su_kien:
+  - ten: HIT Teambuilding
+    mo_ta: Team building theo khoá.
+    alias: [Team Building, Teambuilding]
+""")
+    bang = extract_events.ten_chuan_da_biet(chuan)
+
+    assert bang[extract_events.normalize_alias("Teambuilding")] == "HIT Teambuilding"
+    assert bang[extract_events.normalize_alias("team  building")] == "HIT Teambuilding"
+    assert bang[extract_events.normalize_alias("HIT Teambuilding")] == "HIT Teambuilding"
+
+
+def test_hai_su_kien_clb_co_y_tach_thi_khong_dung_chung_alias(tmp_path):
+    """CLB tách "Tuyển thành viên HIT" với "Tuyển CTV"; LLM đã từng gộp hai cái
+    này. Alias trùng nhau sẽ dựng lại đúng cái bẫy đó."""
+    chuan = lich(tmp_path, """
+su_kien:
+  - ten: Tuyển thành viên HIT
+    alias: [Tuyển thành viên]
+  - ten: Tuyển CTV
+    alias: [Tuyển cộng tác viên]
+""")
+    bang = extract_events.ten_chuan_da_biet(chuan)
+
+    assert bang[extract_events.normalize_alias("Tuyển thành viên")] == "Tuyển thành viên HIT"
+    assert bang[extract_events.normalize_alias("Tuyển cộng tác viên")] == "Tuyển CTV"
+
+
+def test_alias_trung_nhau_thi_muc_dau_tien_thang(tmp_path):
+    """Không được để mục sau lặng lẽ cướp alias của mục trước — người sửa file
+    sẽ không hiểu vì sao một sự kiện bỗng nuốt hết bài của sự kiện khác."""
+    chuan = lich(tmp_path, """
+su_kien:
+  - ten: A
+    alias: [chung]
+  - ten: B
+    alias: [chung]
+""")
+
+    assert extract_events.ten_chuan_da_biet(chuan)[extract_events.normalize_alias("chung")] == "A"
+
+
+def test_thieu_file_lich_thi_chay_khong_neo_chu_khong_chet(tmp_path):
+    """Không neo là trạng thái cũ, vẫn dùng được — không đáng để chặn cả mẻ."""
+    chuan = extract_events.doc_su_kien_chuan(tmp_path / "khong-ton-tai.yaml")
+
+    assert chuan == []
+    assert "chưa có lịch chuẩn" in extract_events.mo_ta_lich_chuan(chuan)
+
+
+def test_muc_thieu_ten_bi_bo_qua(tmp_path):
+    chuan = lich(tmp_path, """
+su_kien:
+  - ten: "  "
+    alias: [x]
+  - ten: HIT Open Day
+""")
+
+    assert [sk.ten for sk in chuan] == ["HIT Open Day"]
+
+
 # ── Chia lô: gửi cả 142 tên một lần đã đo được là timeout ────────────────────
 
 
