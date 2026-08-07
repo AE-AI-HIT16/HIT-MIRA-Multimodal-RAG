@@ -98,6 +98,16 @@ class VectorRetriever:
         document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         normalized_query = self._normalize_query(query)
+        # Chưa nạp tài liệu nào là trạng thái HỢP LỆ, không phải lỗi: Qdrant trả
+        # 404 cho collection chưa tồn tại, và để nó nổi lên thành 500 sẽ làm
+        # router hỏi nội quy sập cả câu trả lời, thay vì nói "chưa có tài liệu".
+        # Cùng quy tắc với `search_points` bên nhánh media.
+        if not self._co_collection():
+            logger.warning(
+                f"Collection '{self.vector_store.collection_name}' chưa tồn tại — "
+                "kho nội quy đang rỗng, trả về 0 đoạn."
+            )
+            return []
         requested_k = int(top_k or self.top_k)
         candidate_k = min(
             max(requested_k * self.CANDIDATE_MULTIPLIER, requested_k),
@@ -158,6 +168,22 @@ class VectorRetriever:
     @staticmethod
     def _normalise_content(value: str) -> str:
         return " ".join(value.casefold().split())
+
+    def _co_collection(self) -> bool:
+        """Hỏi vector store xem collection đã tồn tại chưa.
+
+        Store giả trong test không có `_collection_exists`; coi đó là "có" để
+        chúng chạy như cũ — thiếu collection thật thì Qdrant vẫn báo lỗi.
+        """
+        kiem_tra = getattr(self.vector_store, "_collection_exists", None)
+        if kiem_tra is None:
+            return True
+        try:
+            return bool(kiem_tra())
+        except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng
+            # Qdrant chết thì đó là lỗi thật, không được biến thành "kho rỗng".
+            logger.warning(f"Không kiểm tra được collection: {exc.__class__.__name__}: {exc}")
+            return True
 
     def _langchain_store(self):
         if self._store is not None:
