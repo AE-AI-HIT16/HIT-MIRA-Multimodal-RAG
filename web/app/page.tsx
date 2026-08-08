@@ -17,6 +17,7 @@ import {
   searchRegulations,
 } from "@/lib/api";
 import { gopKetQua } from "@/lib/results";
+import { laXaGiao } from "@/lib/smalltalk";
 import type { ChatTurn, LGMessage, Override } from "@/lib/types";
 
 type Mode = "auto" | Override;
@@ -54,6 +55,23 @@ async function napTheKetQua(q: string, mode: Mode, img?: File | null) {
   ]);
   if (!media && !noiQuy) throw new Error("Không gọi được API truy xuất");
   return gopKetQua(media, noiQuy);
+}
+
+/**
+ * Có nên chạy nhánh truy xuất cho lượt này không.
+ *
+ * Trả `false` thì khối thẻ kết quả **không hiện gì cả** (`hitsStatus` để trống),
+ * chứ không phải hiện "0 kết quả" — chào một câu mà bị báo "Không tìm thấy nguồn
+ * nào khớp" thì vẫn là nhiễu, chỉ đỡ hơn một chút.
+ *
+ * Chỉ chặn ở chế độ "Tự động". Người dùng bấm tay sang "Ảnh & video" / "Nội quy"
+ * / "Cả hai" là đã nói rõ họ muốn tra cứu — không đoán lại thay họ.
+ */
+function coTraCuu(q: string, mode: Mode, img?: File | null): boolean {
+  if (img) return true; // ảnh chính là câu truy vấn (US-303.1), không bao giờ là xã giao
+  if (!q) return false;
+  if (mode !== "auto") return true;
+  return !laXaGiao(q);
 }
 const freshId = () => `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -176,6 +194,7 @@ export default function ChatPage() {
     const userTurnId = nextId();
     const asstTurnId = nextId();
     const ov: Override | undefined = mode === "auto" ? undefined : mode;
+    const traCuu = coTraCuu(q, mode, img);
 
     // Thêm lượt user + placeholder assistant
     setTurns((prev) => [
@@ -194,7 +213,7 @@ export default function ChatPage() {
         streamText: "",
         status: "loading",
         query: q,
-        hitsStatus: q || img ? "loading" : undefined,
+        hitsStatus: traCuu ? "loading" : undefined,
       },
     ]);
 
@@ -203,7 +222,7 @@ export default function ChatPage() {
     abortRef.current = controller;
 
     // Nạp thẻ kết quả song song — không await, để không chặn stream.
-    if (q || img) {
+    if (traCuu) {
       napTheKetQua(q, mode, img)
         .then((hits) =>
           setTurns((prev) =>
@@ -323,6 +342,7 @@ export default function ChatPage() {
   async function retry(asstTurnId: string, query: string) {
     if (busy) return;
     const ov: Override | undefined = mode === "auto" ? undefined : mode;
+    const traCuu = coTraCuu(query, mode);
 
     setTurns((prev) =>
       prev.map((t) =>
@@ -334,7 +354,7 @@ export default function ChatPage() {
               streamText: "",
               hits: undefined,
               hitsError: undefined,
-              hitsStatus: query ? "loading" : undefined,
+              hitsStatus: traCuu ? "loading" : undefined,
             }
           : t,
       ),
@@ -344,7 +364,7 @@ export default function ChatPage() {
     abortRef.current = controller;
 
     // Nạp lại thẻ kết quả song song — gửi lại thì nguồn tham khảo cũng phải mới.
-    if (query) {
+    if (traCuu) {
       napTheKetQua(query, mode)
         .then((hits) =>
           setTurns((prev) =>
