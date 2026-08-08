@@ -110,6 +110,8 @@ export interface ChatItem {
   regulation_id?: number;
   moments?: Moment[];
   frames?: FrameMoment[];
+  /** Thẻ khớp yếu, gom vào phần thu gọn thay vì chiếm chỗ trong câu trả lời. */
+  lienQuanYeu?: boolean;
 }
 
 export interface ChatReply {
