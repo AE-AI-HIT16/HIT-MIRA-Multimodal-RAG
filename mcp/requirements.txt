@@ -1,4 +1,9 @@
-mcp>=1.2.0
+# Chặn trần ở 2.0: bản đó bỏ hẳn `mcp.server.fastmcp`, mà `tools/registry.py`
+# import ở mức module — server chết ngay lúc khởi động với ModuleNotFoundError,
+# không phải lỗi lúc chạy nên test nào cũng không bắt được. Đo 07/08/2026: môi
+# trường đã tự kéo về mcp 2.0.0 và MCP server không lên nổi.
+# `langchain-mcp-adapters` cần mcp>=1.24, nên khoảng dùng được là 1.24..1.x.
+mcp>=1.24,<2
 httpx>=0.27.0
 pyyaml>=6.0.1
 python-dotenv>=1.0.1
