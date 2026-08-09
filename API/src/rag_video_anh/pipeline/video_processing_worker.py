@@ -13,6 +13,7 @@ from src.configuration import AppConfig
 from src.log.logger import logger
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
 from src.rag_video_anh.pipeline.pipeline_service import PipelineService
+from src.rag_video_anh.pipeline.stage_guard import khau_da_chay, noi_dung_ghi_duoc
 from src.rag_video_anh.repository import (
     DetectedObjectCreate,
     FrameCreate,
@@ -172,11 +173,16 @@ class VideoProcessingWorker:
             return
         assert uow.results is not None
         if not result.ocr_results.results:
+            # Khâu không chạy thì không có gì để ghi. Bỏ guard này là chuỗi
+            # "OCR disabled by route" đè lên nội dung OCR thật của lượt trước.
+            if not khau_da_chay(result.ocr_results.reason):
+                return
             for frame_media_id in frame_media_ids.values():
+                # Chỉ ghi trạng thái, KHÔNG lấy `reason` làm nội dung OCR.
                 uow.results.upsert_ocr_result(
                     frame_media_id,
                     status=self._persistable_status(result.ocr_results.status.value, result.ocr_results.reason),
-                    text=result.ocr_results.reason,
+                    text=None,
                 )
             return
         for ocr_result in result.ocr_results.results:
@@ -186,7 +192,7 @@ class VideoProcessingWorker:
             uow.results.upsert_ocr_result(
                 frame_media_id,
                 status=ocr_result.status.value,
-                text=ocr_result.full_text,
+                text=noi_dung_ghi_duoc(ocr_result.full_text, ocr_result.status),
             )
 
     def _persist_captions(self, uow: RepositoryUnitOfWork, result: PipelineResult, frame_media_ids: dict[str, uuid.UUID]) -> None:
@@ -194,25 +200,30 @@ class VideoProcessingWorker:
             return
         assert uow.results is not None
         if not result.caption_results.results:
+            if not khau_da_chay(result.caption_results.reason):
+                return
             for frame_media_id in frame_media_ids.values():
                 uow.results.upsert_caption_result(
                     frame_media_id,
                     status=self._persistable_status(result.caption_results.status.value, result.caption_results.reason),
-                    caption_text=result.caption_results.reason,
-                    caption_model=self.config.media_models.vision_model_name,
-                    vision_metadata={},
+                    caption_text=None,
                 )
             return
         for caption_result in result.caption_results.results:
             frame_media_id = frame_media_ids.get(caption_result.frame_id)
             if frame_media_id is None:
                 continue
+            noi_dung = noi_dung_ghi_duoc(caption_result.caption_text, caption_result.status)
             uow.results.upsert_caption_result(
                 frame_media_id,
                 status=caption_result.status.value,
-                caption_text=caption_result.caption_text,
-                caption_model=caption_result.generation_meta.get("model") or self.config.media_models.vision_model_name,
-                vision_metadata=self._vision_metadata(caption_result.generation_meta),
+                caption_text=noi_dung,
+                caption_model=(
+                    caption_result.generation_meta.get("model") or self.config.media_models.vision_model_name
+                )
+                if noi_dung is not None
+                else None,
+                vision_metadata=self._vision_metadata(caption_result.generation_meta) if noi_dung is not None else None,
             )
 
     def _persist_detections(self, uow: RepositoryUnitOfWork, result: PipelineResult, frame_media_ids: dict[str, uuid.UUID]) -> None:
@@ -220,6 +231,11 @@ class VideoProcessingWorker:
             return
         assert uow.results is not None
         if not result.detection_results.results:
+            # `objects=[]` khác `objects=None`: upsert coi danh sách rỗng là
+            # "đã chạy, không thấy gì" và xoá sạch object cũ. Đây chính là chỗ
+            # đã xoá 17.262 object YOLO.
+            if not khau_da_chay(result.detection_results.reason):
+                return
             for frame_media_id in frame_media_ids.values():
                 uow.results.upsert_object_result(
                     frame_media_id,
@@ -305,9 +321,12 @@ class VideoProcessingWorker:
 
     @staticmethod
     def _vision_metadata(generation_meta: dict) -> dict:
+        # `prompt_version` phải xuống DB: nó là thứ duy nhất phân biệt caption
+        # sinh bằng một lượt với hai lượt ("...-2pass"). Thiếu nó thì sau này
+        # không cách nào biết hàng nào cần chạy lại khi đổi cách sinh.
         return {
             key: generation_meta.get(key)
-            for key in ("ocr_blocks", "scene", "objects", "activities", "keywords")
+            for key in ("prompt_version", "ocr_blocks", "scene", "objects", "activities", "keywords")
             if generation_meta.get(key) not in (None, "", [])
         }
 

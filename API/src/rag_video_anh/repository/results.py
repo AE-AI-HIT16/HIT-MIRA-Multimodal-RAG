@@ -56,7 +56,13 @@ class AIResultRepository:
             self.session.flush()
 
         row.ocr_status = self._status(status)
-        row.ocr_text = text
+        # `None` = ĐỪNG ĐỤNG nội dung cũ; `""` = đã chạy và không thấy chữ.
+        # Cùng quy ước với `objects=None` / `objects=[]` của upsert_object_result
+        # ngay dưới. Thiếu phân biệt này thì một lượt hỏng, hoặc một khâu không
+        # chạy, sẽ xoá trắng kết quả tốt của lượt trước — đúng cách 17.262 object
+        # YOLO biến mất ngày 08/08/2026.
+        if text is not None:
+            row.ocr_text = text
         self.session.flush()
         return self._ocr_record(row)
 
@@ -82,9 +88,16 @@ class AIResultRepository:
             self.session.add(row)
 
         row.caption_status = self._status(status)
-        row.caption_text = caption_text
-        row.caption_model = caption_model
-        row.vision_metadata = vision_metadata or {}
+        # Cùng quy ước với upsert_ocr_result: `None` là đừng đụng, `""` là đã
+        # chạy và không sinh được caption. Model và metadata đi theo caption —
+        # ghi đè chúng khi không có caption mới chỉ tạo ra một hàng nửa cũ nửa
+        # mới, không truy được caption đang lưu do model nào sinh.
+        if caption_text is not None:
+            row.caption_text = caption_text
+        if caption_model is not None:
+            row.caption_model = caption_model
+        if vision_metadata is not None:
+            row.vision_metadata = vision_metadata
         self.session.flush()
         return self._caption_record(row)
 
