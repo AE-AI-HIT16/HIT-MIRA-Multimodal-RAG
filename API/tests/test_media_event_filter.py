@@ -194,3 +194,73 @@ def test_khong_them_note_khi_van_co_ket_qua():
 
     assert ket_qua["found"] is True
     assert ket_qua["notes"] == []
+
+
+# ── Quy cách gọi tắt về series (bảng event_aliases) ──────────────────────────
+#
+# `slugify` một mình chỉ đúng khi người hỏi gõ gần đủ tên. "Open Day" ra
+# "open-day", không phải "hit-open-day", nên bộ lọc trả RỖNG cho một sự kiện có
+# thật — không lỗi, không cảnh báo. Cách gọi đó đã nằm sẵn trong `event_aliases`
+# từ lúc trích xuất sự kiện; đây chỉ là đọc lại thứ đã biết.
+
+
+ALIAS_THAT = {"open day": "hit-open-day", "team building": "hit-teambuilding"}
+
+
+def build_service_co_alias(store: FakeVectorStore, resolver=None) -> VideoRetrievalService:
+    config = SimpleNamespace(
+        retrieval=SimpleNamespace(top_k=5),
+        qdrant=SimpleNamespace(url="http://localhost:6333", api_key=None, distance="COSINE"),
+    )
+    return VideoRetrievalService(
+        retriever=VideoRetriever(embedding_service=FakeEmbedder(), vector_store=store, config=config),
+        event_resolver=resolver if resolver is not None else (lambda ten: ALIAS_THAT.get(ten.strip().lower())),
+    )
+
+
+def test_cach_goi_tat_duoc_quy_ve_dung_series():
+    """Đây là ca đã đo được trên kho thật: "Open Day" trả về 0 clip."""
+    ket_qua = build_service_co_alias(FakeVectorStore()).retrieve("khai mạc", events=["Open Day"])
+
+    assert ket_qua["events"] == ["hit-open-day"]
+
+
+def test_ten_day_du_van_ra_dung_khoa_do():
+    """Bộ giải tra hụt "HIT Open Day" (alias lưu dạng khác) thì slugify vẫn đỡ."""
+    ket_qua = build_service_co_alias(FakeVectorStore()).retrieve("khai mạc", events=["HIT Open Day"])
+
+    assert ket_qua["events"] == ["hit-open-day"]
+
+
+def test_slug_dua_thang_vao_khong_bi_hong():
+    ket_qua = build_service_co_alias(FakeVectorStore()).retrieve("khai mạc", events=["hit-open-day"])
+
+    assert ket_qua["events"] == ["hit-open-day"]
+
+
+def test_ten_chua_tung_thay_van_slug_hoa_nhu_cu():
+    """Tên bịa phải khớp-không-ra-gì, chứ không được thành lỗi."""
+    ket_qua = build_service_co_alias(FakeVectorStore()).retrieve("khai mạc", events=["Sự kiện abc"])
+
+    assert ket_qua["events"] == ["su-kien-abc"]
+    assert ket_qua["found"] is False
+
+
+def test_bo_giai_sap_thi_truy_hoi_van_chay():
+    """DB sập làm bộ lọc kém chính xác đi, không được kéo sập cả câu trả lời."""
+
+    def resolver_sap(ten):  # noqa: ARG001
+        raise RuntimeError("PostgreSQL không kết nối được")
+
+    ket_qua = build_service_co_alias(FakeVectorStore(), resolver=resolver_sap).retrieve(
+        "khai mạc", events=["Open Day"]
+    )
+
+    assert ket_qua["events"] == ["open-day"], "vẫn phải rơi về hành vi slugify cũ"
+
+
+def test_khong_co_bo_giai_thi_hanh_vi_y_nhu_truoc():
+    """Bộ giải là tuỳ chọn — test dựng service bằng fake không cần PostgreSQL."""
+    ket_qua = build_service(FakeVectorStore()).retrieve("khai mạc", events=["Open Day"])
+
+    assert ket_qua["events"] == ["open-day"]

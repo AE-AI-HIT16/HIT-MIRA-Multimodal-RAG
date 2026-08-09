@@ -7,6 +7,7 @@ của nhánh media vẫn để trống có chủ ý.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from src.configuration import AppConfig
@@ -28,8 +29,15 @@ ALLOWED_SOURCES = (SOURCE_CLIP, SOURCE_TRANSCRIPT, SOURCE_BOTH)
 class VideoRetrievalService:
     """Trả về keyframe và video khớp truy vấn, kèm context để tổng hợp câu trả lời."""
 
-    def __init__(self, retriever: VideoRetriever) -> None:
+    def __init__(
+        self,
+        retriever: VideoRetriever,
+        event_resolver: Callable[[str], str | None] | None = None,
+    ) -> None:
         self.retriever = retriever
+        # Không có bộ giải tên thì hành vi y hệt trước: chỉ slug hoá. Tiêm vào
+        # được để test khỏi cần PostgreSQL.
+        self.event_resolver = event_resolver
 
     def retrieve(
         self,
@@ -55,7 +63,10 @@ class VideoRetrievalService:
         normalized_years = QdrantVideoVectorStore.normalize_years(years)
         # Nhận cả "HIT Contest Series" lẫn "hit-contest-series": payload chỉ có
         # slug, nên tên người gõ phải được quy về đúng dạng đó trước khi lọc.
-        normalized_events = QdrantVideoVectorStore.normalize_event_keys(events)
+        # Trước đó còn một bước tra cách gọi tắt ("Open Day" → "hit-open-day").
+        normalized_events = QdrantVideoVectorStore.normalize_event_keys(
+            self._resolve_event_names(events)
+        )
 
         clip_vector, text_vector = self._embed_query_vectors(normalized_query, image)
 
@@ -133,6 +144,35 @@ class VideoRetrievalService:
             "errors": errors,
             "notes": notes,
         }
+
+    def _resolve_event_names(self, events: list[str] | None) -> list[str] | None:
+        """Quy cách gọi tắt về đúng series trước khi slug hoá.
+
+        Người hỏi nói "Open Day", payload ghi "hit-open-day". Chỉ `slugify` thì
+        ra "open-day" và bộ lọc trả về RỖNG cho một sự kiện có thật — không lỗi,
+        không cảnh báo. Bảng `event_aliases` đã có sẵn cách gọi đó (được ghi lúc
+        trích xuất sự kiện), nên ở đây chỉ là đọc lại thứ đã biết.
+
+        Tra hụt thì trả về nguyên tên để `normalize_event_keys` slug hoá như cũ:
+        một cái tên bịa vẫn phải khớp-không-ra-gì chứ không được thành lỗi.
+        """
+        if not events or self.event_resolver is None:
+            return events
+        ket_qua: list[str] = []
+        for ten in events:
+            if not isinstance(ten, str) or not ten.strip():
+                continue
+            try:
+                slug = self.event_resolver(ten)
+            except Exception as exc:
+                # DB sập thì bộ lọc kém chính xác đi, chứ không được kéo sập cả
+                # câu trả lời — cùng lý do với chỗ kho nội quy rỗng ở retriever.
+                logger.warning(f"Không tra được alias sự kiện '{ten}': {exc}")
+                slug = None
+            if slug and slug != ten:
+                logger.info(f"Tên sự kiện '{ten}' được quy về series '{slug}'")
+            ket_qua.append(slug or ten)
+        return ket_qua
 
     def _embed_query_vectors(
         self,
@@ -252,6 +292,19 @@ class VideoRetrievalService:
         return normalized
 
 
+def tra_series_theo_ten(ten: str) -> str | None:
+    """Tra một cách gọi sự kiện về slug series, `None` nếu chưa từng thấy tên đó.
+
+    Import nằm trong hàm để tầng truy hồi không kéo theo SQLAlchemy khi test
+    dựng service bằng fake — đường media vốn chạy được mà không cần PostgreSQL.
+    """
+    from src.rag_video_anh.repository.unit_of_work import RepositoryUnitOfWork
+
+    with RepositoryUnitOfWork() as uow:
+        record = uow.events.series_by_alias(ten)
+        return record.slug if record else None
+
+
 def build_video_retrieval_service(config: AppConfig | None = None) -> VideoRetrievalService:
     app_config = config or AppConfig()
     return VideoRetrievalService(
@@ -259,5 +312,6 @@ def build_video_retrieval_service(config: AppConfig | None = None) -> VideoRetri
             embedding_service=build_media_embedder(app_config, for_online_queries=True),
             vector_store=QdrantVideoVectorStore(config=app_config),
             config=app_config,
-        )
+        ),
+        event_resolver=tra_series_theo_ten,
     )
