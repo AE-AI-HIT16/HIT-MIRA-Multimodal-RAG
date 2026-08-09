@@ -165,10 +165,46 @@ class QwenVisionService:
     def _analyze_frame(self, image: Any, ocr_policy: dict[str, Any], caption_policy: dict[str, Any]) -> dict[str, Any]:
         if image is None:
             raise ValueError("keyframe image is not available")
+        if self.hai_luot:
+            return self._analyze_frame_hai_luot(image, ocr_policy, caption_policy)
+        return self._goi_model(self._messages(image, ocr_policy, caption_policy))
+
+    def _analyze_frame_hai_luot(
+        self, image: Any, ocr_policy: dict[str, Any], caption_policy: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Lượt 1 đọc chữ, lượt 2 viết caption với bối cảnh của lượt 1.
+
+        Trả về đúng hình dạng dict như lượt đơn, nên `analyze()` và mọi hàm ghi
+        DB phía sau không cần biết đã chạy mấy lượt.
+
+        Đắt gấp đôi: hai lời gọi VLM cho mỗi ảnh. Đổi lại lượt 2 được nhìn thấy
+        chữ trong ảnh, lời thoại quanh khung hình và nhãn vật thể, nên nó gọi
+        được tên sự việc thay vì chỉ tả hình.
+        """
+        ket_qua_ocr = self._goi_model(self._messages_ocr(image, ocr_policy))
+        ocr_text = self._clean_text(ket_qua_ocr.get("ocr_text"))
+
+        boi_canh = self._khoi_boi_canh(ocr_text, caption_policy.get("context") or {})
+        ket_qua_caption = self._goi_model(self._messages_caption(image, caption_policy, boi_canh))
+
+        # OCR lấy của lượt 1, phần còn lại lấy của lượt 2. Lượt 2 cũng được yêu
+        # cầu trả "ocr_text" đâu mà lấy — trộn hai nguồn cho cùng một trường là
+        # cách chắc chắn nhất để sau này không ai biết chữ đến từ lượt nào.
+        return {
+            "ocr_text": ocr_text,
+            "ocr_blocks": ket_qua_ocr.get("ocr_blocks") or [],
+            "caption_text": ket_qua_caption.get("caption_text"),
+            "scene": ket_qua_caption.get("scene") or "",
+            "objects": ket_qua_caption.get("objects") or [],
+            "activities": ket_qua_caption.get("activities") or [],
+            "keywords": ket_qua_caption.get("keywords") or [],
+        }
+
+    def _goi_model(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
         tham_so_mo_rong = self._tham_so_mo_rong()
         response = self.client.chat.completions.create(
             model=self.model_name,
-            messages=self._messages(image, ocr_policy, caption_policy),
+            messages=messages,
             temperature=float(getattr(self.model_config, "vision_api_temperature", 0.0) or 0.0),
             max_tokens=self.max_tokens,
             **({"extra_body": tham_so_mo_rong} if tham_so_mo_rong else {}),
@@ -226,6 +262,88 @@ class QwenVisionService:
             f"For ocr_text and ocr_blocks: {ocr_instruction} "
             f"For caption_text: {caption_instruction}"
         )
+
+    def _messages_ocr(self, image: Any, ocr_policy: dict[str, Any]) -> list[dict[str, Any]]:
+        """Lượt 1: chỉ đọc chữ, không viết caption."""
+        huong_dan = self._clean_optional_config(ocr_policy.get("prompt") or ocr_policy.get("vision_prompt")) or (
+            "Extract all readable visible text exactly as it appears. Preserve Vietnamese accents when visible. "
+            "Order text from top to bottom and left to right. Return an empty string if no text is visible."
+        )
+        return [
+            {"role": "system", "content": self._system_prompt()},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            'Return a JSON object with exactly these keys: "ocr_text" and "ocr_blocks". '
+                            f"{huong_dan}"
+                        ),
+                    },
+                    {"type": "image_url", "image_url": {"url": self._image_to_data_url(image)}},
+                ],
+            },
+        ]
+
+    def _messages_caption(self, image: Any, caption_policy: dict[str, Any], boi_canh: str) -> list[dict[str, Any]]:
+        """Lượt 2: viết caption, có bối cảnh kèm theo."""
+        huong_dan = self._clean_optional_config(
+            caption_policy.get("prompt") or caption_policy.get("vision_prompt")
+        ) or self._clean_optional_config(getattr(self.prompt_config, "vision_caption_instruction", None)) or (
+            "Write one factual Vietnamese caption describing the visible scene, people, objects, and context."
+        )
+        phan = [
+            'Return a JSON object with exactly these keys: "caption_text", "scene", "objects", '
+            '"activities", and "keywords". '
+            f"For caption_text: {huong_dan}"
+        ]
+        if boi_canh:
+            # Hàng rào chống bịa. Lời thoại kể việc KHÔNG có trong khung hình
+            # (ASR nói "trao giải nhất" trong khi ảnh chỉ là một slide), và kho
+            # này có luật tuyệt đối không bịa: caption đi thẳng vào payload rồi
+            # được trích dẫn như mô tả của chính bức ảnh.
+            phan.append(
+                "Bối cảnh dưới đây là GỢI Ý, không phải thứ nhìn thấy trong ảnh. "
+                "Chỉ mô tả những gì THẤY được; dùng bối cảnh để gọi đúng tên sự vật, "
+                "sự kiện, tổ chức. TUYỆT ĐỐI không mô tả điều chỉ nghe thấy mà không thấy.\n"
+                f"{boi_canh}"
+            )
+        return [
+            {"role": "system", "content": self._system_prompt()},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "\n\n".join(phan)},
+                    {"type": "image_url", "image_url": {"url": self._image_to_data_url(image)}},
+                ],
+            },
+        ]
+
+    @staticmethod
+    def _khoi_boi_canh(ocr_text: str | None, context: dict[str, Any]) -> str:
+        """Gộp OCR + lời thoại + nhãn vật thể thành một khối chữ cho lượt 2.
+
+        Vật thể chỉ đưa NHÃN và SỐ LƯỢNG. Toạ độ hộp và độ tin cậy không giúp
+        model viết câu, mà lại ngốn token và mời nó chép số vào caption.
+        """
+        phan: list[str] = []
+        chu = str(ocr_text or "").strip()
+        if chu:
+            phan.append(f"- Chữ đọc được trong ảnh (OCR): {chu}")
+
+        loi_noi = str(context.get("asr") or "").strip()
+        if loi_noi:
+            phan.append(f"- Lời nói quanh thời điểm này (ASR): {loi_noi}")
+
+        so_luong = context.get("object_counts") or {}
+        if so_luong:
+            mo_ta = ", ".join(
+                f"{nhan} x{so}" for nhan, so in sorted(so_luong.items(), key=lambda cap: (-cap[1], cap[0]))
+            )
+            phan.append(f"- Vật thể bộ phát hiện đếm được: {mo_ta}")
+
+        return "BỐI CẢNH:\n" + "\n".join(phan) if phan else ""
 
     @staticmethod
     def _completion_text(response: Any) -> str:
@@ -339,7 +457,16 @@ class QwenVisionService:
 
     def _prompt_version(self, caption_policy: dict[str, Any]) -> str:
         version = caption_policy.get("prompt_version") or getattr(self.prompt_config, "vision_prompt_version", "qwen-vision-v1")
-        return str(version).strip() or "qwen-vision-v1"
+        version = str(version).strip() or "qwen-vision-v1"
+        # Hậu tố để phân biệt caption sinh bằng một lượt hay hai lượt. Không có
+        # nó thì hai cách sinh khác hẳn nhau lại mang cùng một nhãn, và sau này
+        # không cách nào biết hàng nào cần chạy lại.
+        return f"{version}-2pass" if self.hai_luot else version
+
+    @property
+    def hai_luot(self) -> bool:
+        """Bật MEDIA_VISION_TWO_PASS để tách OCR và caption thành hai lời gọi."""
+        return bool(getattr(self.model_config, "vision_two_pass", False))
 
     @property
     def model_name(self) -> str:

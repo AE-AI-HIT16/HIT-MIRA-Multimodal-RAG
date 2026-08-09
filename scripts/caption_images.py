@@ -110,16 +110,26 @@ def failure_reason(result) -> str | None:
     return reasons[0] if reasons else str(getattr(caption_set, "reason", "") or "caption rỗng")
 
 
-def build_worker(with_detection: bool) -> ImageProcessingWorker:
+def build_worker(with_detection: bool, two_pass: bool = False) -> ImageProcessingWorker:
     config = AppConfig()
     if not with_detection:
         # Không có GPU trên máy này; detection bằng CPU chậm mà caption không cần.
         config.media_pipeline.enable_detection = False
+    if two_pass:
+        # Đặt tại đây chứ không qua os.environ: AppConfig đóng băng giá trị env
+        # ngay lúc import, nên gán biến môi trường trong main() là quá muộn.
+        config.media_models.vision_two_pass = True
     return ImageProcessingWorker(config=config)
 
 
-def run(media_ids: list[str], workers: int, with_detection: bool, max_consecutive_errors: int) -> Counter:
-    worker = build_worker(with_detection)
+def run(
+    media_ids: list[str],
+    workers: int,
+    with_detection: bool,
+    max_consecutive_errors: int,
+    two_pass: bool = False,
+) -> Counter:
+    worker = build_worker(with_detection, two_pass)
     statuses: Counter = Counter()
     lock = threading.Lock()
     stop = threading.Event()
@@ -199,6 +209,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bật khâu detection (cần ultralytics; rất chậm nếu không có GPU).",
     )
     parser.add_argument(
+        "--two-pass",
+        action="store_true",
+        help=(
+            "Tách OCR và caption thành HAI lời gọi: lượt 2 nhận chữ OCR của lượt 1, "
+            "lời thoại quanh khung hình và nhãn+số lượng vật thể. GẤP ĐÔI thời gian "
+            "và tiền GPU (~1,7h lên ~3,5h cho cả kho)."
+        ),
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Gọi API thật và ghi DB. Không có cờ này thì chỉ đếm.",
@@ -224,7 +243,13 @@ def main() -> None:
         return
 
     print(f"Detection: {'BẬT' if args.with_detection else 'tắt'} | {args.workers} luồng")
-    statuses = run(media_ids, max(1, args.workers), args.with_detection, max(1, args.max_consecutive_errors))
+    statuses = run(
+        media_ids,
+        max(1, args.workers),
+        args.with_detection,
+        max(1, args.max_consecutive_errors),
+        two_pass=args.two_pass,
+    )
     print()
     for status, count in statuses.most_common():
         print(f"  {status}: {count}")
