@@ -28,6 +28,13 @@ npm-debug.log*
 # ---- Data artifacts (KHÔNG commit media/embedding nặng) ----
 data/**
 !data/**/.gitkeep
+# Tập đánh giá là MÃ NGUỒN của phép đo, không phải dữ liệu nặng: vài chục KB
+# văn bản, và không có nó thì không ai tái lập được số trong docs/eval-report.md.
+!data/eval/
+!data/eval/eval_queries.yaml
+!data/eval/eval_queries.json
+# report.json thì sinh lại mỗi lần chạy — không commit, tránh diff nhiễu.
+data/eval/report.json
 
 # ---- Models / caches ----
 *.pt
