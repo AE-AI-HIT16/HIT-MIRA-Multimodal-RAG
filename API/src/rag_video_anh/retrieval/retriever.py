@@ -65,6 +65,9 @@ class MediaClipHit:
             "bucket_name": self.bucket_name,
             "frame_object_key": self.frame_object_key,
             "post_id": self.payload.get("post_id"),
+            # US-405.1: None khi bài không có link — tầng trả lời hiển thị
+            # "nguồn nội bộ" thay vì dựng một link gãy.
+            "source_url": self.payload.get("source_url"),
             "image_media_id": self.payload.get("image_media_id"),
             "frame_index": self.payload.get("frame_index"),
             "detected_objects": self.payload.get("detected_objects") or [],
@@ -100,12 +103,14 @@ class TranscriptVideoHit:
     moments: list[TranscriptMoment]
     post_id: str | None = None
     language: str | None = None
+    source_url: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "video_id": self.video_id,
             "score": self.score,
             "post_id": self.post_id,
+            "source_url": self.source_url,
             "language": self.language,
             "moments": [moment.as_dict() for moment in self.moments],
         }
@@ -207,6 +212,7 @@ class VideoRetriever:
                 grouped[group_key] = {
                     "video_id": cls._as_optional_str(video_id),
                     "post_id": cls._as_optional_str(payload.get("post_id")),
+                    "source_url": cls._as_optional_str(payload.get("source_url")),
                     "language": cls._as_optional_str(payload.get("language")),
                     "score": score,
                     "moments": [moment],
@@ -216,12 +222,16 @@ class VideoRetriever:
             group = grouped[group_key]
             group["score"] = max(float(group["score"]), score)
             group["moments"].append(moment)
+            # Điểm cũ (index trước US-405.1) không có source_url; đoạn nào có thì lấy.
+            if not group.get("source_url"):
+                group["source_url"] = cls._as_optional_str(payload.get("source_url"))
 
         hits = [
             TranscriptVideoHit(
                 video_id=grouped[key]["video_id"],
                 score=float(grouped[key]["score"]),
                 post_id=grouped[key]["post_id"],
+                source_url=grouped[key]["source_url"],
                 language=grouped[key]["language"],
                 moments=sorted(
                     grouped[key]["moments"],

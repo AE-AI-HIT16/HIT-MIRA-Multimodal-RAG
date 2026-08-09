@@ -56,4 +56,8 @@ select = ["E", "F", "I", "W"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
+# Trước đây khai `asyncio_mode = "auto"` nhưng pytest-asyncio không hề có trong
+# dependency-group `dev`, nên pytest chỉ cảnh báo "Unknown config option" rồi bỏ
+# qua — một test async viết theo kiểu đó sẽ không bao giờ chạy mà vẫn báo pass.
+# Test ở đây tự gọi `asyncio.run(...)` nên không cần plugin nào.
+testpaths = ["tests"]

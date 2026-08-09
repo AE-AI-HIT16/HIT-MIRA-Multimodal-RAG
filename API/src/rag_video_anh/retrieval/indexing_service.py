@@ -10,14 +10,16 @@ from typing import Any
 from minio.error import S3Error
 
 from src.log.logger import logger
-from src.rag_video_anh.embedding.embedding_service import ImageEmbeddingService
+from src.rag_video_anh.embedding.embedding_service import (
+    ImageEmbeddingProviderFatalError,
+    ImageEmbeddingService,
+)
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
 from src.rag_video_anh.retrieval.retrieval_units import (
     ImageRetrievalUnitBuilder,
     VideoRetrievalUnitBuilder,
 )
 from src.rag_video_anh.vector_store.vector_store import QdrantVideoVectorStore
-
 
 DEFAULT_MEDIA_CLIP_COLLECTION = "media_clip"
 DEFAULT_VIDEO_TRANSCRIPT_COLLECTION = "video_transcript"
@@ -105,6 +107,10 @@ class VideoRetrievalIndexingService:
                     temp_dir=Path(temp_dir),
                     summary=summary,
                 )
+        except ImageEmbeddingProviderFatalError:
+            # Nhà cung cấp chết hẳn thì nuốt lỗi ở đây là tự lừa mình: mọi video
+            # sau cũng hỏng y hệt mà vẫn báo thành công. Để nó nổi lên.
+            raise
         except Exception as exc:
             summary.add_skip("media_clip_indexing_failed", summary.media_clip_units_received)
             logger.warning(
@@ -117,6 +123,8 @@ class VideoRetrievalIndexingService:
                 [unit.to_dict() for unit in build_result.video_transcript_units],
                 summary=summary,
             )
+        except ImageEmbeddingProviderFatalError:
+            raise
         except Exception as exc:
             summary.add_skip("video_transcript_indexing_failed", summary.video_transcript_units_received)
             logger.warning(
@@ -173,6 +181,9 @@ class VideoRetrievalIndexingService:
 
         try:
             vectors = self.text_embedder.embed_texts([unit["text"] for unit in valid_units])
+        except ImageEmbeddingProviderFatalError:
+            # Thử lại từng mục cũng vô nghĩa khi tài khoản hết tiền.
+            raise
         except Exception as exc:
             logger.warning(
                 f"Transcript batch embedding failed; retrying item-by-item: {exc.__class__.__name__}"
@@ -202,6 +213,8 @@ class VideoRetrievalIndexingService:
         for unit in units:
             try:
                 unit_vectors = self.text_embedder.embed_texts([unit["text"]])
+            except ImageEmbeddingProviderFatalError:
+                raise
             except Exception as exc:
                 summary.add_skip("transcript_embedding_failed")
                 logger.warning(
@@ -360,6 +373,52 @@ class VideoRetrievalIndexingService:
         logger.info(f"Refreshed image payloads: {summary.to_dict()}")
         return summary
 
+    def refresh_video_payloads(self, video_media_id: str) -> VideoRetrievalIndexSummary:
+        """Ghi lại payload keyframe + lời thoại của một video, KHÔNG nhúng lại.
+
+        Đối xứng với `refresh_image_payloads`. Có nó thì việc bổ sung một khoá
+        payload (ví dụ `source_url` của US-405.1) cho các video đã index không
+        tốn một token nhúng nào — vector không hề đổi, chỉ phần chữ đổi.
+
+        Chỉ chạm những point mà builder còn dựng được unit, nên keyframe đã mất
+        object trong MinIO sẽ được bỏ qua đúng như lúc index.
+        """
+        build_result = self.builder.build(video_media_id)
+        builder_summary = build_result.summary.to_dict()
+        summary = VideoRetrievalIndexSummary(
+            video_id=builder_summary.get("video_id"),
+            video_media_id=str(video_media_id),
+            media_clip_units_received=len(build_result.media_clip_units),
+            video_transcript_units_received=len(build_result.video_transcript_units),
+            collections={
+                "media_clip": self.media_clip_collection,
+                "video_transcript": self.video_transcript_collection,
+            },
+        )
+
+        clip_units = [unit.to_dict() for unit in build_result.media_clip_units]
+        if clip_units:
+            result = self.vector_store.set_payloads(
+                collection_name=self.media_clip_collection,
+                point_ids=[str(unit.get("frame_media_id") or unit.get("unit_id")) for unit in clip_units],
+                payloads=[self._media_clip_payload(unit) for unit in clip_units],
+            )
+            summary.media_clip_indexed += int(result.get("updated", len(clip_units)))
+
+        transcript_units = [
+            unit.to_dict() for unit in build_result.video_transcript_units if str(unit.text or "").strip()
+        ]
+        if transcript_units:
+            result = self.vector_store.set_payloads(
+                collection_name=self.video_transcript_collection,
+                point_ids=[str(unit.get("unit_id")) for unit in transcript_units],
+                payloads=[self._video_transcript_payload(unit) for unit in transcript_units],
+            )
+            summary.video_transcript_indexed += int(result.get("updated", len(transcript_units)))
+
+        logger.info(f"Refreshed video payloads: {summary.to_dict()}")
+        return summary
+
     def _download_image(
         self,
         unit: dict[str, Any],
@@ -385,6 +444,7 @@ class VideoRetrievalIndexingService:
             "unit_id": unit.get("unit_id"),
             "image_media_id": unit.get("image_media_id"),
             "post_id": unit.get("post_id"),
+            "source_url": unit.get("source_url"),
             "bucket_name": unit.get("bucket_name"),
             "frame_object_key": unit.get("object_key"),
             "caption": unit.get("caption") or "",
@@ -403,6 +463,7 @@ class VideoRetrievalIndexingService:
             "unit_id": unit.get("unit_id"),
             "video_id": unit.get("video_id"),
             "post_id": unit.get("post_id"),
+            "source_url": unit.get("source_url"),
             "frame_media_id": unit.get("frame_media_id"),
             "frame_index": unit.get("frame_index"),
             "timestamp_sec": unit.get("timestamp_sec"),
@@ -424,6 +485,7 @@ class VideoRetrievalIndexingService:
             "unit_id": unit.get("unit_id"),
             "video_id": unit.get("video_id"),
             "post_id": unit.get("post_id"),
+            "source_url": unit.get("source_url"),
             "start_sec": unit.get("start_sec"),
             "end_sec": unit.get("end_sec"),
             "text": unit.get("text"),

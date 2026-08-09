@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.rag.embedding.embedding_service import EmbeddingService
+from src.rag.vector_store.vector_store import QdrantVectorStore
+
 from src.configuration import AppConfig
 from src.log.logger import logger
-from src.rag.embedding.embedding_service import EmbeddingService
 from src.rag.retrieval.query_rewriter import QueryRewriter
 from src.rag.retrieval.retriever import VectorRetriever
-from src.rag.vector_store.vector_store import QdrantVectorStore
 
 
 class RetrievalService:

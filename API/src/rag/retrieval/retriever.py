@@ -5,11 +5,11 @@ from typing import Any
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
+from src.rag.embedding.embedding_service import EmbeddingService
+from src.rag.vector_store.vector_store import QdrantVectorStore
 
 from src.configuration import AppConfig
 from src.log.logger import logger
-from src.rag.embedding.embedding_service import EmbeddingService
-from src.rag.vector_store.vector_store import QdrantVectorStore
 
 
 @dataclass(frozen=True)

@@ -13,6 +13,9 @@ from src.rag_video_anh.retrieval.retrieval_units import (
     VideoTranscriptUnit,
 )
 
+# US-405.1: link bài gốc phải đi hết đường từ unit tới payload Qdrant.
+POST_URL = "https://www.facebook.com/1679787570636388/posts/1001928175089001"
+
 
 class FakeBuilder:
     def __init__(self, result: RetrievalUnitBuildResult) -> None:
@@ -103,6 +106,7 @@ def test_index_video_uses_builder_embeds_and_upserts_clean_units() -> None:
             detected_objects=[{"label": "person", "confidence": 0.9}],
             object_counts={"person": 1},
             transcript_context=transcript_context,
+            source_url=POST_URL,
         ),
         MediaClipUnit(
             unit_id=f"media_clip:{missing_frame_media_id}",
@@ -132,6 +136,7 @@ def test_index_video_uses_builder_embeds_and_upserts_clean_units() -> None:
             text="mở đầu",
             language="vi",
             source_segment_ids=["seg-1"],
+            source_url=POST_URL,
         ),
         VideoTranscriptUnit(
             unit_id=f"video_transcript:{video_id}:seg-2",
@@ -142,6 +147,7 @@ def test_index_video_uses_builder_embeds_and_upserts_clean_units() -> None:
             text="hoạt động",
             language="vi",
             source_segment_ids=["seg-2"],
+            source_url=POST_URL,
         ),
     ]
     build_result = RetrievalUnitBuildResult(
@@ -195,10 +201,12 @@ def test_index_video_uses_builder_embeds_and_upserts_clean_units() -> None:
     assert transcript_call["collection_name"] == "video_transcript"
     assert transcript_call["point_ids"] == [f"video_transcript:{video_id}:seg-1", f"video_transcript:{video_id}:seg-2"]
     assert transcript_call["vectors"] == [[0.2, 0.3], [0.2, 0.3]]
+    assert media_payload["source_url"] == POST_URL
     assert transcript_call["payloads"][0] == {
         "unit_id": f"video_transcript:{video_id}:seg-1",
         "video_id": video_id,
         "post_id": post_id,
+        "source_url": POST_URL,
         "start_sec": 1.0,
         "end_sec": 2.0,
         "text": "mở đầu",

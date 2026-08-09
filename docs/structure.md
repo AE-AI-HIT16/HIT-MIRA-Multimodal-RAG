@@ -1,87 +1,109 @@
 # Cấu trúc thư mục — HIT-MIRA Multimodal RAG
 
-> Kiến trúc: **Router RAG** (chưa agentic). Monorepo · backend domain-theo-nhóm-BR · tách ONLINE/OFFLINE.
+> Kiến trúc: **Router RAG** (chưa agentic). Monorepo · tách ONLINE/OFFLINE.
 > Nâng lên Agentic RAG đầy đủ (phân rã truy vấn/multi-hop) → v2.
+>
+> **Tài liệu này mô tả cây code đang thật sự tồn tại.** Bản trước (viết lúc chưa
+> code) mô tả một layout `api/app/domains/...` chưa bao giờ được dựng; giữ nó lại
+> chỉ khiến người mới đi lạc. Khi tài liệu và code lệch nhau, tin code.
 
 ## Cây thư mục
 
 ```
 HIT-MIRA-Multimodal-RAG/
-├── api/                          # BACKEND (Python, FastAPI)
-│   ├── app/                      # ── ONLINE: request path, nhẹ ──
-│   │   ├── main.py               #    app factory + đăng ký router
-│   │   ├── config.py             #    pydantic-settings đọc .env
-│   │   ├── deps.py               #    dependency chung (db session, current_user)
-│   │   ├── core/                 #    security(JWT/hash/role) · errors · logging
-│   │   ├── tools/                #    Tool registry cho Router RAG
-│   │   │   ├── base.py           #      BaseTool + ToolResult
-│   │   │   ├── registry.py       #      đăng ký/tra tool theo tên
-│   │   │   ├── media_tool.py     #      bọc retrieval media (text/ảnh/transcript)
-│   │   │   └── regulation_tool.py#      bọc retrieval nội quy
-│   │   ├── routing/              #    Bộ định tuyến ý định  [BR-507]
-│   │   │   └── intent.py         #      luật trước → classifier fallback → override
-│   │   └── domains/              #    MODULE theo nhóm BR (router.py·service.py·schemas.py)
-│   │       ├── auth/             #      BR-505
-│   │       ├── consent/          #      BR-101,701
-│   │       ├── ingest/           #      BR-102/104/105/107  upload + nạp nội quy
-│   │       ├── media/            #      BR-105/403/404  serve · clip · stream
-│   │       ├── retrieval/        #      BR-301/302/303/306/307/308
-│   │       ├── answer/           #      BR-401/405/406/407  RAG synth · trích dẫn
-│   │       ├── chat/             #      BR-501/502/503  orchestrate: routing→tools→answer
-│   │       ├── eval/             #      BR-601..606
-│   │       └── privacy/          #      BR-702/703/705  (v2)
-│   │
-│   ├── pipeline/                 # ── OFFLINE: job nặng, chạy worker/CLI  [NFR] ──
-│   │   ├── frames.py             #    BR-201  keyframe + timestamp
-│   │   ├── asr.py                #    BR-208  audio → ZipFormer RNNT → transcript
-│   │   ├── caption.py            #    BR-203  caption ảnh/frame
-│   │   ├── ocr.py                #    BR-204  (v2)
-│   │   ├── embed.py              #    BR-202/207/208  sinh embedding
-│   │   ├── index.py              #    BR-205/206  build/upsert Qdrant
-│   │   └── run.py                #    entrypoint: xử lý 1 video / 1 batch
-│   │
-│   ├── shared/                   # ── DÙNG CHUNG app + pipeline ──
-│   │   ├── db/  (session · models · migrations/)   # 19 bảng Postgres — PRD §5
-│   │   ├── vectorstore/qdrant.py                    # 3 collection: media/transcript/nội quy
-│   │   └── providers/  (embeddings · asr · captioner · llm · storage)  # adapter đổi được
-│   │                                               # storage: filesystem (dev/test) | MinIO (docker/prod)
-│   │
-│   ├── tests/  ·  requirements.txt  ·  Dockerfile
+├── API/                          # BACKEND FastAPI — mọi lệnh chạy từ trong đây
+│   ├── src/
+│   │   ├── server.py             #   app factory: đăng ký 3 router dưới /api + /health
+│   │   ├── configuration.py      #   AppConfig — đầu mối DUY NHẤT để đọc cấu hình
+│   │   ├── config/config.py      #   nạp Resources/*.yaml, thay ${BIEN} bằng biến môi trường
+│   │   ├── routers/              # ── ONLINE: đường đi của request, phải nhẹ ──
+│   │   │   ├── documents.py      #     nạp & quản lý tài liệu nội quy
+│   │   │   ├── retrieval.py      #     truy xuất nội quy
+│   │   │   └── media_retrieval.py#     POST /api/media/search — truy xuất ảnh + video
+│   │   │
+│   │   ├── rag_video_anh/        # ── NHÁNH MEDIA (ảnh, video) ──
+│   │   │   ├── pipeline/         #   OFFLINE: validate → route → keyframe → OCR/caption
+│   │   │   │                     #            → detection → ASR → map transcript → normalize
+│   │   │   ├── retrieval/        #   units builder · indexing · retriever · retrieval service
+│   │   │   ├── embedding/        #   Jina-CLIP v2 (kèm bộ giữ nhịp token)
+│   │   │   ├── vector_store/     #   Qdrant: media_clip · video_transcript
+│   │   │   ├── repository/       #   model SQLAlchemy + Unit of Work + session manager dùng chung
+│   │   │   └── schemas/          #   pydantic cho media/video/transcript
+│   │   │
+│   │   ├── rag_noiquy/           # ── NHÁNH NỘI QUY (văn bản) ──
+│   │   │   ├── pipeline/         #   parser → cleaner → chunker → ingest
+│   │   │   ├── retrieval/        #   query rewriter · retriever · retrieval service
+│   │   │   ├── embedding/        #   cùng model với nhánh media (xem CLAUDE.md)
+│   │   │   └── vector_store/     #   Qdrant: rag_documents
+│   │   │
+│   │   ├── rag/                  # ⚠️ MỒ CÔI — import gãy. Không dùng, không mở rộng.
+│   │   ├── common_utils/ · log/  #   tiện ích dùng chung
+│   │   │
+│   │   └── (Resources/ ở cấp API: dev.yaml · model.yaml · prompt.yaml · prompts/)
+│   └── tests/                    #   pytest, chạy offline hoàn toàn (fake + sqlite)
 │
-├── web/                          # FRONTEND Next.js  [BR-500]
-├── data/                         # ARTIFACTS (gitignored, giữ .gitkeep)
-│   ├── raw/{images,videos,posts} · frames · transcripts · clips · regulations · processed · eval
-├── docs/                         # brd.md · prd.md · structure.md · (hld.md)
-├── docker-compose.yml            # postgres + qdrant + minio + api (+ web)
+├── ChatBot/                      # TẦNG SINH CÂU TRẢ LỜI (LangGraph) — tiến trình riêng
+│   ├── src/graph/
+│   │   ├── graph.py              #   dựng & biên dịch đồ thị (đồng bộ — xem tests/)
+│   │   ├── nodes/ · agents/      #   một nút SUPERVISOR duy nhất ở v1
+│   │   ├── client_tools/         #   nối MCP server qua langchain-mcp-adapters
+│   │   ├── middlewares/          #   chèn thời gian vào prompt · chuẩn hoá tham số tool
+│   │   └── state.py · configuration.py
+│   ├── Resources/                #   agents.yaml · models.yaml · prompts.yaml · prompts/
+│   └── tests/                    #   pytest offline: không cần MCP server, không gọi LLM
+│
+├── mcp/                          # MCP SERVER (mặc định cổng 8091) — cầu nối ChatBot ↔ API
+│   ├── src/{server,feature_manager}.py · tools/{registry,manager}.py · clients/
+│   └── Resources/tools.yaml      #   thêm tool = thêm mục ở đây + method cùng tên ở FeatureManager
+│
+├── scripts/                      # CLI vận hành (upload MinIO · caption · index · job RunPod)
+│                                 # Mọi script phá huỷ đều dry-run mặc định, phải có --apply
+├── runpod_worker/                # WORKER GPU — chỉ nhận URL presigned, trả về 1 file ZIP
+│                                 # Không hề biết thông tin đăng nhập PostgreSQL hay MinIO
+├── web/                          # FRONTEND Next.js (app/ · components/ · lib/)
+├── migrations/ · schema.sql      # DDL PostgreSQL
+├── docs/                         # brd · prd · tasks · tech-pipeline · structure · specs/
+├── public/                       # tài liệu tham chiếu (2 paper AI Challenge)
+├── docker-compose.yml            # postgres + qdrant + minio
 └── .env.example
 ```
 
-## Quy ước module (domain)
+## Vì sao chia theo nhánh dữ liệu, không chia theo BR
 
-Mỗi `domains/<x>/` gồm: `router.py` (FastAPI routes) · `service.py` (logic) · `schemas.py` (pydantic).
-Một người ôm trọn 1 domain, không giẫm chân nhau. Traceability: BR → domain → test hook.
+Bản kế hoạch cũ định chia `domains/` theo nhóm BR (auth, ingest, media, retrieval,
+answer, chat, eval, privacy). Thực tế code hội tụ về **hai nhánh dữ liệu**:
+`rag_video_anh` (ảnh/video) và `rag_noiquy` (văn bản). Lý do là ranh giới thật của
+hệ thống nằm ở *loại dữ liệu*, không ở *nhóm yêu cầu*: hai nhánh có pipeline khác
+nhau, collection Qdrant khác nhau, và hỏng độc lập với nhau. Traceability BR → US →
+TC vẫn giữ nguyên, chỉ là neo vào test và docstring thay vì vào tên thư mục.
+
+Đường ranh **ONLINE/OFFLINE** thì vẫn đúng như kế hoạch và là một NFR: `routers/`
+chỉ nhúng câu hỏi rồi tra Qdrant; mọi việc nặng (keyframe, ASR, caption, nhúng
+hàng loạt) nằm ở `pipeline/` và `scripts/`, chạy ngoài request.
 
 ## Luồng Router RAG (online)
 
 ```
-POST /chat/message
-   → routing/intent.route(text, has_image, override)   # chọn nguồn: media | regulation | both
-   → tools.registry.get(source).run(query)             # gọi tool tương ứng
-   → domains/retrieval (Qdrant)                         # truy xuất top-k
-   → domains/answer  (LLM synth + trích dẫn + disclaimer)
+người dùng → web/ → ChatBot (LangGraph, nút SUPERVISOR)
+   → MCP server: search_regulations | search_media
+   → API: /api/retrieval/search | /api/media/search
+        └─ VideoRetrievalService.retrieve(): nhúng câu hỏi MỘT lần
+           → tìm song song media_clip + video_transcript trong cùng không gian vector
+           → gộp, dựng chuỗi trích dẫn đánh số sẵn [1] [2] [3]
+   → LLM tổng hợp câu trả lời + trích dẫn (+ disclaimer nếu là nội quy)
 ```
 
-## Ánh xạ từ template "AI Agent Project Structure" (bản gốc tham chiếu)
+Việc chọn nguồn (media / nội quy / cả hai) do LLM quyết bằng cách chọn tool, không
+phải bằng một bộ luật `routing/intent.py` như bản kế hoạch — nên "Router" ở đây
+nằm trong prompt của supervisor. `mcp/` được giữ đúng dạng registry để v2 nâng lên
+agentic mà không phải viết lại tầng tool.
 
-| Template gốc (agent) | Ở dự án này (Router RAG) | Ghi chú |
+## Ba tiến trình, chạy độc lập
+
+| Tiến trình | Lệnh | Ghi chú |
 |---|---|---|
-| `agents/` | — (bỏ) | Agentic → v2 |
-| `orchestration/` (task_planner, state_manager) | `app/routing/` (nhẹ) | Chỉ định tuyến, chưa plan/state |
-| `tools/` (base_tool, registry) | `app/tools/` | **Giữ** — hợp Router RAG & là đường lên agentic |
-| `core/` (config, logger, exceptions) | `app/config.py` + `app/core/` | |
-| `memory/` (vector_store, embeddings) | `shared/vectorstore/` + `shared/providers/embeddings` | |
-| `knowledge/` (loader, splitter, retriever, rag_pipeline) | `pipeline/` + `domains/retrieval` + `domains/answer` | Nên xoá thư mục `knowledge/` rỗng cũ |
-| `models/` (llm_factory, model_router) | `shared/providers/llm` | |
-| `api/` (routes, main) | `app/` (main + domains) | |
-| `utils/` | `app/core/` | Gộp cho gọn |
-```
+| API | `cd API && uvicorn src.server:app --reload` | import giả định thư mục làm việc là `API/` |
+| MCP server | `cd mcp && PYTHONPATH=src python src/server.py` | mặc định cổng 8091 |
+| ChatBot | `cd ChatBot && langgraph dev` | cần MCP server sống thì tool mới có |
+
+Hạ tầng (`postgres`, `qdrant`, `minio`) lên bằng `docker-compose up -d`.

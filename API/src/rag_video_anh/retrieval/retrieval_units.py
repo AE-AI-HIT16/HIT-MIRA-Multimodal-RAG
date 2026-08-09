@@ -30,7 +30,6 @@ from src.rag_video_anh.repository import (
     TranscriptRecord,
 )
 
-
 ERROR_TEXT_VALUES = {
     "[]",
     "{}",
@@ -132,12 +131,16 @@ class ImageUnit:
     vision_metadata: dict[str, Any]
     detected_objects: list[dict[str, Any]]
     object_counts: dict[str, int]
+    # US-405.1: link bài gốc trên fanpage. Để None khi bài không có link —
+    # tầng trả lời hiển thị "nguồn nội bộ" chứ không dựng một link gãy.
+    source_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "unit_id": self.unit_id,
             "image_media_id": self.image_media_id,
             "post_id": self.post_id,
+            "source_url": self.source_url,
             "bucket_name": self.bucket_name,
             "object_key": self.object_key,
             "caption": self.caption,
@@ -165,6 +168,7 @@ class MediaClipUnit:
     transcript_context: TranscriptContext
     unit_id: str
     video_media_id: str
+    source_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -172,6 +176,7 @@ class MediaClipUnit:
             "video_id": self.video_id,
             "video_media_id": self.video_media_id,
             "post_id": self.post_id,
+            "source_url": self.source_url,
             "frame_media_id": self.frame_media_id,
             "frame_index": self.frame_index,
             "timestamp_sec": self.timestamp_sec,
@@ -196,12 +201,14 @@ class VideoTranscriptUnit:
     text: str
     language: str
     source_segment_ids: list[str]
+    source_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "unit_id": self.unit_id,
             "video_id": self.video_id,
             "post_id": self.post_id,
+            "source_url": self.source_url,
             "start_sec": self.start_sec,
             "end_sec": self.end_sec,
             "text": self.text,
@@ -310,6 +317,9 @@ class VideoRetrievalUnitBuilder:
                 video_media_id=_str_id(media.media_id),
                 post_id=_str_id(media.post_id),
             )
+            # Đọc một lần cho cả video: mọi keyframe và mọi đoạn lời thoại của
+            # video này đều thuộc đúng một bài đăng.
+            source_url = _post_source_url(uow, media.post_id)
             transcript = uow.results.get_transcript_by_video_media_id(media.media_id)
             transcript_segments = _clean_transcript_segments(transcript, summary)
             transcript_units = _build_transcript_units(
@@ -317,6 +327,7 @@ class VideoRetrievalUnitBuilder:
                 transcript_segments=transcript_segments,
                 video_id=_str_id(video.video_id),
                 post_id=_str_id(media.post_id),
+                source_url=source_url,
             )
 
             media_clip_units: list[MediaClipUnit] = []
@@ -326,6 +337,7 @@ class VideoRetrievalUnitBuilder:
                     video_id=_str_id(video.video_id),
                     video_media_id=_str_id(media.media_id),
                     post_id=_str_id(media.post_id),
+                    source_url=source_url,
                     transcript_segments=transcript_segments,
                     summary=summary,
                     results_repo=uow.results,
@@ -351,6 +363,7 @@ class VideoRetrievalUnitBuilder:
         transcript_segments: list[CleanTranscriptSegment],
         summary: RetrievalUnitBuildSummary,
         results_repo: Any,
+        source_url: str | None = None,
     ) -> MediaClipUnit | None:
         frame_media_id = _str_id(frame.media_id)
         frame_index = _finite_int(frame.frame_index)
@@ -394,6 +407,7 @@ class VideoRetrievalUnitBuilder:
             video_id=video_id,
             video_media_id=video_media_id,
             post_id=post_id,
+            source_url=source_url,
             frame_media_id=frame_media_id,
             frame_index=frame_index,
             timestamp_sec=timestamp_sec,
@@ -482,6 +496,7 @@ class ImageRetrievalUnitBuilder:
                 unit_id=f"image:{media_id}",
                 image_media_id=media_id,
                 post_id=_str_id(media.post_id),
+                source_url=_post_source_url(uow, media.post_id),
                 bucket_name=bucket_name,
                 object_key=object_key,
                 caption=caption,
@@ -616,6 +631,7 @@ def _build_transcript_units(
     transcript_segments: list[CleanTranscriptSegment],
     video_id: str,
     post_id: str,
+    source_url: str | None = None,
 ) -> list[VideoTranscriptUnit]:
     language = clean_text(transcript.language if transcript else None) or "unknown"
     return [
@@ -623,6 +639,7 @@ def _build_transcript_units(
             unit_id=f"video_transcript:{video_id}:{segment.segment_id}",
             video_id=video_id,
             post_id=post_id,
+            source_url=source_url,
             start_sec=segment.start_sec,
             end_sec=segment.end_sec,
             text=segment.text,
@@ -631,6 +648,26 @@ def _build_transcript_units(
         )
         for segment in transcript_segments
     ]
+
+
+def _post_source_url(uow: Any, post_id: Any) -> str | None:
+    """Đọc link bài gốc từ bảng posts (US-405.1).
+
+    Nuốt mọi lỗi và trả None: thiếu link chỉ làm trích dẫn kém đẹp một chút,
+    không đáng để chặn cả mẻ index. Cũng nhờ vậy mà các Unit of Work giả trong
+    test — vốn chỉ dựng `media`/`results` — vẫn chạy được như cũ.
+    """
+    if post_id is None:
+        return None
+    posts_repo = getattr(uow, "posts", None)
+    if posts_repo is None:
+        return None
+    try:
+        post = posts_repo.get(post_id)
+    except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng
+        logger.warning(f"Could not read post '{post_id}' for source_url: {exc.__class__.__name__}: {exc}")
+        return None
+    return clean_text(getattr(post, "post_url", None)) or None
 
 
 def _transcript_context(

@@ -53,6 +53,15 @@ line-length = 120
 select = ["E", "F", "I", "W"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# `server.py` phải chèn API/ vào sys.path TRƯỚC khi import `src.*`, nếu không
+# `uvicorn src.server:app` chạy từ thư mục khác sẽ chết ngay lúc import. Đây là
+# ngoại lệ có chủ đích, không phải import bừa — khai ở đây để CI giữ được mức
+# "không còn lỗi nào", thay vì để 8 lỗi tồn đọng làm mọi người quen với màu đỏ.
+"src/server.py" = ["E402"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
+# Không khai `asyncio_mode`: pytest-asyncio không có trong môi trường, nên pytest
+# chỉ cảnh báo "Unknown config option" rồi bỏ qua — một test async viết theo kiểu
+# đó sẽ không bao giờ chạy mà vẫn báo pass. Test async ở đây tự gọi asyncio.run.

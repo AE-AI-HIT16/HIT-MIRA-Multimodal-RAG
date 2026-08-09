@@ -7,7 +7,7 @@ from typing import Any
 
 from src.configuration import AppConfig
 from src.log.logger import logger
-from src.rag_video_anh.schemas import KeyFrame, KeyFrameSet, KeyframeExtractionRequest, StageStatus
+from src.rag_video_anh.schemas import KeyFrame, KeyframeExtractionRequest, KeyFrameSet, StageStatus
 
 
 class DefaultTransNetV2SceneDetector:
