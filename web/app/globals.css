@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f7f7f8;
+  --border: #e8e8eb;
+  --surface: #ffffff;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: #18181b; /* zinc-900, không dùng pure black */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Skeleton shimmer cho trạng thái loading */
+.shimmer {
+  background: linear-gradient(90deg, #f4f4f5 25%, #e4e4e7 37%, #f4f4f5 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* 3 chấm "đang tìm…" */
+.typing-dot {
+  animation: blink 1.4s infinite both;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Thanh cuộn mảnh, kín đáo */
+.scroll-slim::-webkit-scrollbar {
+  width: 10px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border: 3px solid var(--bg);
+  border-radius: 999px;
+}
+.scroll-slim::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
+::selection { background: #fde2d2; color: #7c2d12; }
+button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #f06c25;
+  outline-offset: 2px;
+}
+.surface {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 1px 2px rgba(24, 24, 27, .03), 0 12px 40px rgba(24, 24, 27, .04);
+}
+.app-grid {
+  background-image: radial-gradient(#d4d4d8 .65px, transparent .65px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(to bottom, black, transparent 70%);
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

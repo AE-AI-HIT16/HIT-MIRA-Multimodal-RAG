@@ -1,0 +1,86 @@
+# CI — T-03. Chạy đúng hai thứ mà DoD của bảng task đòi: lint và test.
+#
+# Test của dự án chạy hoàn toàn offline (fake cho embedder, vector store, MinIO,
+# vision; sqlite khi cần DB), nên CI KHÔNG cần postgres/qdrant/minio, và cũng
+# không cần khoá API nào. Đó là lý do bộ test được viết theo lối tiêm phụ thuộc
+# ngay từ đầu — giữ như vậy thì CI mới chạy được trên máy sạch.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "integration/**"]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  # Đẩy commit mới thì huỷ lượt đang chạy của cùng nhánh — khỏi xếp hàng chờ
+  # kết quả của bản đã cũ.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API — ruff + pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: API
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Cài phụ thuộc
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest ruff
+      - name: ruff
+        # `src` + `tests` đã dọn sạch để mức chuẩn là "không còn lỗi nào" — CI
+        # nào đỏ sẵn thì chẳng bao lâu sẽ không ai nhìn nữa. Phạm vi dừng ở đây
+        # vì `ruff check .` còn quét `scripts/` với vài lỗi tồn đọng của file
+        # kế thừa; mở rộng được, nhưng phải dọn trước rồi mới bật.
+        run: ruff check src tests
+      - name: pytest
+        run: pytest -q
+
+  chatbot:
+    name: ChatBot — pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ChatBot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Cài phụ thuộc
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+      - name: pytest
+        run: pytest -q
+
+  web:
+    name: Web — typecheck + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: typecheck
+        run: npx tsc --noEmit
+      - name: build
+        run: npm run build

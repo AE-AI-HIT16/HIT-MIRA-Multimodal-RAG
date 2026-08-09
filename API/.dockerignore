@@ -1,0 +1,9 @@
+.git
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+logs/
+*.log

@@ -1,0 +1,525 @@
+{
+  "meta": {
+    "version": 2,
+    "created_at": "2026-08-05",
+    "status": "reviewed_label_precision_pooling_pending",
+    "purpose": "Compare Azure text-embedding-3-small with jina-clip-v2 on Facebook post messages before deciding the text vector topology.",
+    "corpus": "message from 505 non-empty messages among 514 unique post.json records",
+    "document_id": "facebook_post_id",
+    "metric_plan": [
+      "Recall@5",
+      "MRR@10",
+      "nDCG@10",
+      "warm_latency",
+      "cold_latency",
+      "out_of_scope_top_score",
+      "false_positive_rate_at_threshold"
+    ],
+    "important_notes": [
+      "Labels use stable Facebook post IDs, not UUIDs from the previous PostgreSQL/Qdrant environment.",
+      "All 76 positive labels were reviewed against MinIO and exist under the dataset prefix.",
+      "TXT-18 requires a created_time filter because its discriminative year is absent from the message; exclude it from the main vector-only aggregate.",
+      "Do not compare cosine scores across Azure and Jina directly; compare ranks and retrieval metrics.",
+      "The five out-of-scope queries report score distributions; a rejection threshold must be selected on a separate development split.",
+      "The 76 positive labels are correct but not exhaustive. Final Recall/MRR/nDCG require blind adjudication of the pooled Azure and Jina candidates."
+    ],
+    "scope_limitations": [
+      "This benchmark covers only the 505 non-empty Facebook post messages.",
+      "It does not measure caption, OCR, transcript or text-to-image retrieval.",
+      "Spoken-language transcript conclusions require a separately labeled corpus after ingestion."
+    ]
+  },
+  "queries": [
+    {
+      "id": "TXT-01",
+      "category": "recruitment_occurrence",
+      "query": "Câu lạc bộ tìm những mảnh ghép mới cho thế hệ HIT 13",
+      "relevant_facebook_post_ids": [
+        "213347192060163_5678337118894449",
+        "213347192060163_5672732809454880",
+        "213347192060163_591168849498271"
+      ],
+      "discriminative_token_coverage": "partial",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-02",
+      "category": "recruitment_occurrence",
+      "query": "Hành trình tuyển thành viên gen 14 của HIT",
+      "relevant_facebook_post_ids": [
+        "213347192060163_865566558725164",
+        "213347192060163_870289594919527",
+        "213347192060163_873007734647713"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-03",
+      "category": "recruitment_occurrence",
+      "query": "Thông tin tuyển và recap thành viên HIT thế hệ 15",
+      "relevant_facebook_post_ids": [
+        "213347192060163_400793806091634",
+        "213347192060163_1114032333878584",
+        "213347192060163_1122314813050336"
+      ],
+      "discriminative_token_coverage": "unparsed",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-04",
+      "category": "recruitment_occurrence",
+      "query": "Đợt tuyển thành viên HIT-16",
+      "relevant_facebook_post_ids": [
+        "213347192060163_776366832023454",
+        "213347192060163_1421821909766290",
+        "213347192060163_1432974798651001"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-05",
+      "category": "recruitment_hanam",
+      "query": "Tuyển cộng tác viên K17 của HIT tại Hà Nam",
+      "relevant_facebook_post_ids": [
+        "213347192060163_623863869562102",
+        "213347192060163_637012368247252",
+        "213347192060163_639738731307949"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-06",
+      "category": "recruitment_hanam",
+      "query": "Kết quả tuyển cộng tác viên K18 ở cơ sở Hà Nam",
+      "relevant_facebook_post_ids": [
+        "213347192060163_896743798940773",
+        "213347192060163_900872825194537",
+        "213347192060163_902725948342558"
+      ],
+      "discriminative_token_coverage": "partial",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-07",
+      "category": "recruitment_hanam",
+      "query": "Recap tuyển cộng tác viên K19 tại Hà Nam",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1163055318976285"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-08",
+      "category": "open_day",
+      "query": "Các hoạt động của HIT Open Day 2022",
+      "relevant_facebook_post_ids": [
+        "213347192060163_669090528372769",
+        "213347192060163_676022141012941",
+        "213347192060163_683928093555679"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-09",
+      "category": "open_day",
+      "query": "HIT Open Day mùa Giáng sinh năm 2023",
+      "relevant_facebook_post_ids": [
+        "213347192060163_918403483441471",
+        "213347192060163_926532352628584",
+        "213347192060163_928209885794164"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-10",
+      "category": "open_day",
+      "query": "Khai mạc và tổng kết HIT Open Day 2024",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1182553933693090",
+        "213347192060163_595164489701195",
+        "213347192060163_1194425312505952",
+        "213347192060163_1196308838984266"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-11",
+      "category": "birthday",
+      "query": "Chuỗi hoạt động mừng sinh nhật 12 tuổi của HIT",
+      "relevant_facebook_post_ids": [
+        "213347192060163_5560411237353705",
+        "213347192060163_5577491908978971",
+        "213347192060163_5592378487490313"
+      ],
+      "discriminative_token_coverage": "unparsed",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-12",
+      "category": "birthday",
+      "query": "Kỷ niệm sinh nhật lần thứ 13 của câu lạc bộ",
+      "relevant_facebook_post_ids": [
+        "213347192060163_831545948793892",
+        "213347192060163_845533250728495",
+        "213347192060163_846098484005305"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-13",
+      "category": "birthday",
+      "query": "Sinh nhật HIT 14 năm rực rỡ sắc màu",
+      "relevant_facebook_post_ids": [
+        "213347192060163_853936306245263",
+        "213347192060163_1089293869685764",
+        "213347192060163_1104021571546327"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "high",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-14",
+      "category": "birthday",
+      "query": "HIT kỷ niệm 15 năm bùng nhiệt huyết cháy đam mê",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1391701486111666",
+        "213347192060163_1398169612131520",
+        "213347192060163_1400659451882536"
+      ],
+      "discriminative_token_coverage": "unparsed",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-15",
+      "category": "sport",
+      "query": "Trận giao hữu bóng đá chào mừng sinh nhật HIT 12",
+      "relevant_facebook_post_ids": [
+        "213347192060163_5543620509032778"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-16",
+      "category": "sport",
+      "query": "Giải bóng đá của HIT năm 2024",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1082035580411593",
+        "213347192060163_1087085056573312"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-17",
+      "category": "sport",
+      "query": "Tổng kết giải cầu lông HIT 2025",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1389017356380079"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-18",
+      "category": "mid_autumn",
+      "query": "Trung thu trực tuyến của HIT trong thời gian giãn cách năm 2021",
+      "relevant_facebook_post_ids": [
+        "213347192060163_4528486920546147"
+      ],
+      "discriminative_token_coverage": "none",
+      "evaluation_scope": "metadata_filter",
+      "exclude_from_main_vector_metrics": true,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-19",
+      "category": "mid_autumn",
+      "query": "Đêm hội trăng rằm của HIT năm 2023",
+      "relevant_facebook_post_ids": [
+        "213347192060163_864833218798498"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-20",
+      "category": "mid_autumn",
+      "query": "Đêm hội trăng rằm tháng 8 năm 2024",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1111716794110138"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "high",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-21",
+      "category": "mid_autumn",
+      "query": "Hoạt động và recap Trung thu HIT 2025",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1435763015038846",
+        "213347192060163_1446572823957865"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-22",
+      "category": "team_building",
+      "query": "Chuyến team building mùa hè của HIT năm 2022",
+      "relevant_facebook_post_ids": [
+        "213347192060163_5396547863740044",
+        "213347192060163_5451877614873735"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-23",
+      "category": "team_building",
+      "query": "Hành trình gắn kết tập thể của HIT năm 2023",
+      "relevant_facebook_post_ids": [
+        "213347192060163_763905365557951",
+        "213347192060163_777886587493162",
+        "213347192060163_897908812157605"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-24",
+      "category": "team_building",
+      "query": "Recap team building sức mạnh tập thể năm 2025",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1463174438964370",
+        "213347192060163_1485394560075691"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-25",
+      "category": "seminar",
+      "query": "Seminar chia sẻ cách một đội IT vận hành quy trình làm việc năm 2024",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1041862667762218",
+        "213347192060163_1044239864191165"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-26",
+      "category": "seminar",
+      "query": "HIT Seminar tâm sự chuyện làm việc trong ngành IT năm 2025",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1332578305357318",
+        "213347192060163_1337636528184829"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-27",
+      "category": "contest",
+      "query": "Cuộc thi trí tuệ nhân tạo Hackathon năm 2023",
+      "relevant_facebook_post_ids": [
+        "213347192060163_736290698319418",
+        "213347192060163_857671706181316",
+        "213347192060163_883558090259344"
+      ],
+      "discriminative_token_coverage": "partial",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-28",
+      "category": "contest",
+      "query": "Cuộc thi thuật toán mùa thu của đội Olympic HIT năm 2022",
+      "relevant_facebook_post_ids": [
+        "213347192060163_593092949305861",
+        "213347192060163_600348281913661",
+        "213347192060163_606968454584977"
+      ],
+      "discriminative_token_coverage": "partial",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-29",
+      "category": "contest",
+      "query": "Các bài về Tech Club Championship 2024",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1011657927449359",
+        "213347192060163_1013084480640037",
+        "213347192060163_1018783733403445",
+        "213347192060163_1020655279882957",
+        "213347192060163_1021651903116628",
+        "213347192060163_1023037482978070",
+        "213347192060163_1026639209284564",
+        "213347192060163_1028940839054401"
+      ],
+      "discriminative_token_coverage": "partial",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "TXT-30",
+      "category": "freshman",
+      "query": "Hoạt động chào tân sinh viên K20 của HIT tại Hà Nam",
+      "relevant_facebook_post_ids": [
+        "213347192060163_1413409243940890"
+      ],
+      "discriminative_token_coverage": "all",
+      "evaluation_scope": "vector_text",
+      "exclude_from_main_vector_metrics": false,
+      "title_overlap": "normal",
+      "expected_empty": false
+    },
+    {
+      "id": "OOD-01",
+      "category": "out_of_scope",
+      "query": "Lịch thi cuối kỳ của sinh viên trường Đại học Công nghiệp Hà Nội",
+      "relevant_facebook_post_ids": [],
+      "discriminative_token_coverage": "not_applicable",
+      "evaluation_scope": "rejection",
+      "exclude_from_main_vector_metrics": true,
+      "title_overlap": "normal",
+      "expected_empty": true
+    },
+    {
+      "id": "OOD-02",
+      "category": "out_of_scope",
+      "query": "Học phí học kỳ này phải đóng bao nhiêu tiền",
+      "relevant_facebook_post_ids": [],
+      "discriminative_token_coverage": "not_applicable",
+      "evaluation_scope": "rejection",
+      "exclude_from_main_vector_metrics": true,
+      "title_overlap": "normal",
+      "expected_empty": true
+    },
+    {
+      "id": "OOD-03",
+      "category": "out_of_scope",
+      "query": "Thủ tục đăng ký ở ký túc xá dành cho sinh viên mới",
+      "relevant_facebook_post_ids": [],
+      "discriminative_token_coverage": "not_applicable",
+      "evaluation_scope": "rejection",
+      "exclude_from_main_vector_metrics": true,
+      "title_overlap": "normal",
+      "expected_empty": true
+    },
+    {
+      "id": "OOD-04",
+      "category": "out_of_scope",
+      "query": "Xe buýt nào đi từ trường đến trung tâm thành phố",
+      "relevant_facebook_post_ids": [],
+      "discriminative_token_coverage": "not_applicable",
+      "evaluation_scope": "rejection",
+      "exclude_from_main_vector_metrics": true,
+      "title_overlap": "normal",
+      "expected_empty": true
+    },
+    {
+      "id": "OOD-05",
+      "category": "out_of_scope",
+      "query": "Điểm chuẩn tuyển sinh đại học năm nay là bao nhiêu",
+      "relevant_facebook_post_ids": [],
+      "discriminative_token_coverage": "not_applicable",
+      "evaluation_scope": "rejection",
+      "exclude_from_main_vector_metrics": true,
+      "title_overlap": "normal",
+      "expected_empty": true
+    }
+  ]
+}

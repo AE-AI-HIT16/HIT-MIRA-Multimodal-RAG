@@ -1,0 +1,20 @@
+# Only dependencies used by the offline GPU worker. Do not reuse the root
+# requirements.txt: it also contains web, database, and RAG stacks
+# which make the Serverless image unnecessarily large.
+accelerate
+timm
+einops
+transnetv2-pytorch==1.0.5
+sherpa-onnx
+numpy
+huggingface-hub
+httpx
+opencv-python-headless
+pillow
+pydantic
+python-dotenv
+pyyaml
+runpod==1.11.0
+ultralytics
+
+openai

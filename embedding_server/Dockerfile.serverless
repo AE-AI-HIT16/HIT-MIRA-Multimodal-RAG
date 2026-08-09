@@ -1,0 +1,43 @@
+# Build từ thư mục embedding_server/:
+#   docker build -f Dockerfile.serverless -t <registry>/hit-mira-embed-serverless:<version> .
+# CUDA 12.9 + torch cu129 chạy được cả Ampere/Ada lẫn GPU Blackwell sm_120 mà
+# endpoint 24 GB của RunPod có thể cấp.
+FROM nvidia/cuda:12.9.1-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    EMBED_DEVICE=cuda \
+    EMBED_DTYPE=float16 \
+    EMBED_REQUIRE_CACHED_MODEL=1 \
+    RUNPOD_HF_CACHE_ROOT=/runpod-volume/huggingface-cache/hub
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/local/bin/pip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt requirements.serverless.txt ./
+RUN python -m pip install --upgrade pip \
+    && python -m pip install --index-url https://download.pytorch.org/whl/cu129 \
+        torch==2.11.0+cu129 torchvision==0.26.0+cu129 \
+    && python -m pip install -r requirements.serverless.txt
+
+# jina-clip-v2 giữ weights/config trong repo model nhưng `auto_map` trỏ code
+# sang hai repo khác; text tower còn đọc config của jina-embeddings-v3. RunPod
+# chỉ cho cache một model/endpoint, nên bake ba phần code/config nhỏ này vào
+# Hugging Face cache của image. Ghim commit để build tái lập và để worker chạy
+# hoàn toàn offline; weights 1,73 GB vẫn nằm ở Cached model của RunPod.
+COPY cache_model_dependencies.py ./
+RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python cache_model_dependencies.py
+
+COPY encoder.py server.py runpod_handler.py ./
+
+RUN python -c "import torch, runpod, transformers; print('torch', torch.__version__, 'cuda', torch.version.cuda, 'transformers', transformers.__version__); assert torch.version.cuda == '12.9'; assert transformers.__version__ == '4.46.2'"
+
+CMD ["python", "-u", "/app/runpod_handler.py"]

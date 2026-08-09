@@ -1,0 +1,71 @@
+[project]
+name = "hit-mira-api"
+version = "0.1.0"
+description = "HIT-MIRA API – FastAPI service for regulation document ingest and retrieval"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # ---- Web API ----
+    "fastapi>=0.115.0",
+    "python-multipart>=0.0.9",
+    "uvicorn[standard]>=0.30.0",
+
+    # ---- Config & validation ----
+    "pydantic>=2.0",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0",
+
+    # ---- LangChain / RAG ----
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "langchain-qdrant>=0.2.0",
+
+    # ---- Auth (T-51). Băm mật khẩu dùng hashlib.scrypt của thư viện chuẩn
+    # nên không cần bcrypt/argon2; chỉ JWT là phải thêm. ----
+    "pyjwt>=2.8",
+
+    # ---- Vector store ----
+    "qdrant-client>=1.12.0",
+
+    # ---- Document parsing ----
+    "pypdf>=5.0.0",
+    "docx2txt>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27.0",
+    "pytest>=8.0.0",
+    "ruff>=0.8.0",
+]
+
+[tool.uv.build-backend]
+module-name = "src"
+source-include = ["Resources/**"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# `server.py` phải chèn API/ vào sys.path TRƯỚC khi import `src.*`, nếu không
+# `uvicorn src.server:app` chạy từ thư mục khác sẽ chết ngay lúc import. Đây là
+# ngoại lệ có chủ đích, không phải import bừa — khai ở đây để CI giữ được mức
+# "không còn lỗi nào", thay vì để 8 lỗi tồn đọng làm mọi người quen với màu đỏ.
+"src/server.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Không khai `asyncio_mode`: pytest-asyncio không có trong môi trường, nên pytest
+# chỉ cảnh báo "Unknown config option" rồi bỏ qua — một test async viết theo kiểu
+# đó sẽ không bao giờ chạy mà vẫn báo pass. Test async ở đây tự gọi asyncio.run.
