@@ -210,9 +210,20 @@ export const videoUrl = (videoId: string, ts?: number) => {
 
 // ── Tìm kiếm (đường đã chạy thật) ──────────────────────────────────────────
 
+/**
+ * `years`/`events` KHÔNG được suy ra từ câu chữ ở đây — API là vector search
+ * thuần, viết "năm 2025" trong `query` không lọc gì cả (đo được: trả về cả 2022
+ * lẫn 2024). Bộ lọc phải do người gọi truyền vào; nguồn duy nhất sinh ra nó là
+ * tool call của agent, xem `locTuToolCall` trong `app/page.tsx`.
+ */
 export async function searchMedia(
   query: string,
-  opts: { topK?: number; source?: "clip" | "transcript" | "both" } = {},
+  opts: {
+    topK?: number;
+    source?: "clip" | "transcript" | "both";
+    years?: number[];
+    events?: string[];
+  } = {},
 ): Promise<MediaSearchResponse> {
   const res = await fetch(`${API_URL}/api/media/search`, {
     method: "POST",
@@ -221,6 +232,10 @@ export async function searchMedia(
       query,
       top_k: opts.topK ?? 6,
       source: opts.source ?? "both",
+      // Chỉ gửi khi có: mảng rỗng và thiếu khoá là như nhau ở API, nhưng gửi
+      // thừa làm log khó đọc khi truy vết "vì sao lọc ra rỗng".
+      ...(opts.years?.length ? { years: opts.years } : {}),
+      ...(opts.events?.length ? { events: opts.events } : {}),
     }),
   });
   if (!res.ok) throw new Error(await parseError(res));
@@ -238,7 +253,13 @@ export async function searchMedia(
  */
 export async function searchMediaByImage(
   image: File,
-  opts: { text?: string; topK?: number; source?: "clip" | "transcript" | "both" } = {},
+  opts: {
+    text?: string;
+    topK?: number;
+    source?: "clip" | "transcript" | "both";
+    years?: number[];
+    events?: string[];
+  } = {},
 ): Promise<MediaSearchResponse> {
   const form = new FormData();
   form.append("image", image);
@@ -246,6 +267,9 @@ export async function searchMediaByImage(
   if (opts.text?.trim()) form.append("query", opts.text.trim());
   form.append("top_k", String(opts.topK ?? 6));
   form.append("source", opts.source ?? "both");
+  // Form lặp khoá cho mảng — FastAPI đọc `years=2024&years=2025` thành list.
+  for (const nam of opts.years ?? []) form.append("years", String(nam));
+  for (const su_kien of opts.events ?? []) form.append("events", su_kien);
 
   const res = await fetch(`${API_URL}/api/media/search-image`, {
     method: "POST",
