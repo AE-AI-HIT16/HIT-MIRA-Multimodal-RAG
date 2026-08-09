@@ -97,6 +97,12 @@ services:
       JINA_API_KEY: ${JINA_API_KEY:-}
       MEDIA_IMAGE_EMBEDDING_MODEL: ${MEDIA_IMAGE_EMBEDDING_MODEL:-jina-clip-v2}
       MEDIA_IMAGE_EMBEDDING_BASE_URL: ${MEDIA_IMAGE_EMBEDDING_BASE_URL:-}
+      # `build_media_embedder()` chọn giữa hai đường tới cùng một model: endpoint
+      # Jina trực tiếp (biến ngay trên) hoặc hàng đợi RunPod Serverless. Thiếu cả
+      # hai thì /api/media/search trả 503 "Set JINA_API_KEY" — thông báo trỏ nhầm
+      # sang đường trực tiếp, nên rất dễ đi sai hướng khi lần lỗi.
+      JINA_RUNPOD_ENDPOINT_ID: ${JINA_RUNPOD_ENDPOINT_ID:-}
+      MEDIA_EMBEDDING_PROVIDER: ${MEDIA_EMBEDDING_PROVIDER:-}
       # 0 = tắt bộ giữ nhịp. Nó sinh ra để né hạn mức 100k token/phút của Jina;
       # với embedding server tự host thì chỉ làm chậm.
       MEDIA_EMBEDDING_TOKENS_PER_MINUTE: ${MEDIA_EMBEDDING_TOKENS_PER_MINUTE:-}
@@ -105,12 +111,10 @@ services:
       MEDIA_VISION_API_BASE_URL: ${MEDIA_VISION_API_BASE_URL:-}
       MEDIA_VISION_API_KEY: ${MEDIA_VISION_API_KEY:-}
       MEDIA_VISION_PROMPT_VERSION: ${MEDIA_VISION_PROMPT_VERSION:-}
-      # Khi MEDIA_VISION_* để trống, configuration.py rơi về nhóm OpenRouter.
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
-      OPENROUTER_MODEL_NAME: ${OPENROUTER_MODEL_NAME:-qwen/qwen2.5-vl-72b-instruct}
-      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-}
-      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-HIT-MIRA Multimodal RAG}
+      # Phải đi qua đây, không rơi về YAML được: model.yaml cố ý để trống vì
+      # tham số này chỉ đúng với backend vLLM. Thiếu nó thì job caption chạy từ
+      # màn admin gặp lại ca ảnh nhiều chữ lặp tới cụt token (đo 61,7s/ảnh).
+      MEDIA_VISION_REPETITION_PENALTY: ${MEDIA_VISION_REPETITION_PENALTY:-}
       # Auth (T-51): thiếu AUTH_SECRET_KEY thì đăng nhập ném AuthConfigurationError
       # chứ không sinh khoá ngẫu nhiên — cố ý, để lỗi lộ ra ngay.
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}

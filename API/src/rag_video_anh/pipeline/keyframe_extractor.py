@@ -524,7 +524,7 @@ class KeyframeExtractorService:
             )
             filtered = [fallback]
 
-        selected = self._deduplicate(filtered, cv2)
+        selected = self._deduplicate(filtered, cv2, fps)
         frames = [self._build_keyframe(media_input.media_id, item, fps) for item in selected]
         frames.sort(key=self._frame_sort_key)
         selected_frame_summary = [
@@ -726,7 +726,31 @@ class KeyframeExtractorService:
             reasons.append(f"contrast {score['contrast']:.3f} < min_contrast {self.pipeline_config.min_contrast}")
         return reasons
 
-    def _deduplicate(self, candidates: list[tuple[int, Any, dict[str, float]]], cv2: Any) -> list[tuple[int, Any, dict[str, float], float]]:
+    def _deduplicate(
+        self,
+        candidates: list[tuple[int, Any, dict[str, float]]],
+        cv2: Any,
+        fps: float = 0.0,
+    ) -> list[tuple[int, Any, dict[str, float], float]]:
+        """Loại frame trùng, nhưng chỉ so với frame đã giữ ở GẦN đó về thời gian.
+
+        Phép đo trùng là cosine trên vector RGB 32×32 thô. Trên giá trị pixel
+        chưa trừ trung bình, cosine đo độ sáng chung nhiều hơn đo nội dung: hai
+        ảnh nền sáng bất kỳ đều ~0,99 giống nhau, trong khi ngưỡng loại là 0,90.
+        Đo 07/08/2026 trên `314b4c71…` (quay màn hình một app, nền trắng) —
+        ba màn hình khác hẳn nhau cho 0,9819 / 0,9886 / 0,9931, nên cả video
+        28,8 giây rút xuống còn ĐÚNG 1 keyframe. Thử trừ trung bình, đổi sang
+        xám 128×128 và dHash đều không tách được (0,98–0,99): ở 32×32 thì chữ
+        trên màn hình biến mất hoàn toàn, không phép đo pixel toàn cục nào cứu
+        được. Đổi sang embedding có ngữ nghĩa mới xử lý gốc — đó là việc của v2.
+
+        Cửa sổ thời gian ở đây không sửa phép đo, nó chặn hậu quả: hai frame
+        cách nhau quá `keyframe_max_gap_sec` thì không bao giờ bị coi là trùng
+        nhau, nên video dài luôn giữ được độ phủ theo thời gian dù phép đo có
+        mù. Frame trùng thật sự nằm sát nhau vẫn bị loại như cũ.
+        """
+        max_gap_sec = float(getattr(self.pipeline_config, "keyframe_max_gap_sec", 0.0) or 0.0)
+        max_gap_frames = max_gap_sec * fps if max_gap_sec > 0 and fps > 0 else 0.0
         kept: list[tuple[int, Any, dict[str, float], Any, float]] = []
         duplicate_rejections: list[dict[str, Any]] = []
         for frame_index, image, quality in candidates:
@@ -734,6 +758,8 @@ class KeyframeExtractorService:
             max_similarity = 0.0
             duplicate_of: int | None = None
             for kept_frame_index, _, _, kept_embedding, _ in kept:
+                if max_gap_frames and abs(frame_index - kept_frame_index) > max_gap_frames:
+                    continue
                 similarity = self._cosine_similarity(embedding, kept_embedding)
                 if similarity > max_similarity:
                     max_similarity = similarity
@@ -755,7 +781,7 @@ class KeyframeExtractorService:
         logger.info(
             f"Keyframe deduplicate summary: input={len(candidates)}, kept={len(kept)}, "
             f"rejected_duplicates={len(duplicate_rejections)}, duplicate_threshold={self.model_config.duplicate_threshold}, "
-            f"rejection_sample={duplicate_rejections[:20]}"
+            f"max_gap_sec={max_gap_sec}, rejection_sample={duplicate_rejections[:20]}"
         )
         return [(frame_index, image, quality, dedup_score) for frame_index, image, quality, _, dedup_score in kept]
 
