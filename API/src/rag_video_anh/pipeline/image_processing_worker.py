@@ -16,12 +16,18 @@ from __future__ import annotations
 import argparse
 import tempfile
 import uuid
+from collections import Counter
 from pathlib import Path
 
 from src.log.logger import logger
 from src.rag_video_anh.pipeline.video_processing_worker import VideoProcessingWorker
 from src.rag_video_anh.repository import MediaRecord, MediaType
 from src.rag_video_anh.schemas import MediaInput, PipelineResult
+
+# Trần cho khối lời thoại đưa vào prompt caption. Không phải để tiết kiệm token
+# mà để chặn bịa: càng nhiều lời thoại không liên quan tới khung hình thì model
+# càng dễ mô tả thứ nó chỉ nghe thấy.
+GIOI_HAN_KY_TU_ASR = 400
 
 
 class ImageProcessingWorker(VideoProcessingWorker):
@@ -60,10 +66,86 @@ class ImageProcessingWorker(VideoProcessingWorker):
                         "bucket_name": media.bucket_name,
                         "object_key": media.object_key,
                     },
+                    processing_options=self._tuy_chon_xu_ly(media),
                 )
             )
             self._persist_image_result(media, result)
             return result
+
+    def _tuy_chon_xu_ly(self, media: MediaRecord) -> dict:
+        """Bối cảnh cho lượt caption thứ hai — chỉ dựng khi chế độ hai lượt bật.
+
+        Một lượt thì lượt duy nhất đó tự nhìn ảnh và tự đọc chữ, bối cảnh không
+        đi tới đâu; dựng nó chỉ tốn thêm mấy truy vấn DB cho mỗi ảnh.
+        """
+        if not getattr(self.pipeline.vision_service, "hai_luot", False):
+            return {}
+
+        boi_canh: dict = {}
+        with self.uow_factory() as uow:
+            if uow.results is None or uow.media is None:
+                return {}
+
+            # Nhãn + số lượng, KHÔNG hộp và KHÔNG độ tin cậy: toạ độ không giúp
+            # model viết câu mà lại mời nó chép số vào caption.
+            ket_qua_object = uow.results.get_object_result(media.media_id)
+            if ket_qua_object is not None and ket_qua_object.objects:
+                dem: Counter = Counter(
+                    str(vat.label).strip() for vat in ket_qua_object.objects if str(vat.label or "").strip()
+                )
+                if dem:
+                    boi_canh["object_counts"] = dict(dem)
+
+            # Lời thoại chỉ có với keyframe; ảnh tĩnh không có video cha nên
+            # nhánh này tự bỏ qua.
+            frame = uow.media.get_frame_by_media_id(media.media_id)
+            if frame is not None and frame.video_media_id is not None:
+                loi_noi = self._loi_noi_quanh_khung_hinh(uow, frame)
+                if loi_noi:
+                    boi_canh["asr"] = loi_noi
+
+        return {"caption": {"context": boi_canh}} if boi_canh else {}
+
+    @staticmethod
+    def _loi_noi_quanh_khung_hinh(uow, frame) -> str:
+        """Lời nói quanh thời điểm khung hình, cắt cứng ở GIOI_HAN_KY_TU_ASR.
+
+        Cửa sổ "một đoạn trước + đoạn hiện tại + một đoạn sau" của nhánh truy hồi
+        KHÔNG dùng lại được ở đây. Đo trên kho này: 59 video chỉ có 245 đoạn, tức
+        Zipformer gộp cả bài nói vào 3-4 đoạn rất dài — lấy ba đoạn là lấy trọn
+        ~2.000 từ. Nhồi ngần đó lời thoại vào prompt caption thì model gần như
+        chắc chắn kể lại việc chỉ NGHE thấy chứ không THẤY, đúng thứ mà kho này
+        cấm tuyệt đối.
+
+        Nên với đoạn dài thì cắt một cửa sổ quanh vị trí nội suy của khung hình
+        trong đoạn: thô, nhưng đúng hướng và bị chặn trên.
+        """
+        transcript = uow.results.get_transcript_by_video_media_id(frame.video_media_id)
+        if transcript is None or not transcript.segments:
+            return ""
+        # `TranscriptSegmentRecord` dùng start_time/end_time, không phải
+        # start_sec/end_sec như `CleanTranscriptSegment` bên nhánh truy hồi.
+        moc = float(frame.timestamp or 0.0)
+        doan = sorted(transcript.segments, key=lambda seg: float(seg.start_time or 0.0))
+        vi_tri = next(
+            (i for i, seg in enumerate(doan) if float(seg.start_time or 0.0) <= moc <= float(seg.end_time or 0.0)),
+            None,
+        )
+        if vi_tri is None:
+            return ""
+
+        hien_tai = doan[vi_tri]
+        chu = str(hien_tai.text or "").strip()
+        if len(chu) <= GIOI_HAN_KY_TU_ASR:
+            lan_can = doan[max(0, vi_tri - 1) : vi_tri + 2]
+            return " ".join(str(seg.text or "").strip() for seg in lan_can).strip()[:GIOI_HAN_KY_TU_ASR]
+
+        bat_dau = float(hien_tai.start_time or 0.0)
+        dai = float(hien_tai.end_time or 0.0) - bat_dau
+        ty_le = 0.0 if dai <= 0 else max(0.0, min(1.0, (moc - bat_dau) / dai))
+        giua = int(ty_le * len(chu))
+        dau = max(0, min(len(chu) - GIOI_HAN_KY_TU_ASR, giua - GIOI_HAN_KY_TU_ASR // 2))
+        return chu[dau : dau + GIOI_HAN_KY_TU_ASR].strip()
 
     def _persist_image_result(self, media: MediaRecord, result: PipelineResult) -> None:
         """Gắn kết quả phân tích thẳng vào chính hàng media của ảnh."""
