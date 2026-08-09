@@ -11,7 +11,7 @@ from typing import Any
 
 from src.configuration import AppConfig
 from src.log.logger import logger
-from src.rag_video_anh.embedding.embedding_service import ImageEmbeddingService
+from src.rag_video_anh.embedding.provider import build_media_embedder
 from src.rag_video_anh.retrieval.retriever import (
     MediaClipHit,
     TranscriptVideoHit,
@@ -38,15 +38,19 @@ class VideoRetrievalService:
         video_ids: list[str] | None = None,
         source: str = SOURCE_BOTH,
         image: bytes | None = None,
+        years: list[int] | None = None,
     ) -> dict[str, Any]:
         """Truy hồi bằng chữ, bằng ảnh, hoặc cả hai.
 
         US-502.1 chốt "ảnh + text mâu thuẫn → ưu tiên ảnh", nên khi có ảnh thì
         nhánh `media_clip` luôn tìm bằng vector ẢNH. Phần chữ không bị vứt đi:
         nó lo nhánh lời thoại — nơi vector ảnh không dùng được.
+
+        `years` lọc theo mốc thời gian của BÀI ĐĂNG, áp cho cả hai nhánh.
         """
         normalized_query = self._normalize_optional_query(query, image_present=bool(image))
         normalized_source = self._normalize_source(source)
+        normalized_years = QdrantVideoVectorStore.normalize_years(years)
 
         clip_vector, text_vector = self._embed_query_vectors(normalized_query, image)
 
@@ -62,6 +66,7 @@ class VideoRetrievalService:
                     top_k=top_k,
                     video_ids=video_ids,
                     query_vector=clip_vector,
+                    years=normalized_years,
                 )
             except Exception as exc:
                 # Một nhánh lỗi không được làm chết nhánh còn lại.
@@ -84,12 +89,20 @@ class VideoRetrievalService:
                         top_k=top_k,
                         video_ids=video_ids,
                         query_vector=text_vector,
+                        years=normalized_years,
                     )
                 except Exception as exc:
                     errors.append(f"video_transcript: {exc.__class__.__name__}")
                     logger.warning(f"Transcript retrieval failed: {exc.__class__.__name__}: {exc}")
 
         total = len(clips) + len(videos)
+        if normalized_years and total == 0 and not errors:
+            # Rỗng vì bộ lọc chứ không phải vì kho không có gì: nói ra để người
+            # dùng biết nên bỏ lọc năm, thay vì kết luận "CLB không có ảnh này".
+            notes.append(
+                f"Không có kết quả nào thuộc năm {', '.join(str(nam) for nam in normalized_years)}. "
+                "Bỏ bộ lọc năm để tìm trong toàn bộ kho."
+            )
         logger.info(
             f"Media retrieval flow completed: {len(clips)} keyframe(s), {len(videos)} video(s)"
         )
@@ -97,6 +110,7 @@ class VideoRetrievalService:
             "query": normalized_query or "",
             "query_kind": self._query_kind(normalized_query, image),
             "source": normalized_source,
+            "years": normalized_years,
             "clips": [clip.as_dict() for clip in clips],
             "videos": [video.as_dict() for video in videos],
             "context": self._format_context(clips, videos),
@@ -228,7 +242,7 @@ def build_video_retrieval_service(config: AppConfig | None = None) -> VideoRetri
     app_config = config or AppConfig()
     return VideoRetrievalService(
         retriever=VideoRetriever(
-            embedding_service=ImageEmbeddingService(config=app_config),
+            embedding_service=build_media_embedder(app_config, for_online_queries=True),
             vector_store=QdrantVideoVectorStore(config=app_config),
             config=app_config,
         )

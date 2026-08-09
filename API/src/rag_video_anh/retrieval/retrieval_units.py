@@ -12,6 +12,7 @@ import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import timezone
 from typing import Any
 from uuid import UUID
 
@@ -131,9 +132,15 @@ class ImageUnit:
     vision_metadata: dict[str, Any]
     detected_objects: list[dict[str, Any]]
     object_counts: dict[str, int]
+    # Bản OCR còn nguyên xuống dòng, CHỈ dùng cho nhánh nhúng văn bản. Cố ý
+    # không đưa vào `to_dict()`: payload của collection Jina là hợp đồng, thêm
+    # khoá vào đó là đổi hợp đồng mà không ai yêu cầu.
+    ocr_text_layout: str = ""
     # US-405.1: link bài gốc trên fanpage. Để None khi bài không có link —
     # tầng trả lời hiển thị "nguồn nội bộ" chứ không dựng một link gãy.
     source_url: str | None = None
+    post_created_at: str | None = None
+    event_key: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -141,6 +148,8 @@ class ImageUnit:
             "image_media_id": self.image_media_id,
             "post_id": self.post_id,
             "source_url": self.source_url,
+            "post_created_at": self.post_created_at,
+            "event_key": self.event_key,
             "bucket_name": self.bucket_name,
             "object_key": self.object_key,
             "caption": self.caption,
@@ -168,7 +177,10 @@ class MediaClipUnit:
     transcript_context: TranscriptContext
     unit_id: str
     video_media_id: str
+    ocr_text_layout: str = ""
     source_url: str | None = None
+    post_created_at: str | None = None
+    event_key: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -177,6 +189,8 @@ class MediaClipUnit:
             "video_media_id": self.video_media_id,
             "post_id": self.post_id,
             "source_url": self.source_url,
+            "post_created_at": self.post_created_at,
+            "event_key": self.event_key,
             "frame_media_id": self.frame_media_id,
             "frame_index": self.frame_index,
             "timestamp_sec": self.timestamp_sec,
@@ -202,6 +216,8 @@ class VideoTranscriptUnit:
     language: str
     source_segment_ids: list[str]
     source_url: str | None = None
+    post_created_at: str | None = None
+    event_key: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -209,6 +225,8 @@ class VideoTranscriptUnit:
             "video_id": self.video_id,
             "post_id": self.post_id,
             "source_url": self.source_url,
+            "post_created_at": self.post_created_at,
+            "event_key": self.event_key,
             "start_sec": self.start_sec,
             "end_sec": self.end_sec,
             "text": self.text,
@@ -319,7 +337,7 @@ class VideoRetrievalUnitBuilder:
             )
             # Đọc một lần cho cả video: mọi keyframe và mọi đoạn lời thoại của
             # video này đều thuộc đúng một bài đăng.
-            source_url = _post_source_url(uow, media.post_id)
+            post_meta = _post_index_metadata(uow, media.post_id)
             transcript = uow.results.get_transcript_by_video_media_id(media.media_id)
             transcript_segments = _clean_transcript_segments(transcript, summary)
             transcript_units = _build_transcript_units(
@@ -327,7 +345,7 @@ class VideoRetrievalUnitBuilder:
                 transcript_segments=transcript_segments,
                 video_id=_str_id(video.video_id),
                 post_id=_str_id(media.post_id),
-                source_url=source_url,
+                post_meta=post_meta,
             )
 
             media_clip_units: list[MediaClipUnit] = []
@@ -337,7 +355,7 @@ class VideoRetrievalUnitBuilder:
                     video_id=_str_id(video.video_id),
                     video_media_id=_str_id(media.media_id),
                     post_id=_str_id(media.post_id),
-                    source_url=source_url,
+                    post_meta=post_meta,
                     transcript_segments=transcript_segments,
                     summary=summary,
                     results_repo=uow.results,
@@ -363,8 +381,9 @@ class VideoRetrievalUnitBuilder:
         transcript_segments: list[CleanTranscriptSegment],
         summary: RetrievalUnitBuildSummary,
         results_repo: Any,
-        source_url: str | None = None,
+        post_meta: PostIndexMetadata | None = None,
     ) -> MediaClipUnit | None:
+        post_meta = post_meta or PostIndexMetadata()
         frame_media_id = _str_id(frame.media_id)
         frame_index = _finite_int(frame.frame_index)
         if frame_index is None:
@@ -407,7 +426,9 @@ class VideoRetrievalUnitBuilder:
             video_id=video_id,
             video_media_id=video_media_id,
             post_id=post_id,
-            source_url=source_url,
+            source_url=post_meta.source_url,
+            post_created_at=post_meta.post_created_at,
+            event_key=post_meta.event_key,
             frame_media_id=frame_media_id,
             frame_index=frame_index,
             timestamp_sec=timestamp_sec,
@@ -415,6 +436,7 @@ class VideoRetrievalUnitBuilder:
             frame_object_key=frame_object_key,
             caption=clean_caption(caption_result),
             ocr_text=clean_ocr(ocr_result),
+            ocr_text_layout=clean_ocr_layout(ocr_result),
             vision_metadata=clean_vision_metadata(caption_result.vision_metadata if caption_result else None),
             detected_objects=detected_objects,
             object_counts=dict(sorted(Counter(item["label"] for item in detected_objects).items())),
@@ -457,6 +479,10 @@ class ImageRetrievalUnitBuilder:
         self.uow_factory = uow_factory or RepositoryUnitOfWork
         self.storage = storage
         self.check_image_exists = check_image_exists
+        # Builder ảnh được gọi RIÊNG cho từng ảnh, nên một bài 10 ảnh sẽ đọc
+        # bảng posts 10 lần cho đúng một hàng. Nhánh video không cần cache vì nó
+        # đọc một lần rồi dùng chung cho mọi keyframe.
+        self._cache_post: dict[str, PostIndexMetadata] = {}
 
     def build(self, image_media_id: str | UUID) -> ImageUnit | None:
         """Trả về unit, hoặc None nếu ảnh không dùng được (kèm log lý do)."""
@@ -483,24 +509,29 @@ class ImageRetrievalUnitBuilder:
             caption_result = uow.results.get_caption_result(media.media_id)
             object_result = uow.results.get_object_result(media.media_id)
             caption = clean_caption(caption_result)
-            ocr_text = clean_ocr(uow.results.get_ocr_result(media.media_id))
+            ocr_result = uow.results.get_ocr_result(media.media_id)
+            ocr_text = clean_ocr(ocr_result)
             if not caption and not ocr_text:
                 # Không caption cũng không chữ -> vector vẫn dựng được từ ảnh thô,
                 # nhưng không có gì để trích dẫn. Index tiếp, chỉ cảnh báo.
                 logger.warning(f"Image '{media_id}' has neither caption nor OCR text")
 
             summary = RetrievalUnitBuildSummary(video_id=None, video_media_id=media_id, post_id=_str_id(media.post_id))
+            post_meta = self._metadata_bai(uow, media.post_id)
             detected_objects = clean_detected_objects(object_result, summary, media_id)
 
             return ImageUnit(
                 unit_id=f"image:{media_id}",
                 image_media_id=media_id,
                 post_id=_str_id(media.post_id),
-                source_url=_post_source_url(uow, media.post_id),
+                source_url=post_meta.source_url,
+                post_created_at=post_meta.post_created_at,
+                event_key=post_meta.event_key,
                 bucket_name=bucket_name,
                 object_key=object_key,
                 caption=caption,
                 ocr_text=ocr_text,
+                ocr_text_layout=clean_ocr_layout(ocr_result),
                 vision_metadata=clean_vision_metadata(caption_result.vision_metadata if caption_result else None),
                 detected_objects=detected_objects,
                 object_counts=dict(sorted(Counter(item["label"] for item in detected_objects).items())),
@@ -516,6 +547,12 @@ class ImageRetrievalUnitBuilder:
             else:
                 rows = uow.media.list_by_type(MediaType.IMAGE.value)
             return [_str_id(row.media_id) for row in rows]
+
+    def _metadata_bai(self, uow: Any, post_id: Any) -> PostIndexMetadata:
+        khoa = _str_id(post_id) if post_id is not None else ""
+        if khoa not in self._cache_post:
+            self._cache_post[khoa] = _post_index_metadata(uow, post_id)
+        return self._cache_post[khoa]
 
     def _image_exists(self, bucket_name: str, object_key: str) -> bool:
         if not self.check_image_exists:
@@ -544,6 +581,29 @@ def clean_ocr(result: OcrResultRecord | None) -> str:
     if result is None or not _is_done_status(result.ocr_status):
         return ""
     return clean_text(result.ocr_text)
+
+
+def clean_ocr_layout(result: OcrResultRecord | None) -> str:
+    """Như `clean_ocr` nhưng **giữ ranh giới dòng**, dành cho nhánh nhúng văn bản.
+
+    `clean_text` gộp mọi khoảng trắng thành một dấu cách. Với payload thì không
+    sao, nhưng đem đi nhúng thì "12h30 - 20/04/2024" dính luôn vào dòng kế tiếp
+    và thành một câu không ai viết bao giờ. Bố cục của poster là thông tin, nên
+    nhánh text cần bản còn nguyên xuống dòng.
+    """
+    if result is None or not _is_done_status(result.ocr_status):
+        return ""
+    value = result.ocr_text
+    if not isinstance(value, str):
+        return ""
+    text = unicodedata.normalize("NFC", value)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+", " ", text)
+    dong = [re.sub(r"[ \t ]+", " ", d).strip() for d in text.split("\n")]
+    ket = "\n".join(d for d in dong if d)
+    # Dùng lại đúng bộ lọc "trông như thông báo lỗi" của `clean_text`, để một
+    # nhánh không nhận vào thứ mà nhánh kia đã loại.
+    return "" if not ket or _is_error_like_text(ket) else ket
 
 
 def clean_text(value: Any) -> str:
@@ -631,15 +691,18 @@ def _build_transcript_units(
     transcript_segments: list[CleanTranscriptSegment],
     video_id: str,
     post_id: str,
-    source_url: str | None = None,
+    post_meta: "PostIndexMetadata | None" = None,
 ) -> list[VideoTranscriptUnit]:
     language = clean_text(transcript.language if transcript else None) or "unknown"
+    meta = post_meta or PostIndexMetadata()
     return [
         VideoTranscriptUnit(
             unit_id=f"video_transcript:{video_id}:{segment.segment_id}",
             video_id=video_id,
             post_id=post_id,
-            source_url=source_url,
+            source_url=meta.source_url,
+            post_created_at=meta.post_created_at,
+            event_key=meta.event_key,
             start_sec=segment.start_sec,
             end_sec=segment.end_sec,
             text=segment.text,
@@ -650,24 +713,75 @@ def _build_transcript_units(
     ]
 
 
-def _post_source_url(uow: Any, post_id: Any) -> str | None:
-    """Đọc link bài gốc từ bảng posts (US-405.1).
+@dataclass(frozen=True)
+class PostIndexMetadata:
+    """Metadata cấp BÀI, đọc một lần rồi truyền xuống mọi ảnh/keyframe/lời thoại.
 
-    Nuốt mọi lỗi và trả None: thiếu link chỉ làm trích dẫn kém đẹp một chút,
-    không đáng để chặn cả mẻ index. Cũng nhờ vậy mà các Unit of Work giả trong
-    test — vốn chỉ dựng `media`/`results` — vẫn chạy được như cũ.
+    Đọc lại theo từng point thì một video 200 keyframe là 200 lượt truy vấn
+    posts cho đúng một hàng.
+    """
+
+    source_url: str | None = None
+    post_created_at: str | None = None
+    event_key: str | None = None
+
+
+def _rfc3339(value: Any) -> str | None:
+    """Chuỗi RFC3339 **có múi giờ**, để Qdrant đánh index datetime đọc được.
+
+    `parse_created_time()` trong `minio_registration.py` gỡ timezone trước khi
+    ghi, nên `posts.created_time` trong PostgreSQL là datetime *naïve*. Gọi
+    thẳng `isoformat()` sẽ ra `2024-04-11T12:59:01` — thiếu `Z` hoặc offset, tức
+    KHÔNG đúng RFC3339, và Qdrant có quyền từ chối hoặc hiểu theo múi giờ khác.
+
+    `created_time` của Facebook luôn là `+0000`, và đó đúng là thứ đã bị gỡ, nên
+    coi datetime naïve là UTC là khôi phục thông tin gốc chứ không phải đoán bừa.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return clean_text(value) or None
+    try:
+        moc = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    except AttributeError:
+        return None
+    return moc.isoformat().replace("+00:00", "Z")
+
+
+def _post_index_metadata(uow: Any, post_id: Any) -> PostIndexMetadata:
+    """Đọc link, thời điểm đăng và khoá sự kiện của một bài.
+
+    Nuốt mọi lỗi và trả None: thiếu metadata chỉ làm trích dẫn kém đẹp và mất
+    một chiều lọc, không đáng để chặn cả mẻ index. Cũng nhờ vậy mà các Unit of
+    Work giả trong test — vốn chỉ dựng `media`/`results` — vẫn chạy được như cũ.
     """
     if post_id is None:
-        return None
+        return PostIndexMetadata()
+
+    source_url = post_created_at = None
     posts_repo = getattr(uow, "posts", None)
-    if posts_repo is None:
-        return None
-    try:
-        post = posts_repo.get(post_id)
-    except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng
-        logger.warning(f"Could not read post '{post_id}' for source_url: {exc.__class__.__name__}: {exc}")
-        return None
-    return clean_text(getattr(post, "post_url", None)) or None
+    if posts_repo is not None:
+        try:
+            post = posts_repo.get(post_id)
+        except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng
+            logger.warning(f"Could not read post '{post_id}': {exc.__class__.__name__}: {exc}")
+            post = None
+        if post is not None:
+            source_url = clean_text(getattr(post, "post_url", None)) or None
+            post_created_at = _rfc3339(getattr(post, "created_time", None))
+
+    # `uow.events` chưa tồn tại: bốn bảng sự kiện đang rỗng và job trích xuất
+    # chưa được viết. Trả None chứ KHÔNG ghi "unknown" — một khoá sự kiện bịa
+    # ra sẽ gom nhầm mọi bài chưa nhận diện được vào cùng một nhóm.
+    event_key = None
+    events_repo = getattr(uow, "events", None)
+    if events_repo is not None:
+        try:
+            event_key = clean_text(events_repo.primary_series_slug(post_id)) or None
+        except Exception as exc:  # pragma: no cover
+            logger.warning(f"Could not read event of post '{post_id}': {exc.__class__.__name__}: {exc}")
+
+    return PostIndexMetadata(source_url=source_url, post_created_at=post_created_at, event_key=event_key)
 
 
 def _transcript_context(

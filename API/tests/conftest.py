@@ -26,6 +26,14 @@ BIEN_MOI_TRUONG_NHUNG = (
     "MEDIA_TEXT_EMBEDDING_BATCH_SIZE",
     "MEDIA_EMBEDDING_MAX_REQUEST_BYTES",
     "MEDIA_EMBEDDING_TOKENS_PER_MINUTE",
+    # Cùng lý do, cho nhánh chọn provider: máy đã cấu hình RunPod Serverless thì
+    # `build_media_embedder()` sẽ dựng adapter hàng đợi, và test về "mặc định"
+    # bỗng nói về `.env` của người chạy.
+    "MEDIA_EMBEDDING_PROVIDER",
+    "JINA_RUNPOD_ENDPOINT_ID",
+    "RUNPOD_API_KEY",
+    "RUNPOD_API_BASE_URL",
+    "EMBED_MAX_BATCH_SIZE",
 )
 
 

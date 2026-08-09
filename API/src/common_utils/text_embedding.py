@@ -15,8 +15,14 @@ class EmbeddingServiceError(RuntimeError):
     """Raised when the embedding provider returns an invalid response."""
 
 
-class EmbeddingService:
-    """LangChain OpenAI-compatible embedding adapter."""
+class TextEmbeddingService:
+    """Adapter nhúng văn bản qua endpoint tương thích OpenAI.
+
+    Dùng chung cho cả nhánh nội quy lẫn nhánh media (caption/OCR/transcript).
+    Đặt ở `common_utils` thay vì trong một trong hai nhánh: để nó ở `rag_noiquy`
+    thì nhánh media phải import ngược sang một package không liên quan gì tới
+    nó, và ai đọc cũng tưởng media phụ thuộc vào nội quy.
+    """
 
     def __init__(
         self,
@@ -142,3 +148,7 @@ class EmbeddingService:
             raise EmbeddingServiceError(
                 f"Embedding dimension mismatch: expected {self._dimension}, got {observed_dimension}."
             )
+
+
+# Tên cũ, giữ để `rag_noiquy` và các script hiện có không phải sửa cùng lúc.
+EmbeddingService = TextEmbeddingService
