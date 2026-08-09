@@ -12,6 +12,9 @@ env/
 # ---- Env & secrets ----
 .env
 .env.local
+# Bản sao lưu .env cũng chứa khoá thật; '.env' ở trên không khớp được tên này.
+.env.*
+!.env.example
 *.key
 *.pem
 
