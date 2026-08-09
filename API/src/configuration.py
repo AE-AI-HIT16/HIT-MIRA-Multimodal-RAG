@@ -144,7 +144,7 @@ class MediaModelConfig(BaseModel):
     duplicate_threshold: float = _config_value(config_models, "MEDIA_MODELS.DUPLICATE_THRESHOLD", 0.90)
     clip_model_name: str = _config_value(config_models, "MEDIA_MODELS.CLIP_MODEL_NAME", "jina-clip-v2")
     clip_api_base_url: str = os.getenv("MEDIA_IMAGE_EMBEDDING_BASE_URL") or _config_value(
-        config_models, "MEDIA_MODELS.CLIP_API_BASE_URL", "https://api.jina.ai/v1/embeddings"
+        config_models, "MEDIA_MODELS.CLIP_API_BASE_URL", ""
     )
     clip_api_key: Optional[str] = os.getenv("JINA_API_KEY") or _config_value(config_models, "MEDIA_MODELS.CLIP_API_KEY", None)
     clip_embedding_dimensions: int = _config_value(config_models, "MEDIA_MODELS.CLIP_EMBEDDING_DIMENSIONS", 1024)
