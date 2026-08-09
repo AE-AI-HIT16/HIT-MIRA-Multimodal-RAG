@@ -23,6 +23,15 @@ class StructureAwareChunker:
         r"^(Chương|CHƯƠNG|Mục|MỤC|Điều|ĐIỀU|Khoản|KHOẢN)\b",
         re.IGNORECASE,
     )
+    # `HEADING_RE` chỉ khớp phần ĐẦU dòng, nên thiếu chặn độ dài thì cả một đoạn
+    # dài mở đầu bằng "Nội quy..." cũng bị nhận là tiêu đề mục — và vì tên mục
+    # được ghép vào trước mọi chunk của mục đó, văn bản phình lên theo cấp số.
+    # Đo 07/08/2026 trên "Nội Quy CLB 2022.docx": Docx2txtLoader không giữ dòng
+    # trống giữa các gạch đầu dòng, cho ra một đoạn 1.461 ký tự; nó thành tên
+    # mục và 1.697 ký tự tài liệu nở thành 73 chunk / 107.220 ký tự — gấp 63
+    # lần, tức 63 lần tiền nhúng và một collection đầy chữ lặp. Bản PDF cùng nội
+    # dung ra 4 chunk / 2.076 ký tự.
+    MAX_HEADING_CHARS = 120
 
     def __init__(
         self,
@@ -343,6 +352,11 @@ class StructureAwareChunker:
         )
 
     def _is_heading(self, line: str) -> bool:
+        # Tiêu đề là thứ ngắn. Cắt theo độ dài trước khi khớp mẫu, vì mẫu chỉ
+        # nhìn phần đầu dòng nên nó không tự phân biệt được "Nội quy sử dụng
+        # phòng" với cả một mục dài mở đầu bằng đúng mấy chữ đó (MAX_HEADING_CHARS).
+        if len(line) > self.MAX_HEADING_CHARS:
+            return False
         return bool(
             self.HEADING_RE.match(line)
             or self.HEADING_RE.match(self._strip_accents(line))
