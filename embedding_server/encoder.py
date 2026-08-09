@@ -27,6 +27,7 @@ import io
 import logging
 import os
 import threading
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,9 @@ MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "jinaai/jina-clip-v2")
 EMBED_DIM = int(os.getenv("EMBED_DIM", "1024"))
 # jina-clip-v2 chỉ chấp nhận đúng task này (xem docstring trên).
 TEXT_TASK = os.getenv("EMBED_TEXT_TASK", "retrieval.query")
+RUNPOD_HF_CACHE_ROOT = Path(
+    os.getenv("RUNPOD_HF_CACHE_ROOT", "/runpod-volume/huggingface-cache/hub")
+)
 
 
 class EncoderError(RuntimeError):
@@ -66,6 +70,54 @@ def _resolve_dtype(device: str) -> str:
     # fp16 trên CPU chậm hơn fp32 vì phần lớn kernel phải ép kiểu qua lại;
     # trên GPU thì ngược lại, fp16 nhanh gấp đôi mà cosine lệch < 1e-3.
     return "float16" if device.startswith("cuda") else "float32"
+
+
+def _resolve_model_source() -> tuple[str, bool]:
+    """Chọn model id hoặc snapshot đã được RunPod cache.
+
+    RunPod gắn cached model theo quy ước Hugging Face dưới
+    ``/runpod-volume/huggingface-cache/hub``. Server thường vẫn dùng model id
+    như trước; worker Serverless bật ``EMBED_REQUIRE_CACHED_MODEL=1`` để một
+    cấu hình Cached model bị thiếu phải làm worker lỗi rõ ràng, không âm thầm
+    tải 3,5 GB trong thời gian đang bị tính tiền.
+    """
+    explicit = os.getenv("EMBED_MODEL_PATH", "").strip()
+    if explicit:
+        path = Path(explicit)
+        if not path.is_dir():
+            raise EncoderError(f"EMBED_MODEL_PATH không tồn tại: {path}")
+        return str(path), True
+
+    if "/" not in MODEL_NAME:
+        if _env_true("EMBED_REQUIRE_CACHED_MODEL"):
+            raise EncoderError("EMBED_MODEL_NAME phải có dạng <org>/<model> khi dùng Cached model")
+        return MODEL_NAME, False
+
+    org, name = MODEL_NAME.split("/", 1)
+    model_root = RUNPOD_HF_CACHE_ROOT / f"models--{org}--{name}"
+    snapshots = model_root / "snapshots"
+    candidates: list[Path] = []
+    ref_main = model_root / "refs" / "main"
+    if ref_main.is_file():
+        revision = ref_main.read_text(encoding="utf-8").strip()
+        if revision:
+            candidates.append(snapshots / revision)
+    if snapshots.is_dir():
+        candidates.extend(sorted(path for path in snapshots.iterdir() if path.is_dir()))
+    for candidate in candidates:
+        if candidate.is_dir():
+            return str(candidate), True
+
+    if _env_true("EMBED_REQUIRE_CACHED_MODEL"):
+        raise EncoderError(
+            f"Không tìm thấy Cached model {MODEL_NAME} dưới {RUNPOD_HF_CACHE_ROOT}. "
+            "Hãy đặt Cached model của endpoint thành jinaai/jina-clip-v2."
+        )
+    return MODEL_NAME, False
+
+
+def _env_true(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes"}
 
 
 class JinaClipEncoder:
@@ -101,11 +153,19 @@ class JinaClipEncoder:
 
             device = _resolve_device()
             dtype_name = _resolve_dtype(device)
-            logger.info(f"Đang nạp {MODEL_NAME} lên {device} ({dtype_name})")
-            model = AutoModel.from_pretrained(
+            model_source, local_only = _resolve_model_source()
+            logger.info(
+                "Đang nạp %s lên %s (%s, nguồn=%s)",
                 MODEL_NAME,
+                device,
+                dtype_name,
+                "cached" if local_only else "huggingface",
+            )
+            model = AutoModel.from_pretrained(
+                model_source,
                 trust_remote_code=True,
                 torch_dtype=dtype_name,
+                local_files_only=local_only,
                 # Nạp thẳng trọng số vào chỗ của model thay vì dựng model rỗng
                 # rồi copy đè: cách mặc định ngốn gấp đôi bộ nhớ trong lúc nạp
                 # (đo được đỉnh 4,95GB, đủ để bị OOM giết trên máy 7,6GB đang

@@ -2,8 +2,9 @@
 # code của jina-clip-v2 import nó ở mức module -> ImportError ngay lúc nạp.
 # Trước đó còn vỡ sớm hơn ở configuration_clip.py: `hasattr(torch, torch_dtype)`
 # với torch_dtype đã bị transformers 5 đổi thành đối tượng torch.dtype.
-# Ghim 4.x cho tới khi Jina cập nhật remote code.
-transformers>=4.45,<5
+# Model card/config của jina-clip-v2 công bố 4.46.2. Các bản 4.57.x tuy vẫn
+# load được nhưng cảnh báo tokenizer regex sai, có nguy cơ đổi vector im lặng.
+transformers==4.46.2
 # `low_cpu_mem_usage=True` cần accelerate; thiếu nó thì lúc nạp ngốn gấp đôi.
 accelerate>=1.0
 # Vision tower (EVA02) nằm trong timm.
