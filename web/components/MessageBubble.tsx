@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SOURCE_LABEL } from "@/lib/format";
 import type { ChatTurn } from "@/lib/types";
 import { ResultCard } from "./ResultCard";
+import { RichText } from "./RichText";
 import { CheckIcon, CopyIcon, SparkIcon } from "./icons";
 
 function Avatar() {
@@ -54,8 +55,12 @@ function StreamCursor() {
  * của phụ lục: đo thật một câu hỏi media thì lưới ra 16 thẻ, phần lớn là video
  * player cao ngang màn hình. 4 thẻ là 2 hàng, vừa đủ thấy mà không đẩy câu trả
  * lời tiếp theo ra khỏi tầm nhìn.
+ *
+ * Lưới lên 3 cột từ `xl` nên con số phải chia hết cho 3, không thì hàng cuối bỏ
+ * lại một thẻ lẻ trông như hỏng. 6 giữ đúng "2 hàng" trên màn rộng; trên tablet
+ * (2 cột) thành 3 hàng — chấp nhận được, vì đó không phải màn để trình bày.
  */
-const SO_THE_HIEN_TRUOC = 4;
+const SO_THE_HIEN_TRUOC = 6;
 
 function KhoiKetQua({ turn, trongBongBong }: { turn: ChatTurn; trongBongBong?: boolean }) {
   const [moRong, setMoRong] = useState(false);
@@ -66,9 +71,26 @@ function KhoiKetQua({ turn, trongBongBong }: { turn: ChatTurn; trongBongBong?: b
   const tatCa = turn.hits ?? [];
   const chinh = tatCa.filter((item) => !item.lienQuanYeu);
   const yeu = tatCa.filter((item) => item.lienQuanYeu);
-  const soKetQua = chinh.length;
-  const hienThi = moRong ? chinh : chinh.slice(0, SO_THE_HIEN_TRUOC);
-  const conLai = chinh.length - hienThi.length;
+  // Đếm KẾT QUẢ TRUY XUẤT chứ không đếm thẻ: nhiều keyframe của cùng một video
+  // gộp lại thành một thẻ, nên đếm thẻ ra 8 trong khi câu trả lời ngay phía trên
+  // viết "em tìm thấy 10 tư liệu" (đo được đúng cặp số này). Hai con số cạnh
+  // nhau mà lệch thì người đọc phải tự đoán bên nào sai.
+  const soKetQua = chinh.reduce((tong, item) => tong + (item.frames?.length ?? 1), 0);
+
+  // Nội quy và media xếp khác nhau vì chúng là hai loại bằng chứng khác nhau:
+  // nội quy là dải chữ mảnh (xếp dọc, hiện hết — có 4 mục là cùng), còn ảnh và
+  // video là thẻ vuông (lưới hai cột, giới hạn số hiện trước). Nhét chung một
+  // lưới thì một mục nội quy đứng cạnh một video player để lại ô trống bằng nửa
+  // màn hình, đúng chỗ hổng thấy trên ảnh chụp.
+  const laNoiQuy = (item: (typeof tatCa)[number]) => !!item.label;
+  const nhomNoiQuy = chinh.filter(laNoiQuy);
+  const nhomMedia = chinh.filter((item) => !laNoiQuy(item));
+  const hienThi = moRong ? nhomMedia : nhomMedia.slice(0, SO_THE_HIEN_TRUOC);
+  const conLai = nhomMedia.length - hienThi.length;
+  // Cùng đơn vị với con số trên đầu khối — đếm kết quả, không đếm thẻ.
+  const soConLai = nhomMedia
+    .slice(hienThi.length)
+    .reduce((tong, item) => tong + (item.frames?.length ?? 1), 0);
 
   return (
     <div className={trongBongBong ? "mt-4 border-t border-zinc-100 pt-4" : "mt-4"}>
@@ -82,8 +104,8 @@ function KhoiKetQua({ turn, trongBongBong }: { turn: ChatTurn; trongBongBong?: b
       </div>
 
       {turn.hitsStatus === "loading" && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {[0, 1].map((i) => (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((i) => (
             <div
               key={i}
               className="h-44 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100"
@@ -98,23 +120,51 @@ function KhoiKetQua({ turn, trongBongBong }: { turn: ChatTurn; trongBongBong?: b
         </p>
       )}
 
+      {/* API tự nói ra khi một nhánh bị bỏ qua do định tuyến, hoặc khi rỗng là
+          do bộ lọc năm/sự kiện chứ không phải do kho không có gì. Giấu đi thì
+          "0 video" bị đọc thành "CLB không nói gì về chuyện này" — đúng cách
+          hiểu sai mà trường `notes` sinh ra để chặn. */}
+      {turn.hitsStatus === "done" && (turn.hitsNotes?.length ?? 0) > 0 && (
+        <ul className="mb-3 space-y-1 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs leading-5 text-amber-800">
+          {turn.hitsNotes?.map((note, i) => (
+            <li key={i} className="flex gap-1.5">
+              <span aria-hidden className="select-none">·</span>
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {turn.hitsStatus === "done" && soKetQua === 0 && yeu.length === 0 && (
         <p className="text-xs text-zinc-400">Không tìm thấy nguồn nào khớp.</p>
       )}
 
       {turn.hitsStatus === "done" && soKetQua > 0 && (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {hienThi.map((item, i) => (
-              <ResultCard key={`${turn.id}-hit-${i}`} item={item} />
-            ))}
-          </div>
+          {nhomNoiQuy.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {nhomNoiQuy.map((item, i) => (
+                <ResultCard key={`${turn.id}-nq-${i}`} item={item} />
+              ))}
+            </div>
+          )}
+          {hienThi.length > 0 && (
+            <div
+              className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 ${
+                nhomNoiQuy.length > 0 ? "mt-3" : ""
+              }`}
+            >
+              {hienThi.map((item, i) => (
+                <ResultCard key={`${turn.id}-hit-${i}`} item={item} />
+              ))}
+            </div>
+          )}
           {(conLai > 0 || moRong) && (
             <button
               onClick={() => setMoRong((truoc) => !truoc)}
               className="mt-3 w-full rounded-xl border border-zinc-200 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-700"
             >
-              {moRong ? "Thu gọn" : `Xem thêm ${conLai} kết quả`}
+              {moRong ? "Thu gọn" : `Xem thêm ${soConLai} kết quả`}
             </button>
           )}
         </>
@@ -134,7 +184,7 @@ function KhoiKetQua({ turn, trongBongBong }: { turn: ChatTurn; trongBongBong?: b
               : `${yeu.length} mục nội quy khớp yếu — có thể không liên quan`}
           </button>
           {moKhoiYeu && (
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {yeu.map((item, i) => (
                 <ResultCard key={`${turn.id}-yeu-${i}`} item={item} />
               ))}
@@ -192,10 +242,9 @@ export function MessageBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () 
         {/* Streaming: đang nhận token */}
         {turn.status === "streaming" && (
           <div className="surface rounded-2xl rounded-tl-md px-5 py-4">
-            <p className="whitespace-pre-wrap text-[15px] leading-7 text-zinc-800">
-              {turn.streamText || ""}
+            <RichText text={turn.streamText || ""}>
               <StreamCursor />
-            </p>
+            </RichText>
             {/* Nhánh truy xuất thường xong trước stream, nên ảnh hiện ngay
                 trong lúc chữ còn đang chạy. */}
             <KhoiKetQua turn={turn} trongBongBong />
@@ -222,9 +271,7 @@ export function MessageBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () 
         {turn.status === "done" && turn.finalText && (
           <div className="space-y-4">
             <div className="surface rounded-2xl rounded-tl-md px-5 py-4">
-              <p className="whitespace-pre-wrap text-[15px] leading-7 text-zinc-800">
-                {turn.finalText}
-              </p>
+              <RichText text={turn.finalText} />
               <KhoiKetQua turn={turn} trongBongBong />
               <div className="mt-4 flex items-center justify-end border-t border-zinc-100 pt-3">
                 <button
@@ -251,7 +298,7 @@ export function MessageBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () 
         {turn.status === "done" && turn.reply && !turn.finalText && (
           <div className="space-y-4">
             <div className="surface rounded-2xl rounded-tl-md px-5 py-4">
-              <p className="whitespace-pre-wrap text-[15px] leading-7 text-zinc-800">
+              <p className="max-w-[72ch] whitespace-pre-wrap text-[15px] leading-7 text-zinc-800">
                 {turn.reply.answer}
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3">
@@ -277,7 +324,7 @@ export function MessageBubble({ turn, onRetry }: { turn: ChatTurn; onRetry?: () 
                   </p>
                   <span className="text-xs text-zinc-400">{turn.reply.items.length} kết quả</span>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {turn.reply.items.map((item, i) => (
                     <ResultCard key={item.id ?? `${turn.id}-${i}`} item={item} />
                   ))}
