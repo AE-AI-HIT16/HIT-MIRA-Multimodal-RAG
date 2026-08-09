@@ -35,7 +35,10 @@ cd mcp && PYTHONPATH=src python src/server.py
 
 `API/src/` is the backend. The online/offline separation is an NFR — do not put heavy ML work on the request path.
 
-- **`server.py` — app factory.** `create_app()` registers exactly three routers under `/api` (`documents`, `retrieval`, `media_retrieval`) plus `/health`. There is no `app/` package and no `domains/` package; router modules live in `src/routers/`.
+- **`server.py` — app factory.** `create_app()` registers seven routers under `/api` (`documents`, `retrieval`, `media_retrieval`, `media_files`, `admin`, `auth`, `ingest`) plus `/health`. There is no `app/` package and no `domains/` package; router modules live in `src/routers/`.
+  - **`include_api_router` copies routes by re-registering `route.endpoint`**, so anything attached to the `APIRouter` object rather than the endpoint function is silently dropped — including router-level `dependencies=[...]`. **Auth guards must therefore be per-endpoint `Depends`**, and a router-level guard would look correct while protecting nothing.
+  - **A guard must be the *first* parameter with a `Depends`.** FastAPI resolves dependencies in declaration order, so an admin guard placed after a provider dependency lets an unauthenticated request run that provider first — `POST /api/ingest/upload` was opening MinIO connections before rejecting the caller. `tests/test_ingest_upload.py::test_can_quyen_admin` pins this.
+- **`src/jobs/runner.py` — background jobs as subprocesses.** Backs the admin screen's index/eval buttons. It shells out to the existing `scripts/*.py --apply` rather than reimplementing indexing in-process: two copies of that logic would drift, and a multi-minute index on the request path violates the online/offline NFR. **Job state lives in one process's RAM** — multiple uvicorn workers or `--reload` each see a different job table.
 - **`rag_video_anh/` — the media pipeline and media retrieval.** Split into `pipeline/` (offline: validate → route → keyframes → OCR/caption → detection → ASR → transcript mapping → normalize), `retrieval/` (units builder, indexing service, retriever, retrieval service), `embedding/`, `vector_store/`, `repository/` (SQLAlchemy models + Unit of Work), `schemas/`.
 - **`rag_noiquy/` — the regulation/document path.** Its own `embedding/`, `pipeline/`, `retrieval/`, `vector_store/`. Backs `routers/documents.py` and `routers/retrieval.py`.
 - **`src/rag/` is a broken orphan** — imports fail. Do not extend it; do not import from it.
@@ -80,6 +83,12 @@ Whichever model is chosen, **changing it means re-embedding the whole collection
 ### Online Router RAG flow
 
 `POST /api/media/search` → `VideoRetrievalService.retrieve()` embeds the query **once** and searches both collections in that shared space, merges, and builds a citation context string. The tool registry in `mcp/` is deliberately kept as the upgrade path to agentic RAG in v2.
+
+**`POST /api/media/search-image` is the image-query path** (multipart, US-302.1/US-303.1). The uploaded image is embedded by the same `jina-clip-v2` (`embed_image_blobs`, bytes only — never written to disk, BR-703) and compared against `media_clip` directly, so this is image→image, not "describe the image then search by text". Routing rules that are easy to get wrong:
+
+- **An image never queries `video_transcript`.** Image-only requests skip that branch *by routing* and say so in the response's `notes` — treating an empty `videos` list as "nothing was said about this" is the misreading that field exists to prevent. Send text alongside the image and the text vector takes the transcript branch while the image vector takes the clip branch (two embed calls, only in this case).
+- **Image wins over text on the clip branch** (US-502.1: "ảnh + text mâu thuẫn → ưu tiên ảnh"). Text-only requests still embed exactly once — do not regress that.
+- MCP's `search_media` is still text-only. A tool call cannot carry an image, so the supervisor's *prose* answer is still based on the LLM reading the picture and inventing keywords; only the web's result cards use true image retrieval. Closing that needs an image-carrying MCP tool plus a LangGraph node that calls it before the supervisor.
 
 ## Constraints worth knowing
 

@@ -1,13 +1,15 @@
 # Bàn giao — HIT-MIRA Multimodal RAG
 
-> Cập nhật **02/08/2026**, nhánh `integration/v1` (đã lên remote).
+> Cập nhật trạng thái môi trường **05/08/2026**, nhánh `integration/v1`.
 > Viết cho người/agent tiếp nhận. Đọc §1 và §1b trước khi gõ bất cứ lệnh nào —
-> hệ thống **đang chạy hoàn chỉnh trên embedding server tự host**, không còn phụ
-> thuộc API trả phí. Việc duy nhất cần trông: pod GPU tính tiền theo giờ, nhớ
-> tắt khi không dùng (§4.1).
+> các kết quả ngày 02/08 bên dưới là lịch sử của lần triển khai trước. Môi trường
+> hiện tại **không có GPU Pod embedding đang chạy**; không được hiểu các số điểm
+> Qdrant cũ là trạng thái sống hiện nay. Xem mục “Metadata truy vấn và trạng
+> thái môi trường” trước khi đăng ký/index dữ liệu.
 
 **Đọc kèm:** `CLAUDE.md` (ràng buộc kiến trúc, phần quan trọng nhất) →
-`docs/structure.md` (cây code thật) → `docs/prd.md` (US/TC để neo test).
+`docs/structure.md` (cây code thật) → `docs/prd.md` (US/TC để neo test) →
+`docs/data-audit.md` (kiểm kê dữ liệu thô trên MinIO, 05/08/2026).
 
 ---
 
@@ -61,6 +63,10 @@ số điểm thật trong Qdrant.
 ---
 
 ## 1b. Đường thoát: tự host chính model đó — `embedding_server/`
+
+> **Lịch sử 02/08/2026:** mục này ghi lại lần triển khai trước và bằng chứng
+> parity khi đó. Trạng thái hạ tầng hiện tại nằm trong mục “Metadata truy vấn
+> và trạng thái môi trường”.
 
 **Giữ nguyên `jina-clip-v2`, chỉ đổi chỗ chạy.** Lúc quyết định, đổi sang model
 khác nghĩa là vứt toàn bộ 2.409 điểm đang có (hai model là hai không gian
@@ -155,6 +161,65 @@ nó *có* `caption_results` trạng thái `DONE` kèm caption thật — mâu th
 định "chưa bao giờ caption được" ban đầu. Dòng này vô hại (lúc index bị lọc ra vì
 thiếu object); ai muốn dọn thì xoá `media_id = 00062686-a5d6-45b8-b014-74ecc01c89b8`,
 FK sẽ CASCADE sang `frames`/`caption_results`/`ocr_results`/`object_results`.
+
+---
+
+### Bộ dữ liệu thô trên MinIO — xem `docs/data-audit.md`
+
+Kiểm kê full scan ngày **05/08/2026** trên bucket `hit-mira-media`, prefix
+`raw/google-drive/data/`: 2.204 object / 1,99 GB, **1.628 ảnh thuộc 452 bài** và
+**59 video thuộc 45 bài**, trải 28/06/2021 → 21/06/2026. Sinh lại bằng
+`python scripts/audit_minio_dataset.py --deep` (chỉ đọc).
+
+Bốn thứ phải biết trước khi chạy lại pipeline trên bộ này, chi tiết trong
+`docs/data-audit.md`:
+
+- `posts.jsonl` **515 dòng nhưng 514 post** (một ID lặp, hai bản `created_time`
+  lệch nhau 2 năm — giữ bản khớp `post.json`), và phải tách bằng `split("\n")`
+  chứ không phải `splitlines()` vì có một ký tự `U+2028` trong `message`.
+- `width`/`height` trong `posts.jsonl` **sai 77,33%** so với file thật.
+- **Bug prefix đã vá 05/08/2026**: `minio_registration.py` từng hardcode
+  `events/` và có fallback im lặng, khiến toàn bộ 1.628 ảnh + 59 video dồn vào
+  một post giả `facebook_post_id="media"`. Nay phải truyền
+  `--prefix raw/google-drive/data`; prefix sai thì script dừng, không ghi gì.
+- 53 album dừng đúng ở 13 ảnh và không bài nào có đúng 2 media — nghi crawler
+  cắt cụt, cần recrawl mẫu trước khi coi corpus là hoàn chỉnh.
+
+### Metadata truy vấn và trạng thái môi trường — 05/08/2026
+
+Migration `migrations/20260805_query_metadata.sql` đã được áp dụng vào PostgreSQL
+hiện tại. Schema có **18 bảng**, nhưng dữ liệu nghiệp vụ vẫn trống: 0 dataset,
+0 post, 0 media; Qdrant hiện cũng chưa có collection. Hai lệnh registration
+dry-run đã qua cửa prefix và metadata: **1.628 ảnh / 452 post**, **59 video /
+45 post**, không ghi DB.
+
+Thiết kế mới giữ nguyên raw object trong MinIO và thêm tầng metadata phục vụ
+lọc/truy vấn:
+
+- `datasets` định danh một lần nhập bằng `(bucket_name, object_prefix)`; post
+  được gắn dataset khi chạy registration với `--apply`, còn dry-run không ghi.
+- `event_series` là loại sự kiện lặp; `event_occurrences` là kỳ cụ thể, unique
+  theo `(series_id, label)`, **không unique theo năm**. `event_year` chỉ là thuộc
+  tính lọc/hiển thị.
+- `event_aliases` ánh xạ cách gọi của người dùng vào series hoặc occurrence;
+  quan hệ post–occurrence là tùy chọn và many-to-many, vì đa số post không thuộc
+  chuỗi sự kiện lặp.
+- `media` unique theo `(bucket_name, object_key)` và có `content_sha256`. Hash
+  giống nhau không bị xóa/gộp ở DB vì vẫn phải giữ quan hệ media–post và citation.
+
+**Blocker vận hành:** `.env` hiện chưa có endpoint/key cho image embedding.
+RunPod có số dư **$15**, chi phí đang chạy **$0/giờ**, và không có Pod; endpoint
+Serverless hiện hữu dùng image `hit-mira-runpod-worker` là worker sinh artifact
+video, không phải dịch vụ embedding tương thích Jina. Vì khởi tạo Pod sẽ bắt đầu
+tính phí nên chưa thực hiện. Thứ tự tiếp theo:
+
+1. Anh duyệt phương án embedding: bật GPU Pod từ `embedding_server/` hoặc đóng
+   gói một Serverless embedding worker riêng.
+2. Điền endpoint/key, chạy smoke test text + image và kiểm dimension/parity.
+3. Chạy registration `--apply`, đối chiếu 452/45 và số bản ghi thật.
+4. Benchmark khoảng 30 truy vấn tiếng Việt Azure text so với Jina CLIP trước
+   khi quyết định dùng chung hay tách vector space.
+5. Sau đó mới thêm payload/filter API và bộ phân loại occurrence.
 
 ---
 
@@ -299,6 +364,26 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
    496/496 bài đều có), chỉ thiếu đường ống. Nay đi hết: unit → payload Qdrant →
    kết quả API → chuỗi `context` → prompt. Không có link thì ghi "nguồn nội bộ"
    (AC-2), **không bao giờ** dựng URL. Test: `API/tests/test_source_url_citation.py`.
+6. ~~**US-302.1 / US-303.1 — truy vấn bằng ảnh**~~ (05/08/2026) — cũng lại là
+   thiếu đường ống, không thiếu năng lực: model vẫn luôn nhúng được ảnh, chỉ là
+   không có đường nào đưa ảnh của người dùng vào đó. Nay có
+   `embed_image_blobs` (ảnh đi qua RAM, **không ghi ra đĩa** — BR-703) →
+   `VideoRetriever.embed_image_query` → `POST /api/media/search-image`
+   (multipart, chặn định dạng và 8MB ngay ở server). Web gọi thẳng route này
+   nên **thẻ kết quả** là ảnh→ảnh thật. Test:
+   `API/tests/test_media_image_query.py` + phần ảnh trong
+   `test_media_retrieval_router.py`.
+
+   Hai điều phải nhớ khi đọc kết quả:
+
+   - **Ảnh không dò được lời thoại.** Chỉ gửi ảnh thì nhánh `video_transcript`
+     bị bỏ qua *do định tuyến* và nói rõ trong trường `notes` — đọc "0 video"
+     mà không đọc `notes` sẽ hiểu nhầm thành "CLB không nói gì về chuyện này".
+     Gửi kèm chữ thì chữ lo nhánh lời thoại, ảnh lo nhánh hình.
+   - **Phần chữ của câu trả lời vẫn chưa bám vector ảnh.** Supervisor nhìn ảnh
+     rồi tự nghĩ từ khoá gọi `search_media`, vì tool call không mang được ảnh.
+     Muốn khép nốt thì thêm tool MCP nhận ảnh + một node LangGraph gọi nó
+     trước supervisor — **đã bàn và cố ý để lại**, không phải bỏ sót.
 
 ### Ingest — việc còn lại (soát toàn diện ngày 02/08/2026)
 
@@ -419,6 +504,12 @@ cd ChatBot && langgraph dev
 
 # Hạ tầng
 docker-compose up -d                           # postgres + qdrant + minio
+
+# Dữ liệu thô trên MinIO (§2, docs/data-audit.md) — audit chỉ đọc, không cần --apply
+python scripts/audit_minio_dataset.py --deep
+python scripts/register_minio_images.py --prefix raw/google-drive/data          # xem trước
+python scripts/register_minio_images.py --prefix raw/google-drive/data --apply  # ghi DB
+python scripts/register_minio_videos.py --prefix raw/google-drive/data --apply
 
 # Đánh giá (E8) — cần nguồn nhúng đang sống
 python scripts/build_eval_labels.py --apply    # giải nhãn từ kho -> eval_queries.json
