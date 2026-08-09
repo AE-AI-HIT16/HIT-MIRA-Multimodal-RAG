@@ -7,6 +7,7 @@ processing status, and AI result records.
 
 from src.rag_video_anh.repository.database import DatabaseSessionManager, get_database_url
 from src.rag_video_anh.repository.datasets import DatasetRepository
+from src.rag_video_anh.repository.events import EventRepository, normalize_alias, slugify
 from src.rag_video_anh.repository.jobs import ProcessingJobRepository
 from src.rag_video_anh.repository.media import MediaRepository
 from src.rag_video_anh.repository.posts import PostRepository
@@ -18,6 +19,8 @@ from src.rag_video_anh.repository.schemas import (
     DetectedObjectCreate,
     DetectedObjectRecord,
     EmbeddingRecord,
+    EventOccurrenceRecord,
+    EventSeriesRecord,
     FrameCreate,
     FrameRecord,
     MediaCreate,
@@ -26,6 +29,7 @@ from src.rag_video_anh.repository.schemas import (
     ObjectResultRecord,
     OcrResultRecord,
     PostCreate,
+    PostEventLinkRecord,
     PostRecord,
     ProcessingJobCreate,
     ProcessingJobRecord,
@@ -49,6 +53,9 @@ __all__ = [
     "DetectedObjectCreate",
     "DetectedObjectRecord",
     "EmbeddingRecord",
+    "EventOccurrenceRecord",
+    "EventRepository",
+    "EventSeriesRecord",
     "FrameCreate",
     "FrameRecord",
     "MediaCreate",
@@ -58,6 +65,7 @@ __all__ = [
     "ObjectResultRecord",
     "OcrResultRecord",
     "PostCreate",
+    "PostEventLinkRecord",
     "PostRecord",
     "PostRepository",
     "ProcessingJobCreate",
@@ -72,4 +80,6 @@ __all__ = [
     "VideoMetadataCreate",
     "VideoMetadataRecord",
     "get_database_url",
+    "normalize_alias",
+    "slugify",
 ]
