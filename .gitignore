@@ -33,6 +33,7 @@ data/**
 !data/eval/
 !data/eval/eval_queries.yaml
 !data/eval/eval_queries.json
+!data/eval/text_embedding_benchmark_v1.json
 # report.json thì sinh lại mỗi lần chạy — không commit, tránh diff nhiễu.
 data/eval/report.json
 
