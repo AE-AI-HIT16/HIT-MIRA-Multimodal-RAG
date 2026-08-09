@@ -48,7 +48,13 @@ def _video_media(media_id: str):
     return media
 
 
-def submit(media_id: str, *, language: str, expires_seconds: int) -> dict[str, Any]:
+def submit(
+    media_id: str,
+    *,
+    language: str,
+    expires_seconds: int,
+    disable_stages: tuple[str, ...] = (),
+) -> dict[str, Any]:
     media = _video_media(media_id)
     if media.media_id is None:
         raise ValueError("media row does not have media_id")
@@ -71,6 +77,10 @@ def submit(media_id: str, *, language: str, expires_seconds: int) -> dict[str, A
         "source_object_key": media.object_key,
         "language": language,
     }
+    # Caption/OCR chỉ là lời gọi API, GPU không giúp gì; tắt ở đây để làm tại
+    # chỗ bằng model ta đang cấu hình, thay vì model nướng cứng trong image.
+    for stage in disable_stages:
+        payload[f"disable_{stage}"] = True
     response = RunpodClient().submit(payload)
     return {
         "runpod_job_id": response.get("id"),
@@ -147,13 +157,19 @@ def process_media_ids(
     expires_seconds: int,
     poll_seconds: int,
     continue_on_error: bool,
+    disable_stages: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for media_id in media_ids:
         summary: dict[str, Any] = {"media_id": media_id, "status": "SUBMITTING"}
         print(json.dumps(summary, ensure_ascii=False), flush=True)
         try:
-            submitted = submit(media_id, language=language, expires_seconds=expires_seconds)
+            submitted = submit(
+                media_id,
+                language=language,
+                expires_seconds=expires_seconds,
+                disable_stages=disable_stages,
+            )
             summary.update(submitted)
             summary["status"] = str(submitted.get("runpod_status") or "SUBMITTED")
             print(json.dumps(summary, ensure_ascii=False), flush=True)
@@ -171,6 +187,23 @@ def process_media_ids(
                 raise
         summaries.append(summary)
     return summaries
+
+
+STAGES = ("ocr", "caption", "detection", "asr")
+
+
+def _add_disable_flags(parser: argparse.ArgumentParser) -> None:
+    """Cho phép tắt từng khâu trên worker GPU."""
+    for stage in STAGES:
+        parser.add_argument(
+            f"--disable-{stage}",
+            action="store_true",
+            help=f"Bỏ khâu {stage} trên worker GPU (làm tại chỗ sau).",
+        )
+
+
+def _disable_stages(args: argparse.Namespace) -> tuple[str, ...]:
+    return tuple(stage for stage in STAGES if getattr(args, f"disable_{stage}", False))
 
 
 def main() -> None:
@@ -193,6 +226,7 @@ def main() -> None:
     submit_parser.add_argument("media_id")
     submit_parser.add_argument("--language", default="vi")
     submit_parser.add_argument("--expires-seconds", type=int, default=7200)
+    _add_disable_flags(submit_parser)
 
     wait_parser = subparsers.add_parser("wait", help="Wait for one Runpod job, then import its artifact.")
     wait_parser.add_argument("runpod_job_id")
@@ -207,6 +241,7 @@ def main() -> None:
     process_parser.add_argument("--expires-seconds", type=int, default=7200)
     process_parser.add_argument("--poll-seconds", type=int, default=10)
     process_parser.add_argument("--continue-on-error", action="store_true", help="Continue with remaining videos after one failure.")
+    _add_disable_flags(process_parser)
 
     args = parser.parse_args()
     if args.command == "cancel":
@@ -222,7 +257,9 @@ def main() -> None:
         print(json.dumps(list_videos(args.limit), ensure_ascii=False, indent=2))
         return
     if args.command == "submit":
-        print(json.dumps(submit(args.media_id, language=args.language, expires_seconds=args.expires_seconds), ensure_ascii=False))
+        print(json.dumps(submit(args.media_id, language=args.language,
+                                expires_seconds=args.expires_seconds,
+                                disable_stages=_disable_stages(args)), ensure_ascii=False))
         return
     if args.command == "wait":
         result = wait_and_import(args.runpod_job_id, args.artifact_key, poll_seconds=args.poll_seconds)
@@ -237,6 +274,7 @@ def main() -> None:
         raise SystemExit("provide at least one media_id or use --all")
     summaries = process_media_ids(
         media_ids,
+        disable_stages=_disable_stages(args),
         language=args.language,
         expires_seconds=args.expires_seconds,
         poll_seconds=args.poll_seconds,

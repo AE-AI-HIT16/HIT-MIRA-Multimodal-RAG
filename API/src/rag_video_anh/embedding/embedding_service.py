@@ -178,6 +178,9 @@ class ImageEmbeddingService:
             payload = {
                 "model": self.model_name,
                 "input": [{"text": text} for text in batch],
+                # jina-clip-v2 CHỈ nhận 'retrieval.query'; gửi 'retrieval.passage'
+                # là 422. Nhúng bất đối xứng passage/query là của
+                # jina-embeddings-v3, không phải model này.
                 "task": "retrieval.query",
                 "embedding_type": "float",
                 "dimensions": self.dimensions,

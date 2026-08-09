@@ -93,6 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Nhúng lại cả ảnh đã có điểm trong Qdrant.",
     )
     parser.add_argument(
+        "--payload-only",
+        action="store_true",
+        help="Chỉ ghi lại caption/OCR vào payload, KHÔNG nhúng lại (chạy sau khi caption xong).",
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Gọi API nhúng và ghi vào Qdrant. Không có cờ này thì chỉ đếm.",
@@ -110,25 +115,29 @@ def main() -> None:
     service = VideoRetrievalIndexingService()
 
     skipped_done = 0
-    if not args.reindex:
-        done = already_indexed(service, media_ids)
-        skipped_done = len(done)
-        media_ids = [media_id for media_id in media_ids if media_id not in done]
-
-    print(f"Tổng {len(media_ids) + skipped_done} ảnh; đã index sẵn {skipped_done}; còn lại {len(media_ids)}.")
+    if args.payload_only:
+        # Chỉ viết lại phần chữ, nên ảnh ĐÃ index mới là đối tượng cần làm.
+        print(f"Cập nhật payload cho {len(media_ids)} ảnh (không nhúng lại).")
+    else:
+        if not args.reindex:
+            done = already_indexed(service, media_ids)
+            skipped_done = len(done)
+            media_ids = [media_id for media_id in media_ids if media_id not in done]
+        print(f"Tổng {len(media_ids) + skipped_done} ảnh; đã index sẵn {skipped_done}; còn lại {len(media_ids)}.")
 
     if not args.apply:
         print("Chưa gọi API nhúng, chưa ghi Qdrant. Thêm --apply để thực hiện.")
         return
     if not media_ids:
-        print("Không còn ảnh nào cần index.")
+        print("Không còn ảnh nào cần xử lý.")
         return
 
     chunk_size = max(1, args.chunk_size)
     total: dict = {}
     for start in range(0, len(media_ids), chunk_size):
         chunk = media_ids[start : start + chunk_size]
-        part = service.index_images(chunk).to_dict()
+        step = service.refresh_image_payloads if args.payload_only else service.index_images
+        part = step(chunk).to_dict()
         merge_summary(total, part)
         done_count = min(start + chunk_size, len(media_ids))
         print(
