@@ -104,9 +104,42 @@ def l5_ngoai_mien_khong_dung_link(media: Any, noi_quy: Any) -> tuple[str, str]:
     return PASS, f"link đều là nguồn thật; điểm cao nhất {diem:.3f} (xử lý 'không tìm thấy' ở tầng trả lời)"
 
 
-def l6_anh_lam_truy_van(_media: Any, _noi_quy: Any) -> tuple[str, str]:
-    """ảnh → sự kiện / ảnh tương tự (US-605.1)."""
-    return KHONG_HO_TRO, "API chỉ nhận truy vấn văn bản; embed_query(query: str) không có nhánh ảnh"
+def l6_anh_lam_truy_van(media: Any, _noi_quy: Any) -> tuple[str, str]:
+    """ảnh làm truy vấn → sự kiện / ảnh tương tự (US-302.1, US-303.1).
+
+    Phép thử tự chứng: lấy một ảnh ĐÃ nằm trong kho làm ảnh truy vấn, rồi đòi
+    chính nó đứng hạng 1. Nếu ảnh truy vấn bị nhúng vào một không gian khác với
+    vector đã index, nó sẽ không tự tìm được chính mình — điều mà một phép thử
+    "có trả về ảnh nào không" hoàn toàn bỏ lọt.
+    """
+    import tempfile
+
+    from src.rag_video_anh.pipeline.minio_storage import MinioStorage
+
+    moc = media.retrieve("ảnh tập thể câu lạc bộ", 1, None, "clip")
+    goc = next(iter(moc.get("clips") or []), None)
+    if not goc or not goc.get("frame_object_key"):
+        return FAIL, "không lấy được ảnh nào trong kho để làm ảnh truy vấn"
+
+    storage = MinioStorage()
+    with tempfile.TemporaryDirectory() as thu_muc:
+        duong_dan = storage.download_file(goc["frame_object_key"], Path(thu_muc) / "truy_van.jpg")
+        anh = Path(duong_dan).read_bytes()
+
+    ket = media.retrieve(None, 5, None, "clip", anh)
+    clips = ket.get("clips") or []
+    if not clips:
+        return FAIL, "truy vấn bằng ảnh không trả về kết quả nào"
+    dau = clips[0]
+    if dau.get("unit_id") != goc.get("unit_id"):
+        return FAIL, (
+            f"ảnh truy vấn không tự tìm được chính nó — hạng 1 là {dau.get('unit_id')} "
+            f"({dau.get('score', 0.0):.3f}), đáng lẽ phải là {goc.get('unit_id')}"
+        )
+    return PASS, (
+        f"ảnh tự khớp chính nó ở hạng 1 ({dau.get('score', 0.0):.3f}); "
+        f"{len(clips)} ảnh tương tự trả về"
+    )
 
 
 def l7_phuc_vu_media(media: Any, _noi_quy: Any) -> tuple[str, str]:
