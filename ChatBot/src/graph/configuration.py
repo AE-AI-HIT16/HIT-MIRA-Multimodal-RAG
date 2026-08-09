@@ -23,3 +23,11 @@ class Context(BaseModel):
     attachments: Optional[list[dict]] = None
     response_timeout: Optional[float] = 120
     llm_config: Optional[LLMConfig] = LLMConfig()
+    # Ép chế độ thủ công — US-507.1 Edge / TC-507. `None` là đường chính: router
+    # tự chọn nguồn. Ba giá trị hợp lệ: "media", "regulation", "both".
+    #
+    # Trường này TỪNG THIẾU trong khi giao diện vẫn gửi `configurable.override`
+    # mỗi lượt, nên nút chọn chế độ trông như hoạt động mà thực ra bị bỏ qua
+    # hoàn toàn — gửi override="media" cho câu hỏi nội quy vẫn gọi
+    # search_regulations. Kiểu hỏng khó thấy nhất: không lỗi, không cảnh báo.
+    override: Optional[str] = None
