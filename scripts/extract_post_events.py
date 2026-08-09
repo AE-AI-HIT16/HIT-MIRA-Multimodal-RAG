@@ -4,15 +4,24 @@
 Đây là thứ còn thiếu để `event_key` có giá trị: bốn bảng `event_*` đã có trong
 schema từ đầu nhưng rỗng, nên mọi point Qdrant đều không có khoá sự kiện.
 
-**Hai lượt, và lượt thứ hai mới là phần quan trọng.**
+**Neo vào lịch của CLB, rồi mới để LLM tự đặt tên cho phần còn lại.**
+
+`data/events/su_kien_chuan.yaml` là lịch sự kiện thường niên do CLB cung cấp.
+Tên trong đó đi thẳng vào prompt, nên bài thuộc lịch sẽ nhận đúng tên chuẩn và
+KHÔNG phải qua lượt gom. Trước khi có file này, hai chỗ đã lệch khỏi cách CLB
+thực sự phân loại: LLM gộp "Tuyển CTV" vào "Tuyển thành viên HIT" (CLB tách
+hai), và bỏ hết 14 bài chúc mừng 8/3 · 20/10 · 20/11 vì prompt cũ ghi "lời chúc
+mừng ngày lễ không phải sự kiện" — trong khi CLB xếp chúng vào lịch năm.
+
+**Hai lượt, và lượt thứ hai vẫn cần cho phần ngoài lịch.**
 
 1. *Trích* — mỗi bài một lời gọi LLM, trả về tên sự kiện + nhãn kỳ + trích dẫn.
-2. *Gom* — một lời gọi LLM trên DANH SÁCH TÊN đã thấy, gom các cách viết của
-   cùng một sự kiện về một chuỗi.
+2. *Gom* — một lời gọi LLM trên các tên KHÔNG khớp lịch chuẩn (cuộc thi bên
+   ngoài, hội thảo, lớp học lẻ), gom các cách viết của cùng một hoạt động.
 
-Bỏ lượt 2 thì "HIT Contest Series", "HIT CONTEST SERIES 2021 SEASON 2" và
-"Contest Series" thành ba `event_key` khác nhau, và lọc theo sự kiện chỉ trả về
-một phần ba kho — hỏng theo kiểu vẫn ra kết quả nên không ai nhận ra.
+Bỏ lượt 2 thì "HaUI AI Hackathon" và "AI Hackathon HaUI" thành hai `event_key`
+khác nhau, và lọc theo sự kiện chỉ trả về một nửa — hỏng theo kiểu vẫn ra kết
+quả nên không ai nhận ra.
 
 **Chống bịa.** LLM phải trả về một `trich_dan` COPY NGUYÊN VĂN từ bài. Trích dẫn
 không tìm thấy trong bài thì kết quả bị loại, dù nghe hợp lý tới đâu — một sự
@@ -37,6 +46,7 @@ import sys
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +62,7 @@ from src.rag_video_anh.repository.events import normalize_alias, slugify  # noqa
 from src.rag_video_anh.repository.models import PostModel  # noqa: E402
 
 DEFAULT_CACHE_DIR = REPO_ROOT / "data/events"
+DUONG_SU_KIEN_CHUAN = REPO_ROOT / "data/events/su_kien_chuan.yaml"
 DEFAULT_WORKERS = 6
 DEFAULT_MIN_CONFIDENCE = 0.6
 PROGRESS_EVERY = 25
@@ -71,19 +82,29 @@ TIMEOUT_GOM_GIAY = 600.0
 PROMPT_TRICH = """Bạn đọc một bài đăng Facebook của CLB Tin học HIT (trường đại học Việt Nam).
 Nhiệm vụ: xác định bài này có nói về một HOẠT ĐỘNG/SỰ KIỆN CỤ THỂ của CLB hay không.
 
-CÓ sự kiện, ví dụ: cuộc thi, buổi offline, lớp học, chuyến du lịch, đêm gala,
-lễ kỷ niệm, đợt tuyển thành viên, workshop, seminar, chương trình thiện nguyện.
-KHÔNG có sự kiện, ví dụ: lời chúc mừng ngày lễ, câu trích dẫn truyền cảm hứng,
-bài chia sẻ kiến thức thuần tuý, thông báo hành chính không gắn hoạt động nào.
+CLB có một LỊCH SỰ KIỆN THƯỜNG NIÊN, lặp lại hằng năm. Nếu bài thuộc một trong
+các sự kiện dưới đây thì phải dùng ĐÚNG tên trong danh sách, chép chính xác:
+{danh_sach_chuan}
+
+Bài không thuộc mục nào ở trên nhưng vẫn nói về một hoạt động có thật (cuộc thi
+bên ngoài, hội thảo, seminar, lớp học, chương trình thiện nguyện) thì tự đặt tên
+chung cho hoạt động đó.
+
+KHÔNG có sự kiện, ví dụ: câu trích dẫn truyền cảm hứng, bài chia sẻ kiến thức
+thuần tuý, thông báo hành chính không gắn hoạt động nào, bài đổi ảnh bìa.
+Lưu ý: bài chúc mừng 8/3 · 20/10 · 20/11 CÓ trong lịch trên nên là sự kiện; còn
+chúc Tết, 30/4, 2/9 thì KHÔNG.
 
 Trả về DUY NHẤT một object JSON, không giải thích, không bọc trong markdown:
 {{"co_su_kien": true/false, "ten_su_kien": "...", "nhan_ky": "...", "nam": 2024, "do_tin_cay": 0.0, "trich_dan": "..."}}
 
 Quy tắc bắt buộc:
-- "ten_su_kien": tên CHUNG của chuỗi sự kiện, KHÔNG kèm năm/mùa/đợt.
+- "ten_su_kien": tên CHUNG của chuỗi sự kiện, KHÔNG kèm năm/mùa/đợt/khoá/tuổi.
   "HIT CONTEST SERIES 2021 SEASON 2" -> "HIT Contest Series".
   "THÔNG BÁO OFFLINE THÁNG 3" -> "Offline hàng tháng".
   "TUYỂN THÀNH VIÊN BAN QUẢN TRỊ KHÓA 12" -> "Tuyển thành viên Ban Quản trị".
+  "SINH NHẬT 14 TUỔI CLB TIN HỌC HIT" -> "Sinh nhật CLB Tin học HIT".
+- Tuyển THÀNH VIÊN và tuyển CỘNG TÁC VIÊN (CTV) là HAI sự kiện khác nhau, đừng gộp.
 - "nhan_ky": phần phân biệt kỳ này với kỳ khác ("2021 Season 2", "Khóa 12",
   "Tháng 3/2024"). Không xác định được thì để null.
 - "nam": năm sự kiện diễn ra nếu bài nói rõ, ngược lại null. KHÔNG suy từ ngày đăng.
@@ -114,6 +135,60 @@ Quy tắc bắt buộc:
 
 Danh sách (kèm số bài dùng tên đó):
 {danh_sach}"""
+
+
+# ── Lịch sự kiện thường niên do CLB cung cấp ─────────────────────────────────
+
+
+@dataclass(frozen=True)
+class SuKienChuan:
+    ten: str
+    mo_ta: str
+    alias: tuple[str, ...]
+
+
+def doc_su_kien_chuan(duong_dan: Path) -> list[SuKienChuan]:
+    """Đọc lịch thường niên. Thiếu file thì chạy không neo, KHÔNG chết.
+
+    Không neo vẫn ra kết quả dùng được (lượt gom vẫn chạy), chỉ là tên chuỗi
+    quay về chỗ LLM tự đặt — đó là trạng thái trước 07/08/2026, không phải hỏng.
+    """
+    if not duong_dan.exists():
+        print(f"CẢNH BÁO: không thấy {duong_dan}, chạy KHÔNG neo vào lịch chuẩn.")
+        return []
+    import yaml
+
+    noi_dung = yaml.safe_load(duong_dan.read_text(encoding="utf-8")) or {}
+    return [
+        SuKienChuan(
+            ten=str(muc["ten"]).strip(),
+            mo_ta=str(muc.get("mo_ta") or "").strip(),
+            alias=tuple(str(a).strip() for a in (muc.get("alias") or []) if str(a).strip()),
+        )
+        for muc in noi_dung.get("su_kien") or []
+        if str(muc.get("ten") or "").strip()
+    ]
+
+
+def mo_ta_lich_chuan(chuan: list[SuKienChuan]) -> str:
+    if not chuan:
+        return "(chưa có lịch chuẩn — tự đặt tên chung cho hoạt động)"
+    return "\n".join(f"- {sk.ten}: {sk.mo_ta}" for sk in chuan)
+
+
+def ten_chuan_da_biet(chuan: list[SuKienChuan]) -> dict[str, str]:
+    """Bảng tra 'mọi cách viết đã biết' -> tên chuẩn, khoá theo dạng chuẩn hoá.
+
+    Có bảng này thì một tên LLM trả về hơi lệch ("Team Building" thay vì "HIT
+    Teambuilding") vẫn về đúng chuỗi mà không cần tốn một lời gọi gom.
+    """
+    bang: dict[str, str] = {}
+    for sk in chuan:
+        for cach_viet in (sk.ten, *sk.alias):
+            khoa = normalize_alias(cach_viet)
+            if khoa:
+                bang.setdefault(khoa, sk.ten)
+    return bang
 
 
 # ── Gọi LLM ──────────────────────────────────────────────────────────────────
@@ -156,8 +231,12 @@ def chuan_hoa_de_so_khop(text: str) -> str:
     return "".join(c for c in khong_dau if c.isalnum())
 
 
-def trich_mot_bai(llm, post_id: str, noi_dung: str, ngay_dang: str) -> dict[str, Any]:
-    prompt = PROMPT_TRICH.format(ngay_dang=ngay_dang, noi_dung=noi_dung[:MAX_CONTENT_CHARS])
+def trich_mot_bai(llm, post_id: str, noi_dung: str, ngay_dang: str, lich_chuan: str) -> dict[str, Any]:
+    prompt = PROMPT_TRICH.format(
+        ngay_dang=ngay_dang,
+        noi_dung=noi_dung[:MAX_CONTENT_CHARS],
+        danh_sach_chuan=lich_chuan,
+    )
     ket_qua = doc_json(llm.invoke(prompt).content)
     if not isinstance(ket_qua, dict):
         raise ValueError(f"LLM trả về {type(ket_qua).__name__}, cần object")
@@ -318,8 +397,36 @@ def doc_bai(limit: int | None, redo: bool) -> tuple[list[dict[str, str]], int]:
 # ── Ghi vào bốn bảng ─────────────────────────────────────────────────────────
 
 
-def ghi_db(nhan: list[dict[str, Any]], cum: list[dict[str, Any]], redo: bool) -> dict[str, int]:
-    """Ghi series/occurrence/alias/liên kết. Một transaction cho cả mẻ."""
+def gieo_su_kien_chuan(events, chuan: list[SuKienChuan]) -> int:
+    """Tạo trước các chuỗi trong lịch thường niên, kèm mọi alias đã biết.
+
+    Làm TRƯỚC khi ghi liên kết, vì `series_by_alias` là thứ khiến một tên hơi
+    lệch của LLM về đúng chuỗi cũ. Gieo sau thì chuỗi trùng nghĩa đã kịp ra đời.
+    """
+    for sk in chuan:
+        series = events.upsert_series(slugify(sk.ten), sk.ten, sk.mo_ta or None)
+        for cach_viet in (sk.ten, *sk.alias):
+            # `ghi_de`: file lịch là nguồn sự thật, còn alias đang có thì do máy
+            # tự đặt ở lượt trước. Không cướp lại thì một lần trích sai đóng đinh
+            # vĩnh viễn — "Tuyển CTV" đã từng trỏ nhầm vào "Tuyển thành viên HIT".
+            events.add_alias(cach_viet, series_id=series.series_id, ghi_de=True)
+    return len(chuan)
+
+
+def ghi_db(
+    nhan: list[dict[str, Any]],
+    cum: list[dict[str, Any]],
+    redo: bool,
+    chuan: list[SuKienChuan] | None = None,
+    post_id_trong_me: list[str] | None = None,
+) -> dict[str, int]:
+    """Ghi series/occurrence/alias/liên kết. Một transaction cho cả mẻ.
+
+    `post_id_trong_me` là MỌI bài của mẻ, kể cả bài không qua cửa lọc. Với
+    `--redo` thì chúng bị gỡ liên kết trước: bài lượt trước có sự kiện mà lượt
+    này không còn (đổi cách phân loại, hoặc trích ra kết quả yếu hơn) sẽ giữ
+    nguyên gán cũ nếu chỉ gỡ những bài được nhận — đo được 3 bài như vậy.
+    """
     ten_goc_toi_chuan = {
         goc: nhom["ten_chuan"] for nhom in cum for goc in nhom["cac_ten_goc"]
     }
@@ -327,6 +434,10 @@ def ghi_db(nhan: list[dict[str, Any]], cum: list[dict[str, Any]], redo: bool) ->
 
     with RepositoryUnitOfWork() as uow:
         events = uow.events
+        thong_ke["su_kien_chuan_da_gieo"] = gieo_su_kien_chuan(events, chuan or [])
+        if redo:
+            for post_id in post_id_trong_me or []:
+                thong_ke["lien_ket_cu_da_go"] += events.unlink_post(post_id)
         for ban_ghi in nhan:
             ten_goc = ban_ghi["ten_su_kien"].strip()
             ten_chuan = ten_goc_toi_chuan.get(ten_goc, ten_goc)
@@ -366,8 +477,6 @@ def ghi_db(nhan: list[dict[str, Any]], cum: list[dict[str, Any]], redo: bool) ->
                 event_year=nam,
             )
 
-            if redo:
-                events.unlink_post(ban_ghi["post_id"])
             events.link_post(
                 ban_ghi["post_id"],
                 ky.occurrence_id,
@@ -378,6 +487,11 @@ def ghi_db(nhan: list[dict[str, Any]], cum: list[dict[str, Any]], redo: bool) ->
             )
             thong_ke["lien_ket"] += 1
 
+        if redo:
+            # Chỉ khi làm lại cả mẻ: chạy tăng tiến thì "chưa có bài" chỉ có
+            # nghĩa là bài của chuỗi đó chưa tới lượt, xoá đi là mất thật.
+            da_xoa = events.xoa_series_mo_coi()
+            thong_ke["chuoi_mo_coi_da_xoa"] = len(da_xoa)
         thong_ke.update(uow.events.counts())
     return dict(thong_ke)
 
@@ -385,7 +499,9 @@ def ghi_db(nhan: list[dict[str, Any]], cum: list[dict[str, Any]], redo: bool) ->
 # ── Điều phối ────────────────────────────────────────────────────────────────
 
 
-def chay_luot_trich(llm, bai: list[dict[str, str]], cache: dict[str, Any], workers: int, max_loi: int) -> int:
+def chay_luot_trich(
+    llm, bai: list[dict[str, str]], cache: dict[str, Any], workers: int, max_loi: int, lich_chuan: str
+) -> int:
     """Gọi LLM cho các bài chưa có trong cache. Trả về số bài lỗi."""
     con_thieu = [b for b in bai if b["post_id"] not in cache]
     if not con_thieu:
@@ -397,7 +513,7 @@ def chay_luot_trich(llm, bai: list[dict[str, str]], cache: dict[str, Any], worke
     trang_thai = {"xong": 0, "loi": 0, "loi_lien_tiep": 0}
 
     def lam(b: dict[str, str]):
-        return trich_mot_bai(llm, b["post_id"], b["noi_dung"], b["ngay_dang"])
+        return trich_mot_bai(llm, b["post_id"], b["noi_dung"], b["ngay_dang"], lich_chuan)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(lam, b): b for b in con_thieu}
@@ -435,8 +551,12 @@ def main() -> int:
     p.add_argument("--max-consecutive-errors", type=int, default=DEFAULT_MAX_CONSECUTIVE_ERRORS)
     p.add_argument("--extract-only", action="store_true", help="Gọi LLM và ghi cache, KHÔNG ghi DB.")
     p.add_argument("--apply", action="store_true", help="Gọi LLM và ghi vào PostgreSQL.")
+    p.add_argument("--su-kien-chuan", type=Path, default=DUONG_SU_KIEN_CHUAN)
     args = p.parse_args()
 
+    chuan = doc_su_kien_chuan(args.su_kien_chuan)
+    lich_chuan = mo_ta_lich_chuan(chuan)
+    bang_chuan = ten_chuan_da_biet(chuan)
     bai, tong_bai = doc_bai(args.limit, args.redo)
     goi_llm = args.apply or args.extract_only
 
@@ -447,6 +567,7 @@ def main() -> int:
         cache = json.loads(duong_cache.read_text(encoding="utf-8"))
 
     print(json.dumps({
+        "su_kien_thuong_nien": len(chuan),
         "tong_bai_trong_db": tong_bai,
         "bai_se_xu_ly": len(bai),
         "da_co_trong_cache": sum(1 for b in bai if b["post_id"] in cache),
@@ -461,7 +582,9 @@ def main() -> int:
     so_loi = 0
     if goi_llm:
         llm = tao_llm(AppConfig())
-        so_loi = chay_luot_trich(llm, bai, cache, args.workers, args.max_consecutive_errors)
+        so_loi = chay_luot_trich(
+            llm, bai, cache, args.workers, args.max_consecutive_errors, lich_chuan
+        )
         duong_cache.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Đã lưu cache lượt 1: {duong_cache}")
 
@@ -478,11 +601,21 @@ def main() -> int:
         else:
             ly_do[vi_sao] += 1
 
-    dem_ten = Counter(b["ten_su_kien"].strip() for b in nhan)
+    # Neo về lịch chuẩn TRƯỚC khi gom: tên đã nằm trong lịch thì không có gì để
+    # gom nữa, và để LLM gom chúng chỉ tạo cơ hội nó nhập hai sự kiện mà CLB cố
+    # ý tách (đã xảy ra: "Tuyển CTV" bị nhập vào "Tuyển thành viên HIT").
+    for b in nhan:
+        b["ten_su_kien"] = bang_chuan.get(normalize_alias(b["ten_su_kien"]), b["ten_su_kien"].strip())
+
+    dem_ten = Counter(b["ten_su_kien"] for b in nhan)
+    ten_trong_lich = {t for t in dem_ten if normalize_alias(t) in bang_chuan}
+    can_gom = Counter({t: n for t, n in dem_ten.items() if t not in ten_trong_lich})
     print(json.dumps({
         "bai_co_su_kien": len(nhan),
         "bai_bi_loai": dict(ly_do),
         "so_ten_rieng_biet": len(dem_ten),
+        "ten_khop_lich_thuong_nien": len(ten_trong_lich),
+        "ten_can_gom": len(can_gom),
         "loi_goi_llm": so_loi,
     }, ensure_ascii=False, indent=2))
 
@@ -491,11 +624,12 @@ def main() -> int:
         return 0
 
     duong_cum = args.cache_dir / "pass2_clusters.json"
-    cum = doc_cache_gom(duong_cum, dem_ten) if not args.refresh_cache else []
-    if not cum and goi_llm:
-        print(f"\nLượt 2: gom {len(dem_ten)} tên về các chuỗi sự kiện...", flush=True)
-        cum = gom_ten(tao_llm(AppConfig(), timeout=TIMEOUT_GOM_GIAY), dem_ten)
+    cum = doc_cache_gom(duong_cum, can_gom) if not args.refresh_cache else []
+    if not cum and goi_llm and can_gom:
+        print(f"\nLượt 2: gom {len(can_gom)} tên ngoài lịch chuẩn...", flush=True)
+        cum = gom_ten(tao_llm(AppConfig(), timeout=TIMEOUT_GOM_GIAY), can_gom)
         duong_cum.write_text(json.dumps(cum, ensure_ascii=False, indent=2), encoding="utf-8")
+    cum = cum + [{"ten_chuan": t, "cac_ten_goc": [t]} for t in sorted(ten_trong_lich)]
 
     gop_lai = [n for n in cum if len(n["cac_ten_goc"]) > 1]
     print(json.dumps({
@@ -511,7 +645,8 @@ def main() -> int:
         print("\nDry-run: chưa ghi PostgreSQL. Thêm --apply để thực hiện.")
         return 0
 
-    print(json.dumps(ghi_db(nhan, cum, args.redo), ensure_ascii=False, indent=2))
+    ket_qua_ghi = ghi_db(nhan, cum, args.redo, chuan, [b["post_id"] for b in bai])
+    print(json.dumps(ket_qua_ghi, ensure_ascii=False, indent=2))
     print(
         "\nĐã ghi DB, nhưng payload Qdrant CHƯA đổi — `event_key` chỉ tới được bộ\n"
         "lọc sau khi chạy backfill cho từng collection đang có:\n"

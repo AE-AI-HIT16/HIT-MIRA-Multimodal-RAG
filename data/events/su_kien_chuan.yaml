@@ -1,0 +1,131 @@
+# Lịch sự kiện thường niên của CLB Tin học HIT — do CLB cung cấp 07/08/2026.
+#
+# Đây là NGUỒN SỰ THẬT cho `event_series`. Trước khi có file này, tên chuỗi do
+# LLM tự đặt rồi tự gom, và kết quả lệch khỏi cách CLB thực sự phân loại ở hai
+# chỗ đã đo được: "Tuyển CTV" bị gộp vào "Tuyển thành viên HIT" (CLB tách hai),
+# và 14 bài chúc mừng 8/3 · 20/10 · 20/11 bị xếp "không có sự kiện" (CLB xếp
+# vào lịch năm).
+#
+# Các mục ở đây lặp lại HÀNG NĂM; phần phân biệt từng năm là `label` của
+# `event_occurrences` ("đợt 2", "16 tuổi", "Tháng 4/2026"), không phải tên chuỗi.
+# Vì vậy tên chuỗi ở đây cố ý KHÔNG mang năm, khoá hay số tuổi.
+#
+# Sự kiện một lần (HaUI AI Hackathon, ICPC, Robocon, các seminar...) KHÔNG nằm
+# ở đây: chúng có thật nhưng không thuộc lịch thường niên, nên vẫn để LLM trích
+# tự do. File này chỉ neo phần xương sống lặp lại.
+#
+# `alias` là các cách viết ĐÃ THẤY TRONG KHO, dùng để lượt trích sau bắt đúng
+# chuỗi cũ thay vì đẻ chuỗi mới. Thêm cách viết mới vào đây rẻ hơn nhiều so với
+# việc gom lại sau.
+#
+# NGUỒN CỦA TỪNG MỤC — đánh dấu vì hai loại này có độ tin cậy khác nhau:
+#   [CLB]  có trong lịch CLB gửi ngày 07/08/2026.
+#   [KHO]  KHÔNG có trong lịch đó, nhưng kho cho thấy lặp qua nhiều năm nên
+#          được neo để tên chuỗi khỏi trôi. Nếu CLB xác nhận mục nào đã dừng
+#          hoặc gọi tên khác thì sửa ở đây, KHÔNG sửa trong prompt.
+
+su_kien:
+  - ten: Tuyển thành viên Ban Quản trị          # [CLB]
+    mo_ta: Tuyển BQT, mỗi năm 3 đợt.
+    alias: [Tuyển BQT, Tuyển thành viên BQT, Thông báo thành viên Ban Quản trị, Ban Quản trị]
+
+  - ten: Tuyển thành viên HIT          # [CLB]
+    mo_ta: Tuyển thành viên chính thức theo khoá (HIT16, HIT17...).
+    alias: [Tuyển thành viên, Tuyển thành viên CLB Tin học, Tuyển thành viên CLB Tin học HIT]
+
+  - ten: Tuyển CTV          # [CLB]
+    mo_ta: Tuyển cộng tác viên theo khoá (K20, K21...). CLB tách riêng với tuyển thành viên.
+    alias: [Tuyển cộng tác viên, Tuyển Cộng tác viên, Tuyển CTV CLB HIT]
+
+  - ten: Offline hàng tháng          # [CLB]
+    mo_ta: Buổi offline định kỳ mỗi tháng.
+    alias: [Offline, Meeting hàng tháng, Meeting HIT hàng tháng, Offline tháng]
+
+  - ten: Offline CTV          # [KHO]
+    mo_ta: Buổi offline dành cho cộng tác viên.
+    alias: [Offline chào đón CTV, Offline chào mừng thành viên mới]
+
+  - ten: Offline CTV Hà Nam          # [CLB]
+    mo_ta: Offline cho CTV cơ sở Hà Nam.
+    alias: [Offline CTV tại Hà Nam]
+
+  - ten: Big Off          # [CLB]
+    mo_ta: Buổi tổng kết lớp CTV Hà Nam.
+    alias: [Big Off kết thúc lớp CTV Hà Nam, Big Off CTV Hà Nam]
+
+  - ten: Sinh nhật CLB Tin học HIT          # [CLB]
+    mo_ta: Sinh nhật CLB, tổ chức tháng 8 hằng năm.
+    alias:
+      - Sinh nhật HIT
+      - Sinh nhật CLB HIT
+      - Kỷ niệm thành lập CLB Tin học HIT
+      - Kỷ niệm ngày thành lập CLB Tin học HIT
+      - Chúc mừng sinh nhật CLB Tin học HIT
+
+  - ten: HIT Open Day          # [CLB]
+    mo_ta: Ngày hội mở của CLB.
+    alias: [HIT - Open Day, Open Day]
+
+  - ten: HIT Confession          # [CLB]
+    mo_ta: Chuyên mục chia sẻ tâm sự.
+    alias: [HIT Confessions, HIT - Confessions - Trạm sẻ chia, HIT Trạm Sẻ Chia, Trạm sẻ chia]
+
+  - ten: Du lịch HIT          # [CLB]
+    mo_ta: Chuyến du lịch thường niên.
+    alias: [Du lịch, Du lịch CLB]
+
+  - ten: HIT Teambuilding          # [CLB]
+    mo_ta: Team building theo khoá (K20...).
+    alias: [Team Building, Teambuilding, Team Building with HIT, Teambuilding cùng HIT]
+
+  - ten: Gặp nhau cuối năm          # [CLB]
+    mo_ta: Buổi gặp mặt tổng kết cuối năm.
+    alias: [Gặp mặt cuối năm, Gặp mặt cuối năm cùng HIT]
+
+  - ten: HIT Game          # [CLB]
+    mo_ta: Giải game nội bộ.
+    alias:
+      - HIT Esports
+      - HIT Esports - Game Super Continental League
+      - HIT Esports - Game Super Champion
+      - Game Super Continental League
+
+  - ten: HIT Football          # [CLB]
+    mo_ta: Giải bóng đá. Một số năm thay bằng HIT Badminton.
+    alias: [HIT - Football Friendly, Football Friendly]
+
+  - ten: HIT Badminton          # [CLB]
+    mo_ta: Giải cầu lông, luân phiên với HIT Football.
+    alias: [Cầu lông HIT]
+
+  - ten: Chào mừng ngày 8/3          # [CLB]
+    mo_ta: Bài chúc mừng Quốc tế Phụ nữ 8/3. CLB xếp vào lịch năm, thường gắn với offline tháng 3.
+    alias: [Quốc tế Phụ nữ 8/3, Happy Women's Day, Chúc mừng ngày Quốc tế Phụ nữ]
+
+  - ten: Chào mừng ngày 20/10          # [CLB]
+    mo_ta: Bài chúc mừng Ngày Phụ nữ Việt Nam 20/10.
+    alias: [Ngày Phụ nữ Việt Nam, Chúc mừng ngày Phụ nữ Việt Nam]
+
+  - ten: Chào mừng ngày 20/11          # [CLB]
+    mo_ta: Bài chúc mừng Ngày Nhà giáo Việt Nam 20/11.
+    alias: [Ngày Nhà giáo Việt Nam, Chúc mừng ngày Nhà giáo Việt Nam, Tri ân ngày Nhà giáo Việt Nam]
+
+  - ten: HIT Contest Series          # [KHO]
+    mo_ta: Chuỗi contest lập trình theo tuần.
+    alias: [HIT Contest, Contest Series]
+
+  - ten: Chuyển giao Ban Chủ nhiệm          # [KHO]
+    mo_ta: Tổng kết nhiệm kỳ và chuyển giao Ban Chủ nhiệm, cuối năm.
+    alias:
+      - Chuyển giao Ban chủ nhiệm
+      - Họp chuyển giao Ban Chủ nhiệm
+      - Thông báo Ban Chủ nhiệm
+      - Tổng kết và chuyển giao CLB Tin học HIT
+
+  - ten: Lớp học Public          # [KHO]
+    mo_ta: Các lớp học mở cho sinh viên ngoài CLB, thường vào hè.
+    alias: [Lớp hè, Lớp Public, Lớp public hè, Lớp học public]
+
+  - ten: Lớp học nâng cao          # [KHO]
+    mo_ta: Lớp nâng cao cho thành viên, kèm buổi định hướng.
+    alias: [Các lớp học nâng cao, Buổi định hướng lớp học nâng cao, Lớp nâng cao]
