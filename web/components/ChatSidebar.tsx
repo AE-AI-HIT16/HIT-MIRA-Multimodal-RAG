@@ -36,7 +36,7 @@ export function ChatSidebar({
   return (
     <>
       {open && <button aria-label="Đóng lịch sử" onClick={onClose} className="fixed inset-0 z-30 bg-zinc-950/30 backdrop-blur-sm lg:hidden" />}
-      <aside className={`fixed bottom-0 left-0 top-16 z-40 flex w-[286px] min-h-0 flex-col border-r border-zinc-200/80 bg-white transition-transform lg:sticky lg:top-16 lg:z-10 lg:h-[calc(100dvh-4rem)] lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed bottom-0 left-0 top-16 z-40 flex w-[286px] min-h-0 flex-col border-r border-zinc-200/80 bg-white transition-transform lg:sticky lg:top-16 lg:z-10 lg:h-[calc(100dvh-4rem-1px)] lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center gap-2 p-4">
           <button onClick={onNew} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-800 active:scale-[.98]">
             <PlusIcon width={16} height={16} /> Cuộc trò chuyện mới

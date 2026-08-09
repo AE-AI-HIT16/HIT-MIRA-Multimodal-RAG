@@ -24,6 +24,7 @@ export function Composer({
   image,
   imagePreview,
   onPickImage,
+  inputRef,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -34,8 +35,11 @@ export function Composer({
   image: File | null;
   imagePreview: string | null;
   onPickImage: (f: File | null) => void;
+  /** Cho trang ngoài đưa con trỏ vào đây (thẻ gợi ý ở màn chào). */
+  inputRef?: React.RefObject<HTMLTextAreaElement>;
 }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const ref = inputRef ?? localRef;
   const fileRef = useRef<HTMLInputElement>(null);
   const [imgError, setImgError] = useState<string | null>(null);
 
@@ -78,7 +82,7 @@ export function Composer({
             className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
               mode === m.key
                 ? "bg-accent-soft text-accent-ink"
-                : "text-zinc-400 hover:text-zinc-600"
+                : "text-zinc-500 hover:text-zinc-800"
             }`}
           >
             {m.label}
@@ -96,7 +100,7 @@ export function Composer({
           />
           <button
             onClick={() => { onPickImage(null); setImgError(null); }}
-            className="text-xs text-zinc-400 transition-colors hover:text-red-600"
+            className="text-xs text-zinc-500 transition-colors hover:text-red-600"
           >
             Bỏ ảnh
           </button>
@@ -118,7 +122,7 @@ export function Composer({
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors ${
             image
               ? "bg-accent-soft text-accent-ink"
-              : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+              : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
           }`}
         >
           <ImageIcon width={18} height={18} />
@@ -130,7 +134,7 @@ export function Composer({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKey}
           placeholder={image ? "Thêm mô tả (tùy chọn)…" : "Hỏi về ảnh, video hoặc nội quy CLB…"}
-          className="scroll-slim max-h-44 min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-400"
+          className="scroll-slim max-h-44 min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-500"
         />
         <button
           onClick={() => canSend && onSubmit()}

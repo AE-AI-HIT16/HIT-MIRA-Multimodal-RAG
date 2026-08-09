@@ -91,6 +91,19 @@ export interface FrameMoment {
 export interface ChatItem {
   id?: number;
   score?: number;
+  /**
+   * Các số trích dẫn `[n]` mà thẻ này đại diện — đúng số agent thấy trong `context`.
+   *
+   * Là **mảng** vì một thẻ video gộp nhiều keyframe, mỗi keyframe là một mục
+   * riêng trong `context`: đo được một thẻ ôm `[5] [6] [7] [8]`. In mỗi số đầu
+   * thì agent trích `[7]` mà người đọc không tìm ra thẻ nào mang số đó.
+   *
+   * `_format_context` đánh số clips trước rồi tới videos, nên số này chỉ đúng
+   * khi thẻ được dựng từ **chính** payload agent đã đọc. Dựng từ một lượt tra
+   * khác thì `[2]` trên thẻ trỏ vào một thứ khác `[2]` trong câu trả lời — tệ
+   * hơn là không đánh số. Vì vậy nhánh tra lại bằng REST bỏ trống trường này.
+   */
+  soTrichDan?: number[];
   media_id?: number;
   media_type?: string;
   video_id?: number;
@@ -191,9 +204,28 @@ export interface LGMessage {
   type: string;          // "ai" | "human" | "tool" | ...
   content: string | LGContentPart[];
   id?: string;
-  name?: string | null;
-  tool_calls?: unknown[];
+  name?: string | null;  // với ToolMessage: tên tool đã chạy
+  tool_calls?: LGToolCall[];
+  tool_call_id?: string;
+  status?: string;       // ToolMessage: "success" | "error"
   additional_kwargs?: Record<string, unknown>;
+}
+
+/**
+ * Tool call agent sinh ra. Đây là **bước suy luận duy nhất** biết "năm 2025" phải
+ * thành `years: [2025]` — API truy xuất không hề đọc câu chữ, nó chỉ nhận tham số.
+ * Thẻ kết quả đọc lại chính chỗ này để không bao giờ lọc khác phần chữ.
+ */
+export interface LGToolCall {
+  name: string;
+  args?: {
+    query?: string;
+    source?: "clip" | "transcript" | "both";
+    years?: number[];
+    events?: string[];
+    top_k?: number;
+  };
+  id?: string;
 }
 
 export interface LGContentPart {
@@ -229,9 +261,24 @@ export interface ChatTurn {
   hits?: ChatItem[];
   hitsStatus?: "loading" | "done" | "error";
   hitsError?: string;
+  /**
+   * Lời API tự nói về lượt tra này: nhánh nào bị bỏ qua do định tuyến, rỗng vì
+   * bộ lọc năm/sự kiện chứ không phải vì kho rỗng, nhánh nào lỗi.
+   *
+   * Không hiện ra thì `videos: []` bị đọc thành "không ai nói gì về chuyện này",
+   * đúng cách hiểu sai mà trường `notes` của API sinh ra để chặn.
+   */
+  hitsNotes?: string[];
   status?: "loading" | "streaming" | "error" | "done";
   query?: string;             // câu hỏi gốc — dùng để "Gửi lại" khi lỗi
   imagePreview?: string;      // objectURL ảnh đính kèm (hiển thị ở bong bóng user)
+  /**
+   * Ảnh gốc của lượt hỏi, giữ lại để "Gửi lại" không đánh rơi nó.
+   *
+   * KHÔNG lưu vào localStorage: `File` không serialize được, và gửi lại một
+   * phiên đã tải lại trang thì ảnh cũng không còn.
+   */
+  imageFile?: File | null;
 
   // LangGraph thread
   threadId?: string;
