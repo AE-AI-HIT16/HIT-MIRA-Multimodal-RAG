@@ -2,7 +2,9 @@
 
 > Cập nhật **02/08/2026**, nhánh `integration/v1` (đã lên remote).
 > Viết cho người/agent tiếp nhận. Đọc §1 và §1b trước khi gõ bất cứ lệnh nào —
-> hệ thống chạy được, nhưng cần chọn nguồn nhúng cho câu hỏi (§4.1).
+> hệ thống **đang chạy hoàn chỉnh trên embedding server tự host**, không còn phụ
+> thuộc API trả phí. Việc duy nhất cần trông: pod GPU tính tiền theo giờ, nhớ
+> tắt khi không dùng (§4.1).
 
 **Đọc kèm:** `CLAUDE.md` (ràng buộc kiến trúc, phần quan trọng nhất) →
 `docs/structure.md` (cây code thật) → `docs/prd.md` (US/TC để neo test).
@@ -127,11 +129,11 @@ phải phương án nuôi được bằng số dư hiện tại** — xem §4.
 | Thứ | Số thật | Ghi chú |
 |---|---|---|
 | `media_clip` | **4.056** điểm | 1.628 ảnh tĩnh + 2.428 keyframe video |
-| `video_transcript` | **192** điểm | |
-| `rag_documents` | **4** điểm | corpus nội quy còn rất nhỏ |
+| `video_transcript` | **248** điểm | 56 video; từng là 192/45 trước khi vá bug mốc giây 0 (§2b) |
+| `rag_documents` | **4** điểm | corpus nội quy còn rất nhỏ — xem §4 |
 | Video đã index | **59 / 59** | xong ngày 02/08/2026 trên GPU RunPod |
 | Caption keyframe | **2.428 / 2.429** | |
-| Test `API/` | **97 passed** | offline hoàn toàn |
+| Test `API/` | **101 passed** | offline hoàn toàn |
 | Test `ChatBot/` | **15 passed** | offline hoàn toàn |
 
 **`source_url` phủ 100%**: 4.056/4.056 điểm `media_clip` và 192/192 điểm
@@ -153,6 +155,41 @@ nó *có* `caption_results` trạng thái `DONE` kèm caption thật — mâu th
 định "chưa bao giờ caption được" ban đầu. Dòng này vô hại (lúc index bị lọc ra vì
 thiếu object); ai muốn dọn thì xoá `media_id = 00062686-a5d6-45b8-b014-74ecc01c89b8`,
 FK sẽ CASCADE sang `frames`/`caption_results`/`ocr_results`/`object_results`.
+
+---
+
+## 2b. Bug mốc giây 0 — đã vá 02/08/2026
+
+`0.0` là falsy trong Python, nên `segment.get("start_sec") or segment.get("start_time")`
+ở `scripts/import_media_outputs.py` rơi sang nhánh sau và ghi **None**. Segment
+đầu của **mọi** transcript bắt đầu đúng ở giây 0, nên cả 56 transcript đều mất
+mốc, bộ dựng unit loại chúng vì `invalid_timestamp`, và **11 video chỉ có một
+segment thì biến mất hoàn toàn** khỏi `video_transcript`.
+
+| | Trước | Sau |
+|---|---|---|
+| Điểm `video_transcript` | 192 | **248** |
+| Video có lời thoại tìm được | 45 | **56** |
+| Ký tự lời thoại mất | 18.777 / 112.006 = **16,8%** | 0 |
+
+Phần mất là mở đầu video — chỗ nói tên câu lạc bộ và tên sự kiện, tức phần nhận
+dạng rõ nhất. Sau khi vá, câu hỏi "sinh nhật lần thứ mười ba của câu lạc bộ tin
+học" trả về đúng đoạn `[0..60s]` ở **hạng 1**.
+
+Đã vá cả ba tầng:
+
+- **Code**: hàm `so_dau_tien()` coi `0.0` là số hợp lệ, + 2 test chặn tái diễn.
+- **Dữ liệu**: `update transcript_segments set start_time=0.0 where start_time is null`
+  (56 dòng). An toàn vì đã kiểm trước: cả 56 đều là segment ĐẦU của transcript,
+  và các segment là cửa sổ 60 giây liền mạch nên giá trị đúng chắc chắn là 0.
+- **Index**: thêm cờ `--transcript-only` cho `index_video_retrieval_units.py`.
+  Hai nhánh vốn độc lập, nên vá lời thoại **không cần** nhúng lại 2.428 keyframe
+  cho ra đúng vector cũ. 56 video, 0 lỗi, `media_clip` giữ nguyên 4.056 điểm.
+
+> **Bài học:** `summary.json` của lần build thật **đã ghi sẵn** `"invalid_timestamp": 1`
+> kèm cả `segment_id`, ngay từ đầu. Bằng chứng nằm trên đĩa hàng tuần mà không ai
+> đọc — đúng cùng một hạng lỗi với "đừng tin dòng OK của script batch" ở §1.
+> Đọc `skipped_by_reason` sau mỗi lần build; số khác 0 nghĩa là có dữ liệu bị bỏ.
 
 ---
 
@@ -216,20 +253,33 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
 
 ### Cần quyết định của anh Hoàng (không tự làm)
 
-1. **Chọn nguồn nhúng cho CÂU HỎI.** Phần index đã xong hẳn và vĩnh viễn (vector
-   nằm trong Qdrant), nhưng `/api/media/search` và `/api/retrieval/search` vẫn
-   cần nhúng câu hỏi ngay lúc người dùng gõ, nên vẫn cần một nguồn sống lâu.
-   Hiện **không có pod nào chạy** — bật lại mất khoảng một phút:
-   `python scripts/deploy_embedding_pod.py --apply`.
+1. ~~**Chọn nguồn nhúng cho CÂU HỎI**~~ — **đã chốt: tự host, không dùng API trả
+   phí.** Pod GPU `tbhzy5i5ypqxuv` (RTX A4000, **community cloud, \$0,17/giờ**)
+   dựng ngày 02/08/2026, và `.env` đã trỏ sang nó. Đã kiểm thật, không chỉ qua
+   test:
 
-   | Phương án | Chi phí | Đánh đổi |
+   | Kiểm | Kết quả |
+   |---|---|
+   | parity với điểm đang có trong Qdrant | `media_clip` thấp nhất **0.999894** · `video_transcript` **0.999916** → cùng không gian, index cũ nguyên giá trị |
+   | `POST /api/media/search` | HTTP 200 trong **1,7s**, ảnh có caption + `source_url` Facebook thật |
+   | `POST /api/retrieval/search` | HTTP 200 trong **5,5s** (gồm bước viết lại truy vấn qua LLM), qua LangChain → pod |
+
+   **Việc còn lại là chuyện tiền, không phải chuyện kỹ thuật.** Pod tính tiền
+   theo giờ kể cả lúc ngồi không, mà nhúng một câu hỏi chỉ tốn ~20 token:
+
+   | Phương án | Chi phí | Số dư \$8,13 trụ được |
    |---|---|---|
-   | Pod RunPod thường trực | ~\$195/tháng | Số dư \$8,19 chỉ trụ ~30 giờ |
-   | Nạp Jina một khoản nhỏ | vài đô, dùng rất lâu | Lại phụ thuộc nhà cung cấp ngoài |
-   | Chạy CPU ngay trên máy API | \$0 | Máy hiện tại KHÔNG đủ RAM, xem §1b |
+   | Pod community thường trực (đang chạy) | \$0,17/giờ ≈ \$122/tháng | ~48 giờ |
+   | Pod secure thường trực | \$0,27/giờ ≈ \$195/tháng | ~30 giờ |
+   | Bật lúc demo rồi tắt | vài xu mỗi buổi | rất lâu |
 
-   Một câu hỏi tốn ~20 token, một ảnh tốn 4.000 — mà phần ảnh giờ đã xong. Nên
-   nạp Jina một khoản nhỏ là rẻ nhất, dù đánh đổi lại tính tự chủ.
+   Máy API **không** chạy CPU thay thế được (7,6GB RAM, OOM — xem §1b).
+   **Nhớ tắt khi không dùng:**
+   `python scripts/deploy_embedding_pod.py --terminate tbhzy5i5ypqxuv`
+
+   > Community cloud rẻ hơn nhưng **hay hết máy**: A5000 trả `SUPPLY_CONSTRAINT`
+   > ngay lần đầu. Script nay tự chuyển sang GPU dự phòng trong danh sách ưu
+   > tiên (A5000 → A4000 → …), nên hết máy không còn là bế tắc.
 2. **Xoay khoá API** — file `.env.bak.0640` từng suýt lọt vào commit (đã gỡ khỏi
    index trước khi đẩy, chưa rò ra ngoài, nhưng khoá đã nằm trên đĩa một thời gian).
 
@@ -250,12 +300,60 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
    kết quả API → chuỗi `context` → prompt. Không có link thì ghi "nguồn nội bộ"
    (AC-2), **không bao giờ** dựng URL. Test: `API/tests/test_source_url_citation.py`.
 
+### Ingest — việc còn lại (soát toàn diện ngày 02/08/2026)
+
+6. **2 video chưa xử lý xong.** `video_01.mp4` của post `1028940839054401` và
+   `1104021571546327`: đều dài ~220s, **có tiếng (aac, đã ffprobe)**, nhưng không
+   có dòng `transcripts` nào và job ASR vẫn `PENDING`. Keyframe cũng chỉ chọn được
+   **2 và 3** khung từ 6.617/5.278 khung thô, trong khi video khác cỡ 10–15
+   khung/phút. Chạy dở dang, không phải video câm. `data/asr_test_clips/` chứa
+   sẵn clip cắt từ đúng hai video này — ai đó đã từng gỡ lỗi chúng.
+7. **Kho nội quy gần như trống**: `rag_documents` chỉ **4 chunk, ~2.000 ký tự**,
+   toàn bộ là "Nội quy sử dụng phòng" + địa chỉ CLB. `search_regulations` hầu như
+   không có gì để trả lời. Đây là thiếu nội dung, không phải lỗi code.
+
+> Ngưỡng trong `CLAUDE.md` — "khi `rag_documents` vượt ~50 chunk thì đo lại top-1"
+> — còn rất xa. Chưa cần tách model text riêng cho nhánh nội quy.
+
+### Đánh giá — đã có số (02/08/2026)
+
+Bộ đánh giá dựng xong: 50 truy vấn có nhãn, chỉ số, và checklist demo chạy được.
+Số đo và **ba cảnh báo phải đọc trước khi trích số**: `docs/eval-report.md`.
+
+| | Đo được | Mục tiêu | |
+|---|---|---|---|
+| Recall@5 | 0,642 | ≥ 0,80 | chưa đạt |
+| MRR | 0,776 | ≥ 0,60 | đạt |
+| Latency trung bình | 0,85s (p95 1,71s) | ≤ 5s | đạt |
+| Checklist demo | 5 PASS · 0 FAIL · 2 chưa hỗ trợ | mọi luồng pass | một phần |
+
+Hai kết luận đáng nhớ:
+
+- **T-33 chốt được rồi: đừng dùng ngưỡng cosine cho "không tìm thấy".** Điểm câu
+  ngoài miền (cao nhất 0,389) chồng lấn điểm câu trong miền (thấp nhất 0,254),
+  nên không ngưỡng nào tách được. Việc từ chối phải ở tầng trả lời — và
+  `supervisor_prompt.md` đang làm đúng vậy.
+- **Tên sự kiện chỉ nằm trong OCR, không có trong caption.** "Open Day",
+  "hackathon", "seminar", "gala" xuất hiện 0 lần trong caption. Vector là của
+  hình ảnh, nên loại câu hỏi đó v1 về bản chất không trả lời được — đúng phần đã
+  hoãn sang v2. Đo riêng được 0,367/0,500.
+
+### Đã soát và SẠCH
+
+496/496 post có media · 59/59 video có dòng `videos` + frame · **MinIO khớp DB**
+(4.116 dòng, đúng 1 object thiếu là keyframe mồ côi đã biết) · `source_url` phủ
+100% · caption/OCR/detection **4.057/4.057 DONE** · **ASR phủ trung bình 100,7%
+thời lượng video, không video nào dưới 50%** (đã nghi bị cắt ngắn, đo ra là không).
+
 ### Dọn dẹp
 
-6. ~~Xoá 8 collection `*_test*`~~ — đã xoá.
-7. Dòng DB của keyframe mồ côi — **cố tình chưa xoá**, lý do ở §2.
-8. Một transcript chạy bằng `large-v3` thay vì Zipformer như phần còn lại → chạy lại
-   cho đồng nhất.
+8. ~~Xoá 8 collection `*_test*`~~ — đã xoá.
+9. Dòng DB của keyframe mồ côi — **cố tình chưa xoá**, lý do ở §2.
+10. Một transcript chạy bằng `large-v3` thay vì Zipformer như phần còn lại → chạy
+    lại cho đồng nhất. Một transcript `FAILED` (`video_07.mp4` của post
+    `1320967086518440`). Một caption `DONE` mà rỗng.
+11. 27 job `PENDING` treo từ 22/07 (asr 3, caption 8, ocr 8, object_detection 8) —
+    rác lịch sử, việc thật đã chạy xong qua script.
 
 ---
 
@@ -278,6 +376,10 @@ lại — vector không hề đổi, nhúng lại là đốt quota vô ích. C�
 
 **Code**
 
+- **Đừng viết `a or b` cho số.** `0` và `0.0` là falsy nên luôn rơi sang `b`.
+  Đây chính là bug ở §2b, giấu mất 16,8% lời thoại suốt nhiều tuần mà không
+  script nào báo lỗi. Dùng `so_dau_tien()` trong `scripts/import_media_outputs.py`,
+  hoặc kiểm `is None` tường minh.
 - Bắt hết `Exception` trong vòng lặp batch che mất lỗi hệ thống. Nếu thêm nhánh
   `except` mới ở `IndexingService`, phải để `ImageEmbeddingProviderFatalError` đi
   xuyên qua (`except ImageEmbeddingProviderFatalError: raise` đặt **trước** nhánh
@@ -317,6 +419,11 @@ cd ChatBot && langgraph dev
 
 # Hạ tầng
 docker-compose up -d                           # postgres + qdrant + minio
+
+# Đánh giá (E8) — cần nguồn nhúng đang sống
+python scripts/build_eval_labels.py --apply    # giải nhãn từ kho -> eval_queries.json
+python scripts/run_eval.py                     # Recall@k / MRR / latency
+python scripts/demo_checklist.py               # checklist demo, exit != 0 nếu có FAIL
 
 # Nguồn nhúng (§1b) — pod tính tiền theo giờ, nhớ tắt
 python scripts/deploy_embedding_pod.py --apply

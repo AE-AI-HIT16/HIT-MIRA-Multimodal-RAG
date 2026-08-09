@@ -3,13 +3,41 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 
 --------------------------------------------------
--- 1. FACEBOOK POSTS
+-- 1. DATASETS
+--------------------------------------------------
+
+CREATE TABLE datasets (
+    dataset_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    name VARCHAR(255) NOT NULL,
+
+    source_type VARCHAR(50) NOT NULL DEFAULT 'facebook-crawl',
+
+    bucket_name VARCHAR(100) NOT NULL,
+
+    object_prefix TEXT NOT NULL,
+
+    source_url TEXT,
+
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    CONSTRAINT uq_datasets_bucket_prefix
+        UNIQUE(bucket_name, object_prefix)
+);
+
+
+--------------------------------------------------
+-- 2. FACEBOOK POSTS
 --------------------------------------------------
 
 CREATE TABLE posts (
     post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     facebook_post_id VARCHAR(255) UNIQUE NOT NULL,
+
+    dataset_id UUID,
 
     content TEXT,
 
@@ -19,13 +47,155 @@ CREATE TABLE posts (
 
     created_time TIMESTAMP,
 
-    crawl_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    crawl_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_posts_dataset
+        FOREIGN KEY(dataset_id)
+        REFERENCES datasets(dataset_id)
+        ON DELETE SET NULL
 );
+
+
+CREATE INDEX idx_posts_dataset
+ON posts(dataset_id);
+
+
+CREATE INDEX idx_posts_created_time
+ON posts(created_time);
+
+
+--------------------------------------------------
+-- 3. REPEATING EVENT TAXONOMY
+--------------------------------------------------
+
+CREATE TABLE event_series (
+    series_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    slug VARCHAR(255) UNIQUE NOT NULL,
+
+    canonical_name VARCHAR(255) NOT NULL,
+
+    description TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE event_occurrences (
+    occurrence_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    series_id UUID NOT NULL,
+
+    -- Nhãn thế hệ/kỳ (ví dụ HIT-15), không phải năm đăng bài.
+    label VARCHAR(255) NOT NULL,
+
+    display_name VARCHAR(255),
+
+    -- Thuộc tính lọc/hiển thị; không tham gia khóa duy nhất.
+    event_year SMALLINT,
+
+    starts_at TIMESTAMP,
+
+    ends_at TIMESTAMP,
+
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_event_occurrence_series
+        FOREIGN KEY(series_id)
+        REFERENCES event_series(series_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_event_occurrence_series_label
+        UNIQUE(series_id, label),
+
+    CONSTRAINT ck_event_occurrence_year
+        CHECK(event_year IS NULL OR event_year BETWEEN 2000 AND 2200),
+
+    CONSTRAINT ck_event_occurrence_dates
+        CHECK(starts_at IS NULL OR ends_at IS NULL OR starts_at <= ends_at)
+);
+
+
+CREATE INDEX idx_event_occurrence_series_year
+ON event_occurrences(series_id, event_year);
+
+
+CREATE TABLE event_aliases (
+    alias_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    series_id UUID,
+
+    occurrence_id UUID,
+
+    alias VARCHAR(255) NOT NULL,
+
+    normalized_alias VARCHAR(255) UNIQUE NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_event_alias_series
+        FOREIGN KEY(series_id)
+        REFERENCES event_series(series_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_event_alias_occurrence
+        FOREIGN KEY(occurrence_id)
+        REFERENCES event_occurrences(occurrence_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT ck_event_alias_one_target CHECK(
+        (series_id IS NOT NULL AND occurrence_id IS NULL)
+        OR (series_id IS NULL AND occurrence_id IS NOT NULL)
+    )
+);
+
+
+CREATE TABLE post_event_occurrences (
+    post_id UUID NOT NULL,
+
+    occurrence_id UUID NOT NULL,
+
+    confidence FLOAT,
+
+    assigned_by VARCHAR(50) NOT NULL DEFAULT 'rule',
+
+    evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY(post_id, occurrence_id),
+
+    CONSTRAINT fk_post_event_post
+        FOREIGN KEY(post_id)
+        REFERENCES posts(post_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_post_event_occurrence
+        FOREIGN KEY(occurrence_id)
+        REFERENCES event_occurrences(occurrence_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT ck_post_event_confidence
+        CHECK(confidence IS NULL OR (confidence >= 0 AND confidence <= 1))
+);
+
+
+CREATE INDEX idx_post_event_occurrence
+ON post_event_occurrences(occurrence_id, post_id);
+
+
+CREATE UNIQUE INDEX uq_post_event_one_primary
+ON post_event_occurrences(post_id)
+WHERE is_primary;
 
 
 
 --------------------------------------------------
--- 2. ALL MEDIA OBJECTS
+-- 4. ALL MEDIA OBJECTS
 -- image / video / frame
 --------------------------------------------------
 
@@ -48,6 +218,9 @@ CREATE TABLE media (
     -- videos/post1/video.mp4
     -- images/post1/img1.jpg
     -- frames/video1/frame001.jpg
+
+
+    content_sha256 VARCHAR(64),
 
 
     parent_media_id UUID,
@@ -73,6 +246,15 @@ CREATE TABLE media (
 
 CREATE INDEX idx_media_type
 ON media(media_type);
+
+
+CREATE UNIQUE INDEX uq_media_bucket_object
+ON media(bucket_name, object_key);
+
+
+CREATE INDEX idx_media_content_sha256
+ON media(content_sha256)
+WHERE content_sha256 IS NOT NULL;
 
 
 
