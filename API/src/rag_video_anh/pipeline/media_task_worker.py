@@ -19,6 +19,7 @@ from src.rag_video_anh.pipeline.media_router import MediaRouterService
 from src.rag_video_anh.pipeline.media_validator import MediaValidatorService
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
 from src.rag_video_anh.pipeline.qwen_vision_service import QwenVisionService
+from src.rag_video_anh.pipeline.stage_guard import khau_da_chay, noi_dung_ghi_duoc
 from src.rag_video_anh.repository import (
     DetectedObjectCreate,
     FrameCreate,
@@ -323,44 +324,59 @@ class MediaTaskWorker:
         with self.uow_factory() as uow:
             assert uow.results is not None
             if not result.results:
+                # Xem stage_guard: khâu tắt theo route mà vẫn upsert là xoá dữ
+                # liệu thật của lượt trước.
+                if not khau_da_chay(result.reason):
+                    return
+                # Chỉ ghi trạng thái. `reason` là câu chẩn đoán, không phải chữ
+                # đọc được từ ảnh.
                 uow.results.upsert_ocr_result(
                     frame_media_id,
                     status=self._persistable_status(result.status.value, result.reason),
-                    text=result.reason,
+                    text=None,
                 )
                 return
             ocr_result = result.results[0]
             uow.results.upsert_ocr_result(
                 frame_media_id,
                 status=self._persistable_status(ocr_result.status.value, ocr_result.reason),
-                text=ocr_result.full_text or ocr_result.reason,
+                text=noi_dung_ghi_duoc(ocr_result.full_text, ocr_result.status),
             )
 
     def _persist_caption(self, frame_media_id: uuid.UUID, result: CaptionResultSet) -> None:
         with self.uow_factory() as uow:
             assert uow.results is not None
             if not result.results:
+                if not khau_da_chay(result.reason):
+                    return
                 uow.results.upsert_caption_result(
                     frame_media_id,
                     status=self._persistable_status(result.status.value, result.reason),
-                    caption_text=result.reason,
-                    caption_model=self.config.media_models.vision_model_name,
-                    vision_metadata={},
+                    caption_text=None,
                 )
                 return
             caption_result = result.results[0]
+            noi_dung = noi_dung_ghi_duoc(caption_result.caption_text, caption_result.status)
             uow.results.upsert_caption_result(
                 frame_media_id,
                 status=self._persistable_status(caption_result.status.value, caption_result.reason),
-                caption_text=caption_result.caption_text or caption_result.reason,
-                caption_model=caption_result.generation_meta.get("model") or self.config.media_models.vision_model_name,
-                vision_metadata=self._vision_metadata(caption_result.generation_meta),
+                caption_text=noi_dung,
+                # Model và metadata chỉ đi cùng caption mới; hỏng thì giữ nguyên
+                # để còn truy được caption đang lưu do model nào sinh.
+                caption_model=(
+                    caption_result.generation_meta.get("model") or self.config.media_models.vision_model_name
+                )
+                if noi_dung is not None
+                else None,
+                vision_metadata=self._vision_metadata(caption_result.generation_meta) if noi_dung is not None else None,
             )
 
     def _persist_detection(self, frame_media_id: uuid.UUID, result: DetectionResultSet) -> None:
         with self.uow_factory() as uow:
             assert uow.results is not None
             if not result.results:
+                if not khau_da_chay(result.reason):
+                    return
                 uow.results.upsert_object_result(
                     frame_media_id,
                     status=self._persistable_status(result.status.value, result.reason),

@@ -31,6 +31,22 @@ def _so_tu_env(ten_bien: str, mac_dinh: Any, kieu: Any) -> Any:
         return mac_dinh
 
 
+def _bool_tu_env(ten_bien: str, mac_dinh: bool) -> bool:
+    """Như `_so_tu_env` nhưng cho cờ bật/tắt.
+
+    KHÔNG dùng `_so_tu_env(..., bool)` được: `bool("false")` là True, nên một
+    biến đặt rõ ràng là tắt lại bật lên — đúng kiểu lỗi im lặng.
+    """
+    raw = (os.getenv(ten_bien) or "").strip().lower()
+    if not raw or raw.startswith("${"):
+        return bool(mac_dinh)
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return bool(mac_dinh)
+
+
 def _config_bool(root: Any, dotted_path: str, default: bool = False) -> bool:
     """Read optional boolean config values from YAML-backed objects."""
     value = _config_value(root, dotted_path, default)
@@ -210,6 +226,17 @@ class MediaModelConfig(BaseModel):
         "MEDIA_VISION_REPETITION_PENALTY",
         _config_value(config_models, "MEDIA_MODELS.VISION_REPETITION_PENALTY", None),
         float,
+    )
+    # Tách OCR và caption thành HAI lời gọi thay vì một. Lượt 2 nhận thêm bối
+    # cảnh (chữ OCR lượt 1, lời thoại quanh khung hình, nhãn+số lượng vật thể)
+    # để caption gọi đúng tên sự việc thay vì tả suông.
+    #
+    # Mặc định TẮT vì nó nhân đôi số lời gọi VLM: cùng một kho 4.986 media,
+    # một lượt là ~1,7 giờ còn hai lượt là ~3,5 giờ và gấp đôi tiền GPU. Bật
+    # bằng MEDIA_VISION_TWO_PASS=true khi thật sự cần caption giàu bối cảnh.
+    vision_two_pass: bool = _bool_tu_env(
+        "MEDIA_VISION_TWO_PASS",
+        _config_value(config_models, "MEDIA_MODELS.VISION_TWO_PASS", False),
     )
     detection_model_name: str = _config_value(config_models, "MEDIA_MODELS.DETECTION_MODEL_NAME", "yolo11n")
     detection_weight_file: str = _config_value(config_models, "MEDIA_MODELS.DETECTION_WEIGHT_FILE", "yolo11n.pt")
