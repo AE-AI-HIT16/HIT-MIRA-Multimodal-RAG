@@ -43,6 +43,15 @@ class MediaRepository:
             stmt = stmt.where(MediaModel.media_type == media_type)
         return [self._media_record(row) for row in self.session.scalars(stmt).all()]
 
+    def list_by_type(self, media_type: str) -> list[MediaRecord]:
+        """Liệt kê toàn bộ media theo loại, để worker/indexer duyệt tuần tự."""
+        stmt = (
+            select(MediaModel)
+            .where(MediaModel.media_type == media_type)
+            .order_by(MediaModel.created_at, MediaModel.media_id)
+        )
+        return [self._media_record(row) for row in self.session.scalars(stmt).all()]
+
     def list_children(self, parent_media_id, media_type: str | None = None) -> list[MediaRecord]:
         stmt = select(MediaModel).where(MediaModel.parent_media_id == parent_media_id).order_by(MediaModel.created_at, MediaModel.media_id)
         if media_type:

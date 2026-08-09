@@ -17,6 +17,7 @@ from uuid import UUID
 
 from minio.error import S3Error
 
+from src.log.logger import logger
 from src.rag_video_anh.pipeline.minio_storage import MinioStorage
 from src.rag_video_anh.repository import (
     CaptionResultRecord,
@@ -109,6 +110,41 @@ class TranscriptContext:
             "text": self.text,
             "source_segment_ids": self.source_segment_ids,
             "segments": [segment.to_dict() for segment in self.segments],
+        }
+
+
+@dataclass(frozen=True)
+class ImageUnit:
+    """Một ảnh tĩnh của bài đăng, sẵn sàng để nhúng và index.
+
+    Khác `MediaClipUnit` ở chỗ KHÔNG có video_id/timestamp/transcript: ảnh
+    không nằm trên trục thời gian nào cả, nên bịa mốc thời gian cho nó sẽ tạo
+    ra trích dẫn sai.
+    """
+
+    unit_id: str
+    image_media_id: str
+    post_id: str
+    bucket_name: str
+    object_key: str
+    caption: str
+    ocr_text: str
+    vision_metadata: dict[str, Any]
+    detected_objects: list[dict[str, Any]]
+    object_counts: dict[str, int]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "unit_id": self.unit_id,
+            "image_media_id": self.image_media_id,
+            "post_id": self.post_id,
+            "bucket_name": self.bucket_name,
+            "object_key": self.object_key,
+            "caption": self.caption,
+            "ocr_text": self.ocr_text,
+            "vision_metadata": self.vision_metadata,
+            "detected_objects": self.detected_objects,
+            "object_counts": self.object_counts,
         }
 
 
@@ -384,6 +420,98 @@ class VideoRetrievalUnitBuilder:
         normalized_key = MinioStorage.normalize_object_key(object_key)
         try:
             storage.client.stat_object(bucket_name, normalized_key)
+            return True
+        except S3Error as exc:
+            if exc.code in {"NoSuchKey", "NoSuchObject", "NotFound", "NoSuchBucket"}:
+                return False
+            raise
+
+
+class ImageRetrievalUnitBuilder:
+    """Dựng đơn vị truy hồi từ một hàng media ảnh.
+
+    Dùng chung toàn bộ hàm làm sạch với nhánh video (caption/OCR lỗi hoặc rỗng
+    bị loại y hệt) để ảnh và keyframe có cùng chuẩn chất lượng.
+    """
+
+    def __init__(
+        self,
+        uow_factory: Any | None = None,
+        storage: Any | None = None,
+        check_image_exists: bool = True,
+    ) -> None:
+        self.uow_factory = uow_factory or RepositoryUnitOfWork
+        self.storage = storage
+        self.check_image_exists = check_image_exists
+
+    def build(self, image_media_id: str | UUID) -> ImageUnit | None:
+        """Trả về unit, hoặc None nếu ảnh không dùng được (kèm log lý do)."""
+        with self.uow_factory() as uow:
+            if uow.media is None or uow.results is None:
+                raise RuntimeError("RepositoryUnitOfWork did not expose media/results repositories")
+
+            media = uow.media.get_media(image_media_id)
+            if media is None:
+                raise ValueError(f"image media row does not exist: {image_media_id}")
+            if media.media_type != MediaType.IMAGE.value:
+                raise ValueError(f"expected media_type='image' for {image_media_id}, got {media.media_type!r}")
+
+            media_id = _str_id(media.media_id)
+            object_key = _clean_object_key(media.object_key)
+            bucket_name = clean_text(media.bucket_name) or "mira-data"
+            if not object_key or not self._image_exists(bucket_name, object_key):
+                logger.warning(
+                    f"Skipping image '{media_id}': object "
+                    f"{bucket_name}/{object_key or '<empty object key>'} does not exist"
+                )
+                return None
+
+            caption_result = uow.results.get_caption_result(media.media_id)
+            object_result = uow.results.get_object_result(media.media_id)
+            caption = clean_caption(caption_result)
+            ocr_text = clean_ocr(uow.results.get_ocr_result(media.media_id))
+            if not caption and not ocr_text:
+                # Không caption cũng không chữ -> vector vẫn dựng được từ ảnh thô,
+                # nhưng không có gì để trích dẫn. Index tiếp, chỉ cảnh báo.
+                logger.warning(f"Image '{media_id}' has neither caption nor OCR text")
+
+            summary = RetrievalUnitBuildSummary(video_id=None, video_media_id=media_id, post_id=_str_id(media.post_id))
+            detected_objects = clean_detected_objects(object_result, summary, media_id)
+
+            return ImageUnit(
+                unit_id=f"image:{media_id}",
+                image_media_id=media_id,
+                post_id=_str_id(media.post_id),
+                bucket_name=bucket_name,
+                object_key=object_key,
+                caption=caption,
+                ocr_text=ocr_text,
+                vision_metadata=clean_vision_metadata(caption_result.vision_metadata if caption_result else None),
+                detected_objects=detected_objects,
+                object_counts=dict(sorted(Counter(item["label"] for item in detected_objects).items())),
+            )
+
+    def list_image_media_ids(self, post_id: str | UUID | None = None) -> list[str]:
+        """Liệt kê media_id của ảnh, để tầng gọi lặp qua mà index."""
+        with self.uow_factory() as uow:
+            if uow.media is None:
+                raise RuntimeError("RepositoryUnitOfWork did not expose the media repository")
+            if post_id is not None:
+                rows = uow.media.list_by_post(post_id, media_type=MediaType.IMAGE.value)
+            else:
+                rows = uow.media.list_by_type(MediaType.IMAGE.value)
+            return [_str_id(row.media_id) for row in rows]
+
+    def _image_exists(self, bucket_name: str, object_key: str) -> bool:
+        if not self.check_image_exists:
+            return True
+        if self.storage is None:
+            self.storage = MinioStorage()
+        storage = self.storage
+        if hasattr(storage, "object_exists"):
+            return bool(storage.object_exists(bucket_name, object_key))
+        try:
+            storage.client.stat_object(bucket_name, MinioStorage.normalize_object_key(object_key))
             return True
         except S3Error as exc:
             if exc.code in {"NoSuchKey", "NoSuchObject", "NotFound", "NoSuchBucket"}:

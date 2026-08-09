@@ -75,6 +75,11 @@ class MediaPipelineConfig(BaseModel):
         "MEDIA_PIPELINE.SUPPORTED_MEDIA_TYPES",
         [".mp4", ".mov", ".mkv", ".avi", ".webm"],
     )
+    supported_image_types: list[str] = _config_value(
+        config_object,
+        "MEDIA_PIPELINE.SUPPORTED_IMAGE_TYPES",
+        [".jpg", ".jpeg", ".png", ".webp"],
+    )
     validation_strictness: str = _config_value(config_object, "MEDIA_PIPELINE.VALIDATION_STRICTNESS", "strict")
     minimum_duration: Optional[float] = _config_value(config_object, "MEDIA_PIPELINE.MINIMUM_DURATION", None)
     maximum_duration: Optional[float] = _config_value(config_object, "MEDIA_PIPELINE.MAXIMUM_DURATION", None)

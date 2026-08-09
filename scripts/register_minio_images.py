@@ -1,17 +1,18 @@
-"""Đăng ký video đã có trên MinIO thành hàng media trong PostgreSQL.
+"""Đăng ký ảnh đã có trên MinIO thành hàng media trong PostgreSQL.
 
-Hàng đợi worker đọc PostgreSQL chứ không đọc MinIO, nên mỗi object video phải
-có một hàng media tương ứng.
-
-Giống `register_minio_images.py`, script đọc `events/<post>/post.json` để lấy
-nội dung bài thật thay vì ghi chuỗi giữ chỗ. Metadata post được upsert kể cả
-khi hàng media đã tồn tại, nên chạy lại sẽ vá được những bài đăng ký bằng bản
-script cũ.
+Song song với `register_minio_videos.py`, khác mỗi chỗ tạo hàng
+media_type='image'. Phần đọc `events/<post>/post.json` để lấy nội dung bài
+thật (message, link, ngày đăng) nằm trong `minio_registration.py`.
 
 MẶC ĐỊNH LÀ CHẠY THỬ. Muốn ghi thật phải truyền --apply:
 
-    python scripts/register_minio_videos.py            # chỉ xem trước
-    python scripts/register_minio_videos.py --apply    # ghi vào DB
+    python scripts/register_minio_images.py                 # chỉ xem trước
+    python scripts/register_minio_images.py --apply         # ghi vào DB
+
+Sau khi đăng ký, chạy phân tích và index bằng:
+
+    python -m src.rag_video_anh.pipeline.image_processing_worker <media_id>
+    python scripts/index_image_units.py --apply
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 load_dotenv(PROJECT_ROOT / ".env")
 
 from minio_registration import (  # noqa: E402
-    VIDEO_EXTENSIONS,
+    IMAGE_EXTENSIONS,
     PostMetadataResolver,
     event_id_from_object_key,
     list_objects_by_extension,
@@ -41,9 +42,9 @@ from src.rag_video_anh.repository import MediaCreate, MediaType, RepositoryUnitO
 from src.rag_video_anh.repository.models import MediaModel  # noqa: E402
 
 
-def register_videos(prefix: str = "events/", apply: bool = False) -> dict:
+def register_images(prefix: str = "events/", apply: bool = False) -> dict:
     storage = MinioStorage()
-    object_keys = list_objects_by_extension(storage, prefix, VIDEO_EXTENSIONS)
+    object_keys = list_objects_by_extension(storage, prefix, IMAGE_EXTENSIONS)
     created = 0
     skipped = 0
     posts_touched: set[str] = set()
@@ -56,39 +57,36 @@ def register_videos(prefix: str = "events/", apply: bool = False) -> dict:
         resolver = PostMetadataResolver(storage, uow)
 
         for object_key in object_keys:
-            event_id = event_id_from_object_key(object_key)
-            posts_touched.add(event_id)
-
             exists = uow.session.scalar(
                 select(MediaModel)
                 .where(
-                    MediaModel.media_type == MediaType.VIDEO.value,
+                    MediaModel.media_type == MediaType.IMAGE.value,
                     MediaModel.bucket_name == storage.bucket_name,
                     MediaModel.object_key == object_key,
                 )
                 .limit(1)
             )
-            if exists is None:
-                created += 1
-            else:
+            if exists is not None:
                 skipped += 1
+                continue
 
+            event_id = event_id_from_object_key(object_key)
+            posts_touched.add(event_id)
+            created += 1
             if not apply:
                 continue
 
-            # Upsert post kể cả khi media đã có, để vá nội dung giữ chỗ của bản cũ.
             post = resolver.upsert(event_id)
             if not resolver.has_metadata(event_id):
                 missing_metadata.add(event_id)
-            if exists is None:
-                uow.media.create_media(
-                    MediaCreate(
-                        post_id=post.post_id,
-                        media_type=MediaType.VIDEO.value,
-                        bucket_name=storage.bucket_name,
-                        object_key=object_key,
-                    )
+            uow.media.create_media(
+                MediaCreate(
+                    post_id=post.post_id,
+                    media_type=MediaType.IMAGE.value,
+                    bucket_name=storage.bucket_name,
+                    object_key=object_key,
                 )
+            )
 
     return {
         "found": len(object_keys),
@@ -101,7 +99,7 @@ def register_videos(prefix: str = "events/", apply: bool = False) -> dict:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Đăng ký video trên MinIO vào bảng media của PostgreSQL.")
+    parser = argparse.ArgumentParser(description="Đăng ký ảnh trên MinIO vào bảng media của PostgreSQL.")
     parser.add_argument("--prefix", default="events/", help="Chỉ quét object dưới prefix này. Mặc định: events/")
     parser.add_argument(
         "--apply",
@@ -113,16 +111,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    summary = register_videos(prefix=args.prefix, apply=args.apply)
+    summary = register_images(prefix=args.prefix, apply=args.apply)
     action = "Đã tạo" if summary["applied"] else "SẼ tạo (chạy thử)"
-    print(f"Tìm thấy {summary['found']} video trên MinIO thuộc {summary['posts']} bài.")
+    print(f"Tìm thấy {summary['found']} ảnh trên MinIO thuộc {summary['posts']} bài.")
     print(f"{action} {summary['created']} hàng media; bỏ qua {summary['skipped']} hàng đã có.")
-    if summary["applied"]:
-        print(f"Đã làm mới metadata cho {summary['posts']} bài.")
-        if summary["missing_metadata"]:
-            print(f"  ! {len(summary['missing_metadata'])} bài không đọc được post.json: {summary['missing_metadata']}")
-    else:
+    if not summary["applied"]:
         print("Chưa ghi gì vào DB. Thêm --apply để thực hiện.")
+    elif summary["missing_metadata"]:
+        print(f"  ! {len(summary['missing_metadata'])} bài không đọc được post.json: {summary['missing_metadata']}")
 
 
 if __name__ == "__main__":

@@ -23,10 +23,20 @@ from src.rag_video_anh.vector_store.vector_store import QdrantVideoVectorStore
 DEFAULT_TOP_K = 5
 MAX_TOP_K = 50
 
+# Ảnh tĩnh và keyframe video nằm chung collection media_clip, phân biệt bằng khoá này.
+MEDIA_KIND_IMAGE = "image"
+MEDIA_KIND_VIDEO_FRAME = "video_frame"
+
 
 @dataclass(frozen=True)
 class MediaClipHit:
-    """Một keyframe khớp truy vấn, kèm mốc thời gian để trích dẫn."""
+    """Một hình ảnh khớp truy vấn: keyframe của video, hoặc ảnh tĩnh của bài đăng.
+
+    Cả hai nằm chung collection `media_clip` vì dùng chung không gian vector
+    Jina-CLIP v2. `media_kind` cho biết đang là loại nào — ảnh tĩnh không có
+    `video_id` lẫn `timestamp_sec`, nên tầng trên không được trích dẫn mốc
+    thời gian cho nó.
+    """
 
     score: float
     video_id: str | None
@@ -36,11 +46,17 @@ class MediaClipHit:
     ocr_text: str
     bucket_name: str | None
     frame_object_key: str | None
+    media_kind: str = MEDIA_KIND_VIDEO_FRAME
     payload: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_image(self) -> bool:
+        return self.media_kind == MEDIA_KIND_IMAGE
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "score": self.score,
+            "media_kind": self.media_kind,
             "video_id": self.video_id,
             "unit_id": self.unit_id,
             "timestamp_sec": self.timestamp_sec,
@@ -49,6 +65,7 @@ class MediaClipHit:
             "bucket_name": self.bucket_name,
             "frame_object_key": self.frame_object_key,
             "post_id": self.payload.get("post_id"),
+            "image_media_id": self.payload.get("image_media_id"),
             "frame_index": self.payload.get("frame_index"),
             "detected_objects": self.payload.get("detected_objects") or [],
         }
@@ -229,8 +246,20 @@ class VideoRetriever:
             ocr_text=str(payload.get("ocr_text") or ""),
             bucket_name=cls._as_optional_str(payload.get("bucket_name")),
             frame_object_key=cls._as_optional_str(payload.get("frame_object_key")),
+            media_kind=cls._as_media_kind(payload),
             payload=dict(payload),
         )
+
+    @staticmethod
+    def _as_media_kind(payload: dict[str, Any]) -> str:
+        """Điểm cũ được index trước khi có `media_kind` vẫn phải đọc đúng.
+
+        Không có khoá này thì suy ra từ dữ liệu: có video_id là keyframe video.
+        """
+        raw = payload.get("media_kind")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return MEDIA_KIND_VIDEO_FRAME if payload.get("video_id") else MEDIA_KIND_IMAGE
 
     def _video_filter(self, video_ids: list[str] | None) -> Any | None:
         if not video_ids:

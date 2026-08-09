@@ -22,6 +22,7 @@ from src.rag_video_anh.schemas import (
     CaptionResultSet,
     DetectionRequest,
     DetectionResultSet,
+    KeyFrame,
     KeyFrameSet,
     KeyframeExtractionRequest,
     MediaInput,
@@ -100,20 +101,31 @@ class PipelineService:
                 errors=errors,
             )
 
-        keyframes = self._safe_stage(
-            "keyframe_extraction",
-            lambda: self.keyframe_extractor.extract(
-                KeyframeExtractionRequest(
-                    media_input=media_input,
-                    validation_result=validation_result,
-                    route=route,
-                    extraction_policy=pipeline_request.processing_options.get("keyframes", {}),
-                )
-            ),
-            errors,
-            media_input,
-            correlation_id,
-        )
+        if route.requires_keyframes:
+            keyframes = self._safe_stage(
+                "keyframe_extraction",
+                lambda: self.keyframe_extractor.extract(
+                    KeyframeExtractionRequest(
+                        media_input=media_input,
+                        validation_result=validation_result,
+                        route=route,
+                        extraction_policy=pipeline_request.processing_options.get("keyframes", {}),
+                    )
+                ),
+                errors,
+                media_input,
+                correlation_id,
+            )
+        else:
+            # Ảnh tĩnh: bản thân nó đã là khung hình duy nhất, nên bọc thành
+            # KeyFrameSet để dùng lại nguyên vẹn nhánh OCR/caption/detection.
+            keyframes = self._safe_stage(
+                "single_frame",
+                lambda: self._single_frame_set(media_input),
+                errors,
+                media_input,
+                correlation_id,
+            )
         if keyframes is None:
             keyframes = KeyFrameSet(media_id=media_input.media_id, status=StageStatus.ERROR, reason="keyframe extraction failed")
 
@@ -126,19 +138,29 @@ class PipelineService:
             correlation_id,
         )
 
-        aligned_context = self._safe_stage(
-            "transcript_mapping",
-            lambda: self.transcript_mapper.map(
-                TranscriptMappingRequest(
-                    keyframes=keyframes,
-                    transcript_set=transcript_set,
-                    mapping_policy=pipeline_request.processing_options.get("transcript_mapping", {}),
-                )
-            ),
-            errors,
-            media_input,
-            correlation_id,
-        )
+        if not route.requires_asr:
+            # Ảnh tĩnh không bao giờ có lời thoại để gióng. Không nói rõ là 'bỏ
+            # qua theo route' thì mọi ảnh đều bị chấm partial_success, và lỗi
+            # thật sẽ lẫn vào đó không phân biệt được.
+            aligned_context = AlignedTranscriptContext(
+                media_id=media_input.media_id,
+                status=StageStatus.SKIPPED,
+                reason="transcript mapping disabled by route",
+            )
+        else:
+            aligned_context = self._safe_stage(
+                "transcript_mapping",
+                lambda: self.transcript_mapper.map(
+                    TranscriptMappingRequest(
+                        keyframes=keyframes,
+                        transcript_set=transcript_set,
+                        mapping_policy=pipeline_request.processing_options.get("transcript_mapping", {}),
+                    )
+                ),
+                errors,
+                media_input,
+                correlation_id,
+            )
         if aligned_context is None:
             aligned_context = AlignedTranscriptContext(
                 media_id=media_input.media_id,
@@ -191,6 +213,30 @@ class PipelineService:
             normalized_metadata=normalized_metadata,
             status=status,
             errors=errors,
+        )
+
+    def _single_frame_set(self, media_input: MediaInput) -> KeyFrameSet:
+        """Bọc một ảnh tĩnh thành KeyFrameSet đúng một khung."""
+        image_path = media_input.media_path or media_input.source_ref
+        if not image_path:
+            raise ValueError(f"image media '{media_input.media_id}' has no media_path to read")
+        return KeyFrameSet(
+            media_id=media_input.media_id,
+            frames=[
+                KeyFrame(
+                    frame_id=self.pipeline_config.frame_id_pattern.format(media_id=media_input.media_id, index=0),
+                    media_id=media_input.media_id,
+                    frame_index=0,
+                    # Ảnh không có mốc thời gian; 0 chỉ là giá trị bắt buộc của schema,
+                    # tầng retrieval unit sẽ KHÔNG dựng timestamp cho ảnh.
+                    timestamp_ms=0,
+                    timestamp_sec=0.0,
+                    selection_reason="static_image",
+                    image_path=str(image_path),
+                )
+            ],
+            status=StageStatus.DONE,
+            selection_summary={"strategy": "static_image", "selected": 1},
         )
 
     def _run_enrichment(
