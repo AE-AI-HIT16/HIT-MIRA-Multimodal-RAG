@@ -65,8 +65,13 @@ def test_image_embedding_service_posts_keyframes_to_jina_api(tmp_path: Path) -> 
         captured.update(url=url, headers=headers, json=json, timeout=timeout)
         return response
 
+    # Khai endpoint tường minh: bài test này nói về GIAO THỨC gửi đi, không phải
+    # về việc endpoint mặc định trỏ đâu. Endpoint mặc định là chuyện vận hành —
+    # nó đã đổi sang embedding server tự host, và đổi nữa cũng không được làm
+    # đổ một bài test về định dạng request.
     service = ImageEmbeddingService(
         api_key="jina-test-key",
+        base_url="https://api.jina.ai/v1/embeddings",
         model_name="jina-clip-v2",
         dimensions=3,
         timeout=12.0,
@@ -105,6 +110,7 @@ def test_image_embedding_service_posts_transcripts_to_jina_api() -> None:
 
     service = ImageEmbeddingService(
         api_key="jina-test-key",
+        base_url="https://api.jina.ai/v1/embeddings",
         model_name="jina-clip-v2",
         dimensions=3,
         http_post=fake_post,

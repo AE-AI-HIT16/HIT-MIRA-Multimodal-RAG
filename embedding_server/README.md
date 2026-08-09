@@ -74,11 +74,27 @@ rất khó lần ngược về đây.
 Cách nhanh — một lệnh, không cần container registry:
 
 ```bash
-python scripts/deploy_embedding_pod.py            # xem kế hoạch + giá
-python scripts/deploy_embedding_pod.py --apply    # tạo pod, in sẵn cấu hình cần đặt
+python scripts/deploy_embedding_pod.py                        # xem kế hoạch + giá
+python scripts/deploy_embedding_pod.py --apply                # tạo pod, in sẵn cấu hình cần đặt
+python scripts/deploy_embedding_pod.py --community --apply    # rẻ hơn ~40%, kém ổn định hơn
 python scripts/deploy_embedding_pod.py --status
 python scripts/deploy_embedding_pod.py --terminate <POD_ID>
 ```
+
+**Chọn loại cloud.** Cùng một con A5000, secure cloud **$0,27/giờ** còn community
+cloud **$0,16/giờ** — chênh 69%, mà model chỉ nạp trọng số rồi phục vụ nên không
+có gì để mất khi máy community lăn ra chết: dựng lại hết 42 giây. Secure đáng
+tiền khi cần chạy liên tục không ai trông.
+
+Đổi lại, community **hay hết máy** — `stockStatus` chỉ nói "Low" chứ không nói
+còn hay hết, biết chắc chỉ bằng cách thử thuê. Script thử lần lượt cả danh sách
+ưu tiên và chỉ nuốt đúng lỗi `SUPPLY_CONSTRAINT`; lần chuyển sang community đầu
+tiên, A5000 hết máy và nó tự lấy A4000 ($0,17/giờ).
+
+> Bản đầu của script hỏi giá **không lọc theo loại cloud** (nhận về giá
+> community) rồi lại deploy `cloudType: ALL` và rơi vào secure — in $0,160 nhưng
+> hoá đơn thật $0,270. Đã sửa: `_gia_gpu()` và `_tao_pod()` dùng chung một cờ,
+> giá in ra đúng là giá phải trả.
 
 Script dùng ảnh PyTorch công khai và đẩy code qua MinIO presigned URL. Cho môi
 trường thật thì `Dockerfile` ở đây sạch hơn (nướng sẵn trọng số, không phụ
@@ -105,10 +121,15 @@ EMBEDDING_API_KEY=<đúng EMBED_SERVER_API_KEY của pod>
 
 (hoặc sửa `MEDIA_MODELS.CLIP_API_BASE_URL` trong `API/Resources/model.yaml`)
 
-**Tiền:** pod tính theo giờ kể cả lúc không dùng. RTX A5000 đo thật là
-**$0,27/giờ** (không phải $0,16 như bảng giá cộng đồng) → **~$195/tháng** nếu
-để thường trực. Index một lần rồi tắt thì chỉ vài xu, và vector nằm lại trong
+**Tiền:** pod tính theo giờ kể cả lúc không dùng. RTX A5000: **$0,27/giờ** trên
+secure cloud (~$195/tháng), **$0,16/giờ** trên community (~$115/tháng) nếu để
+thường trực. Index một lần rồi tắt thì chỉ vài xu, và vector nằm lại trong
 Qdrant vĩnh viễn. Nhớ `--terminate`.
+
+Nhúng một câu hỏi chỉ tốn ~20 token và mất vài chục mili-giây, nên **pod thường
+trực gần như toàn bộ thời gian là ngồi không mà vẫn tính tiền**. Với một đồ án
+chỉ chạy lúc demo, bật trước khi demo (42 giây) rồi tắt là rẻ hơn hai bậc so
+với để thường trực.
 
 Khi đã tự host thì **bỏ luôn bộ giữ nhịp token** — nó sinh ra để né hạn mức của
 Jina, giờ chỉ còn làm chậm:
