@@ -70,6 +70,23 @@ class RAGApiClient:
             payload["document_ids"] = document_ids
         return await self._request("POST", "/api/retrieval/search", json=payload)
 
+    async def search_media(
+        self,
+        query: str,
+        top_k: int | None = None,
+        video_ids: list[str] | None = None,
+        source: str = "both",
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "query": query,
+            "source": source,
+        }
+        if top_k is not None:
+            payload["top_k"] = top_k
+        if video_ids:
+            payload["video_ids"] = video_ids
+        return await self._request("POST", "/api/media/search", json=payload)
+
 
 _client: RAGApiClient | None = None
 

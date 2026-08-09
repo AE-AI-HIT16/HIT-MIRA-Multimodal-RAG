@@ -1,1 +1,269 @@
-"""Media retrieval component."""
+"""Truy hồi keyframe và transcript video từ Qdrant.
+
+Jina-CLIP v2 nhúng ảnh và text vào CÙNG một không gian vector, nên chỉ cần
+nhúng câu hỏi (dạng text) MỘT lần rồi dùng chung vector đó để tìm trong cả
+`media_clip` (vector ảnh keyframe) và `video_transcript` (vector text) —
+tiết kiệm một lượt gọi API embedding cho mỗi request.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from src.configuration import AppConfig
+from src.log.logger import logger
+from src.rag_video_anh.embedding.embedding_service import ImageEmbeddingService
+from src.rag_video_anh.retrieval.indexing_service import (
+    DEFAULT_MEDIA_CLIP_COLLECTION,
+    DEFAULT_VIDEO_TRANSCRIPT_COLLECTION,
+)
+from src.rag_video_anh.vector_store.vector_store import QdrantVideoVectorStore
+
+DEFAULT_TOP_K = 5
+MAX_TOP_K = 50
+
+
+@dataclass(frozen=True)
+class MediaClipHit:
+    """Một keyframe khớp truy vấn, kèm mốc thời gian để trích dẫn."""
+
+    score: float
+    video_id: str | None
+    unit_id: str | None
+    timestamp_sec: float | None
+    caption: str
+    ocr_text: str
+    bucket_name: str | None
+    frame_object_key: str | None
+    payload: dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "score": self.score,
+            "video_id": self.video_id,
+            "unit_id": self.unit_id,
+            "timestamp_sec": self.timestamp_sec,
+            "caption": self.caption,
+            "ocr_text": self.ocr_text,
+            "bucket_name": self.bucket_name,
+            "frame_object_key": self.frame_object_key,
+            "post_id": self.payload.get("post_id"),
+            "frame_index": self.payload.get("frame_index"),
+            "detected_objects": self.payload.get("detected_objects") or [],
+        }
+
+
+@dataclass(frozen=True)
+class TranscriptMoment:
+    """Một đoạn transcript khớp truy vấn trong một video."""
+
+    score: float
+    start_sec: float | None
+    end_sec: float | None
+    text: str
+    unit_id: str | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "score": self.score,
+            "start_sec": self.start_sec,
+            "end_sec": self.end_sec,
+            "text": self.text,
+            "unit_id": self.unit_id,
+        }
+
+
+@dataclass(frozen=True)
+class TranscriptVideoHit:
+    """Các đoạn transcript của CÙNG một video đã gộp lại thành 1 kết quả."""
+
+    video_id: str | None
+    score: float
+    moments: list[TranscriptMoment]
+    post_id: str | None = None
+    language: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "video_id": self.video_id,
+            "score": self.score,
+            "post_id": self.post_id,
+            "language": self.language,
+            "moments": [moment.as_dict() for moment in self.moments],
+        }
+
+
+class VideoRetriever:
+    """Nhúng câu hỏi rồi tìm trong hai collection video."""
+
+    def __init__(
+        self,
+        embedding_service: Any | None = None,
+        vector_store: Any | None = None,
+        top_k: int | None = None,
+        media_clip_collection: str = DEFAULT_MEDIA_CLIP_COLLECTION,
+        video_transcript_collection: str = DEFAULT_VIDEO_TRANSCRIPT_COLLECTION,
+        config: AppConfig | None = None,
+    ) -> None:
+        app_config = config or AppConfig()
+        retrieval_config = getattr(app_config, "retrieval", None)
+        self.embedding_service = embedding_service or ImageEmbeddingService(config=app_config)
+        self.vector_store = vector_store or QdrantVideoVectorStore(config=app_config)
+        self.top_k = int(top_k or getattr(retrieval_config, "top_k", None) or DEFAULT_TOP_K)
+        self.media_clip_collection = media_clip_collection
+        self.video_transcript_collection = video_transcript_collection
+
+    def embed_query(self, query: str) -> list[float]:
+        normalized_query = self.normalize_query(query)
+        vectors = self.embedding_service.embed_texts([normalized_query])
+        if not vectors or not vectors[0]:
+            raise ValueError("embedding service returned no query vector")
+        return list(vectors[0])
+
+    def retrieve_clips(
+        self,
+        query: str,
+        top_k: int | None = None,
+        video_ids: list[str] | None = None,
+        query_vector: list[float] | None = None,
+    ) -> list[MediaClipHit]:
+        vector = query_vector if query_vector is not None else self.embed_query(query)
+        points = self.vector_store.search_points(
+            collection_name=self.media_clip_collection,
+            vector=vector,
+            limit=self._resolve_top_k(top_k),
+            query_filter=self._video_filter(video_ids),
+        )
+        hits = [self._as_clip_hit(point) for point in points]
+        logger.info(f"Media clip retrieval returned {len(hits)} keyframe(s)")
+        return hits
+
+    def retrieve_by_transcript(
+        self,
+        query: str,
+        top_k: int | None = None,
+        video_ids: list[str] | None = None,
+        query_vector: list[float] | None = None,
+    ) -> list[TranscriptVideoHit]:
+        """Tìm transcript rồi GỘP theo video_id để một video không bị đếm hai lần.
+
+        Điểm của video = điểm cao nhất trong các đoạn khớp; các đoạn còn lại
+        được giữ trong `moments` để tầng trả lời trích dẫn mốc thời gian.
+        """
+        requested_k = self._resolve_top_k(top_k)
+        vector = query_vector if query_vector is not None else self.embed_query(query)
+        # Lấy dư ứng viên vì nhiều đoạn có thể thuộc cùng một video, gộp lại
+        # sẽ còn ít hơn requested_k.
+        candidate_k = min(requested_k * 3, MAX_TOP_K * 3)
+        points = self.vector_store.search_points(
+            collection_name=self.video_transcript_collection,
+            vector=vector,
+            limit=candidate_k,
+            query_filter=self._video_filter(video_ids),
+        )
+        merged = self._merge_transcript_points(points)
+        logger.info(
+            f"Transcript retrieval merged {len(points)} segment(s) into {len(merged)} video(s)"
+        )
+        return merged[:requested_k]
+
+    @classmethod
+    def _merge_transcript_points(cls, points: list[dict[str, Any]]) -> list[TranscriptVideoHit]:
+        grouped: dict[str, dict[str, Any]] = {}
+        order: list[str] = []
+        for point in points:
+            payload = point.get("payload") or {}
+            score = float(point.get("score") or 0.0)
+            video_id = payload.get("video_id")
+            # Đoạn không có video_id thì không gộp được -> tự thành một nhóm
+            # riêng theo unit_id để không bị trộn lẫn với video khác.
+            group_key = str(video_id) if video_id else f"__unit__{payload.get('unit_id')}"
+            moment = TranscriptMoment(
+                score=score,
+                start_sec=cls._as_float(payload.get("start_sec")),
+                end_sec=cls._as_float(payload.get("end_sec")),
+                text=str(payload.get("text") or ""),
+                unit_id=cls._as_optional_str(payload.get("unit_id")),
+            )
+            if group_key not in grouped:
+                grouped[group_key] = {
+                    "video_id": cls._as_optional_str(video_id),
+                    "post_id": cls._as_optional_str(payload.get("post_id")),
+                    "language": cls._as_optional_str(payload.get("language")),
+                    "score": score,
+                    "moments": [moment],
+                }
+                order.append(group_key)
+                continue
+            group = grouped[group_key]
+            group["score"] = max(float(group["score"]), score)
+            group["moments"].append(moment)
+
+        hits = [
+            TranscriptVideoHit(
+                video_id=grouped[key]["video_id"],
+                score=float(grouped[key]["score"]),
+                post_id=grouped[key]["post_id"],
+                language=grouped[key]["language"],
+                moments=sorted(
+                    grouped[key]["moments"],
+                    key=lambda moment: moment.score,
+                    reverse=True,
+                ),
+            )
+            for key in order
+        ]
+        hits.sort(key=lambda hit: hit.score, reverse=True)
+        return hits
+
+    @classmethod
+    def _as_clip_hit(cls, point: dict[str, Any]) -> MediaClipHit:
+        payload = point.get("payload") or {}
+        return MediaClipHit(
+            score=float(point.get("score") or 0.0),
+            video_id=cls._as_optional_str(payload.get("video_id")),
+            unit_id=cls._as_optional_str(payload.get("unit_id")),
+            timestamp_sec=cls._as_float(payload.get("timestamp_sec")),
+            caption=str(payload.get("caption") or ""),
+            ocr_text=str(payload.get("ocr_text") or ""),
+            bucket_name=cls._as_optional_str(payload.get("bucket_name")),
+            frame_object_key=cls._as_optional_str(payload.get("frame_object_key")),
+            payload=dict(payload),
+        )
+
+    def _video_filter(self, video_ids: list[str] | None) -> Any | None:
+        if not video_ids:
+            return None
+        if not hasattr(self.vector_store, "video_id_filter"):
+            logger.warning("vector store does not support video_id filtering; ignoring video_ids")
+            return None
+        return self.vector_store.video_id_filter(video_ids)
+
+    def _resolve_top_k(self, top_k: int | None) -> int:
+        resolved = int(top_k or self.top_k)
+        if resolved <= 0:
+            raise ValueError("top_k must be a positive integer")
+        return min(resolved, MAX_TOP_K)
+
+    @staticmethod
+    def normalize_query(query: str) -> str:
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+        return " ".join(query.split())
+
+    @staticmethod
+    def _as_float(value: Any) -> float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _as_optional_str(value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
