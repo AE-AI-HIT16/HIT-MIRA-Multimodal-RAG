@@ -61,8 +61,8 @@ class FakeVectorStore:
         self.calls.append({"collection_name": collection_name, "query_filter": query_filter})
         return list(self.results.get(collection_name, []))
 
-    def search_filter(self, video_ids=None, years=None):
-        return {"video_ids": video_ids, "years": years}
+    def search_filter(self, video_ids=None, years=None, events=None):
+        return {"video_ids": video_ids, "years": years, "events": events}
 
 
 def build_service(store: FakeVectorStore) -> VideoRetrievalService:
