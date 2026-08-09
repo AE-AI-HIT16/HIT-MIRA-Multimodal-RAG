@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from src.configuration import AppConfig
@@ -26,6 +27,7 @@ class EmbeddingService:
         timeout: float = 60.0,
         provider: str = "openai-compatible",
         config: AppConfig | None = None,
+        check_embedding_ctx_length: bool | None = None,
     ) -> None:
         embedding_config = (config or AppConfig()).embedding
         self.api_key = api_key if api_key is not None else embedding_config.api_key
@@ -34,7 +36,21 @@ class EmbeddingService:
         self._dimension = dimensions if dimensions is not None else embedding_config.dimensions
         self.timeout = timeout
         self.provider = provider
+        # LangChain tự cắt văn bản theo token trước khi gửi, và để làm việc đó
+        # nó đi tải tokenizer của model từ HuggingFace. Với nhà cung cấp không
+        # có repo trên HF (ví dụ jina-clip-v2) thì bước đó ném OSError. Tắt đi
+        # là gửi thẳng văn bản, để phía nhà cung cấp tự lo độ dài.
+        self.check_embedding_ctx_length = self._resolve_ctx_length_check(check_embedding_ctx_length)
         self._client = None
+
+    @staticmethod
+    def _resolve_ctx_length_check(explicit: bool | None) -> bool:
+        if explicit is not None:
+            return explicit
+        raw = os.getenv("EMBEDDING_CHECK_CTX_LENGTH", "").strip().lower()
+        if raw:
+            return raw in {"1", "true", "yes", "on"}
+        return True
 
     @property
     def dimension(self) -> int | None:
@@ -72,6 +88,7 @@ class EmbeddingService:
             "base_url": self.base_url,
             "timeout": self.timeout,
             "tiktoken_enabled": False,
+            "check_embedding_ctx_length": self.check_embedding_ctx_length,
         }
         if self._dimension is not None:
             kwargs["dimensions"] = int(self._dimension)

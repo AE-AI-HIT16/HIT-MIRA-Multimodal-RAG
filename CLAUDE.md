@@ -50,7 +50,7 @@ Providers are injected as optional constructor parameters (`image_embedder=`, `t
 | Concern | Model | Wired in |
 | --- | --- | --- |
 | Images, video keyframes, transcript text, **and user queries** | **Jina-CLIP v2** (`jina-clip-v2`, 1024-d, cosine) | `rag_video_anh/embedding/embedding_service.py` |
-| Regulation/document text | `baai/bge-m3` via an OpenAI-compatible endpoint | `rag_noiquy/embedding/embedding_service.py` |
+| Regulation/document text | `EMBEDDING_MODEL` = `jina-clip-v2` (same model — see below) | `rag_noiquy/embedding/embedding_service.py` |
 | ASR | `hynt/Zipformer-30M-RNNT-6000h` via `sherpa_onnx` | `pipeline/asr_service.py` |
 | Caption + OCR (one call returns both) | `MEDIA_VISION_MODEL_NAME`, else `OPENROUTER_MODEL_NAME` | `pipeline/qwen_vision_service.py` |
 | Query rewriting (regulation path) | `LLM_PROVIDER:LLM_MODEL` | `rag_noiquy/retrieval/query_rewriter.py` |
@@ -61,6 +61,20 @@ Two things that surprise people:
 
 1. **Transcripts are embedded with Jina-CLIP v2, not a dedicated Vietnamese text model.** `indexing_service.py` does `self.text_embedder = text_embedder or self.image_embedder`. That is what makes one query vector rank images *and* speech together — the joint space is the feature, not an oversight. `tech-pipeline.md` still names `AITeamVN/Vietnamese_Embedding`; changing to it would improve transcript retrieval but break the single-vector property.
 2. **`jina-clip-v2` only accepts `task="retrieval.query"`.** Sending `retrieval.passage` returns HTTP 422. Asymmetric query/passage embedding belongs to `jina-embeddings-v3`, a different model.
+### One embedding model — a deliberate decision
+
+**Every collection in this system is embedded by `jina-clip-v2` at 1024 dimensions**: `media_clip` (images + video keyframes), `video_transcript` (speech), and `rag_documents` (regulations). One key, one rate limit, one dimension. Keep it that way unless the trigger below fires.
+
+The constraint that forces the choice: **only a multimodal model can embed images at all.** So "one model everywhere" necessarily means a CLIP-family model — which is exactly the family that is weakest at pure text-to-text retrieval. Conversely, picking the strongest Vietnamese text model (`baai/bge-m3`, `AITeamVN/Vietnamese_Embedding`) means it cannot embed images, forcing a second model. **"One model" and "best text retrieval" are mutually exclusive here**; v1 chooses one model.
+
+What that buys, and what it costs:
+
+- **Buys:** `VideoRetrievalService.retrieve()` embeds the query **once** and searches `media_clip` and `video_transcript` in the same space. A separate text model would force two query embeddings per request. Fewer providers also means fewer outages — an expired OpenRouter balance already took out captioning and the whole regulation path in one go.
+- **Costs:** measured on the real regulation chunks, Jina-CLIP v2 answered 6/7 queries top-1, but absolute scores sat at 0.3–0.6 and the rank-1-to-rank-2 gap was as thin as 0.01. That gets fragile as the corpus grows, and it makes a "not found" threshold hard to place — which matters because this system must never fabricate.
+
+**Trigger to revisit:** when `rag_documents` exceeds roughly 50 chunks, re-measure top-1 on real questions. If it falls below ~80%, give **regulations only** a dedicated text model. That split costs nothing architecturally — regulations have their own collection, their own MCP tool (`search_regulations`), and their own router, and never share a query vector with images. Do **not** split transcripts out; that is what would break the single-query property.
+
+Whichever model is chosen, **changing it means re-embedding the whole collection.** Two models are two vector spaces; mixing them in one collection makes ranking meaningless. Also note `EMBEDDING_CHECK_CTX_LENGTH=false`: LangChain otherwise fetches a HuggingFace tokenizer named after the model and dies with `OSError` for providers that have no HF repo, `jina-clip-v2` included.
 
 ### Online Router RAG flow
 
