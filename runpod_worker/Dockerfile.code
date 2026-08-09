@@ -1,0 +1,26 @@
+# Dán lại MÃ NGUỒN lên một image worker đã có, giữ nguyên tầng phụ thuộc.
+#
+# Vì sao tồn tại: `Dockerfile` cài torch+CUDA 12.9, ultralytics, sherpa-onnx...
+# ra một image ~18 GB. Sửa một dòng trong `API/src/` mà build lại từ đầu thì
+# tốn 20-30 phút và cần chỗ trống cho HAI image cùng lúc — máy dev này không đủ.
+# Các lệnh dưới đây lặp đúng khối cuối của `Dockerfile`, nên image ra lò giống
+# hệt bản build đầy đủ CHỪNG NÀO danh sách phụ thuộc không đổi.
+#
+#   docker build -f runpod_worker/Dockerfile.code \
+#     --build-arg BASE=hoangtechcs/hit-mira-runpod-worker:v0.1.10 \
+#     -t hoangtechcs/hit-mira-runpod-worker:v0.1.11 .
+#
+# CHỈ dùng khi `runpod_worker/requirements.txt` và các lệnh pip trong
+# `Dockerfile` KHÔNG đổi. Đổi phụ thuộc mà vẫn dán lên base cũ thì image sẽ
+# chạy mã mới trên thư viện cũ — hỏng theo kiểu không lộ ra lúc build.
+# `Dockerfile` vẫn là bản dựng chuẩn, dùng cho build sạch.
+ARG BASE
+FROM ${BASE}
+
+COPY API /app/API
+COPY scripts/export_video_artifacts.py /app/scripts/export_video_artifacts.py
+COPY runpod_worker /app/runpod_worker
+RUN python -c "from src.rag_video_anh.pipeline.pipeline_service import PipelineService; print('pipeline_import_ok')"
+RUN python -c "from src.configuration import AppConfig; from src.rag_video_anh.pipeline.keyframe_extractor import DefaultTransNetV2SceneDetector; DefaultTransNetV2SceneDetector(AppConfig())._load_model(); print('TransNetV2 model load OK')"
+
+CMD ["python", "-u", "/app/runpod_worker/handler.py"]
