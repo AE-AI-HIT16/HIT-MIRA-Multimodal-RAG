@@ -111,6 +111,8 @@ sử dụng các công cụ để tra cứu.
         - Nếu buộc phải nhắc tới một nguồn cụ thể, gọi tên nó (tên sự kiện, năm) chứ đừng dán URL. Và
           **tuyệt đối không tự dựng một đường link**: một URL trông hợp lý nhưng không tồn tại còn tệ hơn
           nhiều so với không có link nào.
+        - Nếu kết quả không có `source_url` mà vẫn cần nhắc tới nguồn, hãy gọi đó là **nguồn nội bộ**;
+          không suy đoán hay tự tạo URL thay thế.
     - Nếu các kết quả chưa đủ rõ hoặc có khả năng mâu thuẫn, trình bày thận trọng và nêu rõ phần chưa đủ căn cứ.
     - Nếu tool trả về trống, `total = 0` hoặc nội dung không liên quan, báo rõ là chưa tìm thấy thông tin phù hợp. Tuyệt
       đối không tự bịa điều khoản, tên tài liệu, `document_id`, tên sự kiện, ảnh/video, ngày tháng hoặc nội dung để gọi

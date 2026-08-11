@@ -60,6 +60,19 @@ def _config_bool(root: Any, dotted_path: str, default: bool = False) -> bool:
             return False
     return bool(value)
 
+def _config_number(root: Any, dotted_path: str, default: Any, converter: Any) -> Any:
+    """Parse số từ YAML và bỏ qua placeholder môi trường chưa được thay thế."""
+    value = _config_value(root, dotted_path, default)
+    if isinstance(value, str):
+        value = value.strip()
+        if not value or value.startswith("${"):
+            return default
+    try:
+        return converter(value)
+    except (TypeError, ValueError):
+        return default
+
+
 
 
 class QdrantConfig(BaseModel):
@@ -84,8 +97,8 @@ class PipelineConfig(BaseModel):
 
 class RetrievalConfig(BaseModel):
     """Retrieval pipeline settings."""
-    top_k: Optional[int] = config_object.RETRIEVAL.TOP_K
-    keyword_threshold: Optional[float] = config_object.RETRIEVAL.KEYWORD_THRESHOLD
+    top_k: int = _config_number(config_object, "RETRIEVAL.TOP_K", 5, int)
+    keyword_threshold: float = _config_number(config_object, "RETRIEVAL.KEYWORD_THRESHOLD", 0.5, float)
 
 class MinioConfig(BaseModel):
     """MinIO object storage connection settings."""

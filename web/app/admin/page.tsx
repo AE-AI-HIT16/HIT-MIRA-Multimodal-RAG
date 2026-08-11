@@ -122,19 +122,30 @@ export default function AdminPage() {
         <TopBar />
         <div className="mx-auto max-w-md px-4 py-24 text-center">
           <h1 className="text-xl font-semibold text-zinc-900">Cần quyền admin</h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            Trang này chỉ dành cho quản trị viên. Tạo tài khoản admin bằng lệnh{" "}
-            <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs">
-              python -m scripts.create_admin
-            </code>{" "}
-            rồi đăng nhập.
-          </p>
-          <Link
-            href="/login"
-            className="mt-5 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-          >
-            Đăng nhập
-          </Link>
+          {/* Hai tình huống rất khác nhau: chưa đăng nhập thì nút "Đăng nhập" là
+              lối đi tiếp; đã đăng nhập mà thiếu quyền thì nút đó vô nghĩa, phải
+              nói rõ là nhờ admin cấp chứ đừng bắt người ta bấm lại. */}
+          {!user ? (
+            <>
+              <p className="mt-2 text-sm text-zinc-500">
+                Trang này chỉ dành cho quản trị viên. Hãy đăng nhập bằng tài khoản admin.
+                Tài khoản <strong className="font-medium text-zinc-700">đăng ký đầu tiên</strong>{" "}
+                của hệ thống tự động là admin.
+              </p>
+              <Link
+                href="/login"
+                className="mt-5 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+              >
+                Đăng nhập
+              </Link>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-zinc-500">
+              Tài khoản{" "}
+              <strong className="font-medium text-zinc-700">{user.email}</strong> không có
+              quyền quản trị. Liên hệ quản trị viên của CLB để được cấp quyền.
+            </p>
+          )}
         </div>
       </div>
     );

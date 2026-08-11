@@ -12,6 +12,7 @@ dependencies = [
 
     # ---- Config & validation ----
     "pydantic>=2.0",
+    "pydantic-settings>=2.0",
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0",
 
@@ -21,17 +22,29 @@ dependencies = [
     "langchain-community>=0.3.0",
     "langchain-openai>=0.3.0",
     "langchain-qdrant>=0.2.0",
+    "langchain-text-splitters>=0.3.0",
+    "openai>=1.0.0",
 
     # ---- Auth (T-51). Băm mật khẩu dùng hashlib.scrypt của thư viện chuẩn
     # nên không cần bcrypt/argon2; chỉ JWT là phải thêm. ----
     "pyjwt>=2.8",
 
-    # ---- Vector store ----
+    # ---- Persistence ----
     "qdrant-client>=1.12.0",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    "minio>=7.2",
 
     # ---- Document parsing ----
     "pypdf>=5.0.0",
     "docx2txt>=0.8",
+
+    # ---- Media pipeline ----
+    "sherpa-onnx>=1.12.0",
+    "numpy>=1.26",
+    "huggingface-hub>=0.25",
+    "httpx>=0.27",
+    "pillow>=10.0",
 ]
 
 [build-system]
@@ -46,6 +59,7 @@ dev = [
 ]
 
 [tool.uv.build-backend]
+module-root = "."
 module-name = "src"
 source-include = ["Resources/**"]
 
