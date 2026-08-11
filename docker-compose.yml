@@ -1,6 +1,22 @@
-# Hạ tầng local [P0-1 · T-01] — postgres + qdrant + minio + api.
-# Chạy:  docker compose up -d   →  docker compose ps  (cả 4 service healthy)
+# Toàn bộ hệ thống chạy trong Docker [P0-1 · T-01]:
+#   hạ tầng  postgres · qdrant · minio
+#   ứng dụng api (8000) · mcp (8091) · chatbot (2024) · web (3000)
+#
+# Chạy:  docker compose up -d --build   →  docker compose ps
 # Không có .env → api vẫn boot với default (sqlite + storage filesystem).
+#
+# `embedding-server` nằm ngoài mặc định (profile `gpu`) — xem cuối file.
+#
+# Chuỗi phụ thuộc là web → chatbot → mcp → api, nên khi lần lỗi thì đi ngược
+# chiều đó: web trắng kết quả thường là api 503 chứ không phải lỗi giao diện.
+#
+# Bốn service ứng dụng đọc chung .env ở gốc repo qua `env_file`, rồi `environment`
+# ghi đè đúng những biến mang tên máy: trong mạng compose, localhost là chính
+# container đó chứ không phải máy thật. `environment` luôn thắng `env_file`.
+x-env-file: &env-file
+  - path: .env
+    required: false
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -132,6 +148,95 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  mcp:
+    build: ./mcp
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file: *env-file
+    environment:
+      # Tool gọi FastAPI qua tên service, không phải localhost.
+      MCP_BASE_URL: http://api:8000
+      MCP_CONFIG_PATH: ./mcp/Resources/dev.yaml
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8091
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-streamable-http}
+      MCP_SERVER_NAME: ${MCP_SERVER_NAME:-internal_rules_rag}
+      MCP_TIMEOUT_SECONDS: ${MCP_TIMEOUT_SECONDS:-60}
+    ports:
+      - "8091:8091"
+    healthcheck:
+      # Chỉ kiểm tra cổng đã mở. MCP streamable-http không có endpoint health, và
+      # GET trần vào /mcp trả 406 (thiếu Accept) — đúng nhưng trông như hỏng.
+      test: ["CMD-SHELL", "python -c \"import socket,sys; s=socket.create_connection(('127.0.0.1',8091),2); s.close()\" || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  chatbot:
+    build: ./ChatBot
+    depends_on:
+      mcp:
+        condition: service_healthy
+    env_file: *env-file
+    environment:
+      BASE_MCP_SERVER_URL: http://mcp:8091/mcp
+      BASE_MCP_SERVER_TRANSPORT: ${BASE_MCP_SERVER_TRANSPORT:-streamable_http}
+      LOG_DIR: /app/ChatBot/logs
+      # Bốn khoá LLM: chatbot là chỗ duy nhất sinh câu trả lời, thiếu khoá thì
+      # tool vẫn chạy, retrieval vẫn ra kết quả, chỉ khâu tổng hợp chết.
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+    ports:
+      - "2024:2024"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:2024/ok',timeout=3)\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  web:
+    build:
+      context: ./web
+      args:
+        # Cả bốn đọc lúc build, không phải lúc chạy — xem web/Dockerfile.
+        # Hai cái dưới đi vào bundle trình duyệt: để tương đối thì trình duyệt
+        # chỉ gọi về cổng 3000 nó đang mở, nên đổi IP máy chủ không phải build
+        # lại. Điền IP tuyệt đối vào đây là khoá cứng ảnh vào một máy chủ.
+        BACKEND_API_ORIGIN: http://api:8000
+        BACKEND_LANGGRAPH_ORIGIN: http://chatbot:2024
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/backend}
+        NEXT_PUBLIC_LANGGRAPH_URL: ${NEXT_PUBLIC_LANGGRAPH_URL:-/langgraph}
+    depends_on:
+      api:
+        condition: service_healthy
+      chatbot:
+        condition: service_started
+    ports:
+      - "3000:3000"
+
+  # Máy chủ nhúng jina-clip-v2 tự host. KHÔNG chạy mặc định: cần GPU và ~3,5GB
+  # trọng số nướng vào ảnh, còn đường dùng thật là RunPod Serverless (xem
+  # `build_media_embedder()`). Bật khi muốn chạy hoàn toàn ngoại tuyến:
+  #   docker compose --profile gpu up -d embedding-server
+  # rồi đặt MEDIA_IMAGE_EMBEDDING_BASE_URL=http://embedding-server:8100 cho api.
+  embedding-server:
+    profiles: ["gpu"]
+    build: ./embedding_server
+    ports:
+      - "8100:8100"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 
 volumes:

@@ -1,0 +1,9 @@
+# .next của máy thật KHÔNG được lọt vào context: `next build` trong container sẽ
+# ghi đè lên bản dev đang chạy ở cổng 3000 nếu hai bên dùng chung thư mục, và
+# copy vào cũng chỉ làm ảnh phình thêm vài trăm MB rồi bị build ghi đè.
+.next/
+node_modules/
+.env.local
+.env.local.*
+tsconfig.tsbuildinfo
+npm-debug.log*
