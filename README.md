@@ -61,7 +61,7 @@ Các nhóm biến quan trọng trong `.env`:
 | Đăng nhập | `AUTH_SECRET_KEY` tối thiểu 16 ký tự |
 | Tìm media | Một trong hai đường: `MEDIA_IMAGE_EMBEDDING_BASE_URL` + `JINA_API_KEY`, hoặc `JINA_RUNPOD_ENDPOINT_ID` + `RUNPOD_API_KEY` |
 | Tìm nội quy | `EMBEDDING_BASE_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL` |
-| Caption/OCR và xử lý video | Nhóm `MEDIA_VISION_*` và `RUNPOD_*`; chỉ cần khi chạy pipeline ngoại tuyến/admin |
+| OCR → caption và xử lý video | Nhóm `MEDIA_VISION_*` (giữ `MEDIA_VISION_TWO_PASS=true`) và `RUNPOD_*`; chỉ cần khi chạy pipeline ngoại tuyến/admin |
 | Xem media từ máy khác | `MINIO_PUBLIC_ENDPOINT` và `MINIO_PUBLIC_SECURE` |
 
 Không chép `RUNPOD_API_KEY` sang `JINA_API_KEY`: khoá thứ hai là Bearer token
@@ -96,9 +96,10 @@ docker compose up -d --build
 docker compose ps         # 7 service: postgres · qdrant · minio · api · mcp · chatbot · web
 ```
 
-Mở <http://localhost:3000>. Trình duyệt chỉ nói chuyện với cổng 3000; Next chuyển
-tiếp nội bộ sang `api` (8000) và `chatbot` (2024), nên hai cổng đó không cần mở
-ra ngoài và không có chuyện CORS.
+Mở <http://localhost:3000>. Các request API/chat của trình duyệt chỉ đi qua cổng
+3000; Next chuyển tiếp nội bộ sang `api` (8000) và `chatbot` (2024), nên hai cổng
+đó không cần mở ra ngoài. Riêng ảnh/video đi thẳng tới endpoint S3 của MinIO sau
+phản hồi 307 như mô tả ở phần triển khai public bên dưới.
 
 | Service | Cổng | Vai trò |
 | --- | --- | --- |
@@ -118,10 +119,14 @@ Một stack mới **không có dữ liệu nghiệp vụ**: Postgres chỉ có b
 có media và Qdrant chưa có vector. Container healthy không có nghĩa là chatbot
 đã có gì để trả lời.
 
-Nạp thử nội quy có sẵn trong repo sau khi đã cấu hình nhánh text embedding:
+Tạo tài khoản admin đầu tiên qua `/login`, đăng nhập, rồi nạp thử nội quy có sẵn
+trong repo sau khi đã cấu hình nhánh text embedding. `ADMIN_TOKEN` là trường
+`access_token` do `POST /api/auth/login` trả về:
 
 ```bash
-curl -f -F 'file=@public/Nội Quy CLB 2022.docx.pdf' \
+ADMIN_TOKEN='<access-token-cua-admin>'
+curl -f -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -F 'file=@public/Nội Quy CLB 2022.docx.pdf' \
   http://localhost:8000/api/documents/upload
 ```
 
@@ -184,7 +189,7 @@ phải truy cập được từ trình duyệt; production nên đưa nó qua HT
 thẳng cổng 9000 ra internet.
 
 > **Cấu hình compose hiện tại chỉ phù hợp máy dev tin cậy.** Nó publish 5432,
-> 6333/6334, 8000, 8091, 2024 và 9001 trên `0.0.0.0`; LangGraph còn chạy
+> 6333/6334, 8000, 8091, 2024, 9000 và 9001 trên `0.0.0.0`; LangGraph còn chạy
 > `auth=noop`. Trên máy chủ công khai phải bind các cổng nội bộ về `127.0.0.1`,
 > đổi toàn bộ mật khẩu mặc định, chặn 9001, đặt firewall/security group và dùng
 > HTTPS qua reverse proxy. Chỉ public 3000 và endpoint S3 cần cho presigned URL;
@@ -272,7 +277,7 @@ code**.
 | Ảnh, keyframe video, lời thoại, **và câu truy vấn** | `jina-clip-v2` (1024-d, cosine) | `media_clip` + `video_transcript` — **dùng chung**, đây là tính chất load-bearing |
 | Văn bản nội quy | Azure `text-embedding-3-small` (1536-d) | `rag_documents_azure_1536` — tách hẳn |
 | ASR | `hynt/Zipformer-30M-RNNT-6000h` (sherpa-onnx) | |
-| Caption + OCR (một lượt gọi trả cả hai) | `Qwen3-VL-8B-Instruct` tự host trên RunPod (vLLM) | |
+| OCR trước → caption sau (caption nhận chữ OCR làm bối cảnh) | `Qwen3-VL-8B-Instruct` tự host trên RunPod (vLLM) | |
 | Tổng hợp câu trả lời | `LLM_PROVIDER:LLM_MODEL` trong `ChatBot/` | |
 
 Media và lời thoại **chung một không gian** là lý do `VideoRetrievalService`
@@ -320,9 +325,10 @@ So sánh mô hình nhúng văn bản (Jina-CLIP v2 thắng Azure trên chính kh
 
 ## Phạm vi v1 và những gì để lại cho v2
 
-Đã chốt **không** làm trong v1: agentic RAG, tìm kiếm lai theo từ khoá, rerank,
-lọc theo đối tượng phát hiện được, miền `privacy`. Ngoài ra còn hai chỗ đã biết
-là chưa đủ tốt:
+Đã chốt **không** làm trong v1: agentic RAG, tìm kiếm lai theo từ khoá, rerank
+bằng mô hình/cross-encoder, lọc theo đối tượng phát hiện được, miền `privacy`.
+Nhánh nội quy vẫn có bước xếp lại nhẹ bằng keyword boost sau truy hồi vector.
+Ngoài ra còn hai chỗ đã biết là chưa đủ tốt:
 
 - **Tool `search_media` của MCP mới chỉ nhận văn bản.** Hỏi bằng ảnh thì thẻ kết
   quả là truy hồi ảnh→ảnh thật, nhưng phần *lời văn* của câu trả lời vẫn dựa
