@@ -9,12 +9,25 @@ import { UserIcon } from "./icons";
 export function TopBar() {
   const [user, setUser] = useState<UserOut | null>(null);
   const [ready, setReady] = useState(false);
+  const [authError, setAuthError] = useState(false);
+  const [authAttempt, setAuthAttempt] = useState(0);
 
   useEffect(() => {
+    let active = true;
+    setReady(false);
+    setAuthError(false);
     me()
-      .then(setUser)
-      .finally(() => setReady(true));
-  }, []);
+      .then((currentUser) => {
+        if (active) setUser(currentUser);
+      })
+      .catch(() => {
+        if (active) setAuthError(true);
+      })
+      .finally(() => {
+        if (active) setReady(true);
+      });
+    return () => { active = false; };
+  }, [authAttempt]);
 
   function logout() {
     setToken(null);
@@ -38,6 +51,14 @@ export function TopBar() {
         <div className="flex items-center gap-3 text-sm">
           {!ready ? (
             <div className="shimmer h-6 w-20 rounded-full" />
+          ) : authError ? (
+            <button
+              type="button"
+              onClick={() => setAuthAttempt((attempt) => attempt + 1)}
+              className="text-sm text-amber-700 hover:text-amber-900"
+            >
+              Không kiểm tra được tài khoản · Thử lại
+            </button>
           ) : user ? (
             <>
               {user.role === "admin" && (

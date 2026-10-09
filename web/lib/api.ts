@@ -107,7 +107,8 @@ export async function me(): Promise<UserOut | null> {
   const t = getToken();
   if (!t) return null;
   const res = await fetch(`${API_URL}/api/auth/me`, { headers: authHeaders() });
-  if (!res.ok) return null;
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
@@ -130,7 +131,7 @@ export async function uploadMedia(form: FormData): Promise<UploadResult> {
 }
 
 export async function uploadRegulations(form: FormData): Promise<RegulationResult> {
-  const res = await fetch(`${API_URL}/ingest/regulations`, {
+  const res = await fetch(`${API_URL}/api/documents/upload`, {
     method: "POST",
     headers: authHeaders(),
     body: form,

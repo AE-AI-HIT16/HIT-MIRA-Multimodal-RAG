@@ -29,9 +29,12 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(REPO_ROOT / ".env")
 
+from src.configuration import AppConfig  # noqa: E402
+
 THU_MUC = REPO_ROOT / "data" / "eval"
 NGUON = THU_MUC / "eval_queries.yaml"
 DICH = THU_MUC / "eval_queries.json"
+COLLECTION_NOI_QUY = str(AppConfig().qdrant.collection_name or "").strip()
 
 # Mỗi mục khai `truong` để nói rõ nhãn dò ở đâu. Tách caption khỏi OCR là cố ý:
 # vector trong `media_clip` là vector của HÌNH ẢNH, nên nhãn theo caption đo
@@ -45,7 +48,7 @@ COLLECTION_THEO_LOAI = {
     "media_image": "media_clip",
     "media_image_ocr": "media_clip",
     "media_transcript": "video_transcript",
-    "regulation": "rag_documents",
+    "regulation": COLLECTION_NOI_QUY,
 }
 # Chỉ số chính chỉ tính trên các loại này; phần còn lại báo cáo riêng.
 LOAI_VAO_CHI_SO_CHINH = ("media_image", "media_transcript", "regulation")
@@ -58,7 +61,7 @@ def chuan_hoa(gia_tri: Any) -> str:
 
 def _khoa_don_vi(collection: str, payload: dict[str, Any], point_id: Any) -> str:
     """Định danh ổn định của một đơn vị truy hồi, khớp với thứ API trả về."""
-    if collection == "rag_documents":
+    if collection == COLLECTION_NOI_QUY:
         return str(payload.get("chunk_id") or point_id)
     return str(payload.get("unit_id") or point_id)
 
@@ -137,7 +140,8 @@ def main() -> int:
     client = QdrantClient(
         url=os.environ["QDRANT_URL"], api_key=os.environ.get("QDRANT_API_KEY") or None
     )
-    kho = {ten: tai_collection(client, ten) for ten in ("media_clip", "video_transcript", "rag_documents")}
+    collections = ("media_clip", "video_transcript", COLLECTION_NOI_QUY)
+    kho = {ten: tai_collection(client, ten) for ten in collections}
     for ten, muc_list in kho.items():
         print(f"{ten:18} {len(muc_list)} đơn vị")
 

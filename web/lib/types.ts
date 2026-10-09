@@ -140,7 +140,7 @@ export interface TokenOut {
 }
 
 export interface UserOut {
-  id: number;
+  user_id: string;
   email: string;
   name: string | null;
   role: string;
@@ -164,9 +164,13 @@ export interface UploadResult {
 }
 
 export interface RegulationResult {
-  regulation_id: number;
-  n_chunks: number;
-  needs_review: boolean;
+  document_id: string;
+  filename: string;
+  total_pages: number;
+  total_documents: number;
+  total_chunks: number;
+  status: "completed";
+  errors: string[];
 }
 
 export interface EvalReport {
