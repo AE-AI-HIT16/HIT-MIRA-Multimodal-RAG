@@ -92,18 +92,51 @@ function IndexRow({
 
 export default function AdminPage() {
   const [user, setUser] = useState<UserOut | null | undefined>(undefined);
+  const [authError, setAuthError] = useState(false);
+  const [authAttempt, setAuthAttempt] = useState(0);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [report, setReport] = useState<EvalReport | null>(null);
 
   useEffect(() => {
-    me().then((u) => {
-      setUser(u);
-      if (u?.role === "admin") {
-        adminStats().then(setStats).catch(() => setStats(null));
-        evalReport().then(setReport).catch(() => setReport(null));
-      }
-    });
-  }, []);
+    let active = true;
+    setUser(undefined);
+    setAuthError(false);
+    me()
+      .then((u) => {
+        if (!active) return;
+        setUser(u);
+        if (u?.role === "admin") {
+          adminStats().then(setStats).catch(() => setStats(null));
+          evalReport().then(setReport).catch(() => setReport(null));
+        }
+      })
+      .catch(() => {
+        if (active) setAuthError(true);
+      });
+    return () => { active = false; };
+  }, [authAttempt]);
+
+  if (authError) {
+    return (
+      <div className="min-h-[100dvh]">
+        <TopBar />
+        <main className="mx-auto max-w-xl px-4 py-16">
+          <Section
+            title="Không thể kiểm tra tài khoản"
+            desc="API chưa xác minh được tài khoản lúc này. Phiên đăng nhập của bạn vẫn được giữ; hãy thử lại sau."
+          >
+            <button
+              type="button"
+              onClick={() => setAuthAttempt((attempt) => attempt + 1)}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-ink"
+            >
+              Thử lại
+            </button>
+          </Section>
+        </main>
+      </div>
+    );
+  }
 
   if (user === undefined) {
     return (
@@ -438,28 +471,22 @@ function UploadRegulationForm({ onDone }: { onDone: () => void }) {
   return (
     <Section
       title="Nạp nội quy"
-      desc="File .md/.txt theo Điều/Khoản. Nạp version mới cùng tiêu đề sẽ lưu trữ bản cũ, chỉ bản mới được phục vụ."
+      desc="File PDF hoặc DOCX được tách thành các đoạn và index vào kho nội quy ngay sau khi nạp."
     >
-      <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Tệp nội quy" hint=".md hoặc .txt">
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <Field label="Tệp nội quy" hint=".pdf hoặc .docx">
             <input
               type="file"
               name="file"
               required
-              accept=".md,.txt"
+              accept=".pdf,.docx"
               className="text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-3 file:py-2 file:text-sm file:text-white"
             />
           </Field>
         </div>
-        <Field label="Tiêu đề">
-          <input name="title" required className={inputCls} placeholder="Nội quy CLB Tin học HIT" />
-        </Field>
-        <Field label="Phiên bản">
-          <input name="version" defaultValue="1" className={inputCls} />
-        </Field>
 
-        <div className="sm:col-span-2 space-y-3">
+        <div className="space-y-3">
           <button
             disabled={busy}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-all hover:bg-accent-ink active:scale-[0.99] disabled:opacity-60"
@@ -469,8 +496,8 @@ function UploadRegulationForm({ onDone }: { onDone: () => void }) {
           {error && <ResultLine ok={false}>{error}</ResultLine>}
           {result && (
             <ResultLine ok>
-              Đã tách {result.n_chunks} điều/khoản (văn bản #{result.regulation_id})
-              {result.needs_review && " · có mục cần review"}
+              Đã index {result.total_chunks} đoạn từ {result.filename}
+              {result.total_pages > 0 && ` · ${result.total_pages} trang`}
             </ResultLine>
           )}
         </div>

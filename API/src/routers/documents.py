@@ -14,6 +14,7 @@ from src.rag_noiquy.embedding.embedding_service import EmbeddingService
 from src.rag_noiquy.pipeline import DocumentCleaner, DocumentParser, RAGPipelineService, StructureAwareChunker
 from src.rag_noiquy.pipeline.ingest import IngestService
 from src.rag_noiquy.vector_store.vector_store import QdrantVectorStore
+from src.routers.auth import yeu_cau_admin
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -62,6 +63,7 @@ def ensure_completed(result: dict[str, Any]) -> dict[str, Any]:
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    _admin: Any = Depends(yeu_cau_admin),
     file: UploadFile = File(...),
     document_id: str | None = Form(default=None),
     pipeline_service: RAGPipelineService = Depends(get_pipeline_service),
@@ -87,6 +89,7 @@ async def upload_document(
 @router.post("/ingest", status_code=status.HTTP_201_CREATED)
 async def ingest_document(
     request: IngestDocumentRequest,
+    _admin: Any = Depends(yeu_cau_admin),
     pipeline_service: RAGPipelineService = Depends(get_pipeline_service),
 ) -> dict[str, Any]:
     result = await run_in_threadpool(
@@ -101,6 +104,7 @@ async def ingest_document(
 @router.delete("/{document_id}", response_model=DeleteDocumentResponse)
 async def delete_document(
     document_id: str,
+    _admin: Any = Depends(yeu_cau_admin),
     vector_store: QdrantVectorStore = Depends(get_vector_store),
 ) -> DeleteDocumentResponse:
     if not document_id.strip():

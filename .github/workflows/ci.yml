@@ -63,6 +63,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest
+      - name: ruff (cảnh báo, chưa chặn CI)
+        # ChatBot đã khai rule Ruff nhưng còn lỗi style cũ. Hiển thị kết quả
+        # trước; lỗi cài Ruff hay lỗi lint đều không ngăn bước pytest.
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python -m pip install ruff
+          ruff check src tests
       - name: pytest
         run: pytest -q
 

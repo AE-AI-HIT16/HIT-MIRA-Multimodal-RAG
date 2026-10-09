@@ -25,6 +25,7 @@ from typing import Any
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.configuration import AppConfig
 from src.jobs.runner import JobDangChayError, JobRunner
 from src.log.logger import logger
 from src.rag_video_anh.repository.database import get_session_manager
@@ -36,6 +37,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BAO_CAO_TRUY_XUAT = REPO_ROOT / "data" / "eval" / "report.json"
 BAO_CAO_NOI_QUY = REPO_ROOT / "data" / "eval" / "report_noiquy.json"
+COLLECTION_NOI_QUY = str(AppConfig().qdrant.collection_name or "").strip()
 
 JOB_EVAL = "eval"
 # Chỉ hai nhánh media có bước index riêng. Nội quy KHÔNG có mặt ở đây một cách
@@ -114,7 +116,11 @@ def _dem_tai_lieu_noi_quy() -> int:
     try:
         while True:
             diem, offset = _vector_store().client.scroll(
-                "rag_documents", limit=1000, offset=offset, with_payload=["document_id"], with_vectors=False
+                COLLECTION_NOI_QUY,
+                limit=1000,
+                offset=offset,
+                with_payload=["document_id"],
+                with_vectors=False,
             )
             ids.update(str(p.payload["document_id"]) for p in diem if (p.payload or {}).get("document_id"))
             if offset is None:
@@ -137,7 +143,7 @@ def thong_ke(_admin: Any = Depends(yeu_cau_admin)) -> dict[str, int]:
         )
         so_post = int(session.execute(sa.text("select count(*) from posts")).scalar() or 0)
 
-    chunk_noi_quy = _dem_qdrant("rag_documents")
+    chunk_noi_quy = _dem_qdrant(COLLECTION_NOI_QUY)
     return {
         "posts": so_post,
         "images": int(theo_loai.get("image", 0)),
@@ -242,7 +248,7 @@ def bao_cao_danh_gia(_admin: Any = Depends(yeu_cau_admin)) -> dict[str, Any]:
         "Latency đo trong tiến trình, chưa gồm chi phí HTTP — là cận dưới.",
     ]
     theo_loai = truy_xuat.get("theo_loai") or {}
-    so_chunk_noi_quy = _dem_qdrant("rag_documents")
+    so_chunk_noi_quy = _dem_qdrant(COLLECTION_NOI_QUY)
     if (theo_loai.get("regulation") or {}).get("so_truy_van") and so_chunk_noi_quy <= k:
         # Kho nhỏ hơn k thì mọi truy vấn đều trả về toàn bộ kho, nên Recall
         # không thể khác 1.0. Không nói ra thì con số này bị trích như một
